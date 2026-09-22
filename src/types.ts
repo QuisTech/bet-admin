@@ -54,9 +54,11 @@ export interface MatchData {
 
 export interface BankrollConfig {
   totalBankrollNGN: number;  // e.g. 200000 or 1200000 or 10000000
+  totalBankroll: number;     // alias for general formatting
   kellyFraction: number;      // e.g. 0.25 (0.25x Kelly)
   maxStakePercent: number;   // e.g. 0.02 (2%)
   currency: 'NGN' | 'USD';
+  strategyMode: 'safe' | 'value' | 'aggressive';
 }
 
 export interface BacktestMetric {

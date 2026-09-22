@@ -1,0 +1,112 @@
+import React from 'react';
+import { Flame, Clock, ArrowUpRight } from 'lucide-react';
+import type { MatchData } from '../types';
+
+interface TopPicksColumnProps {
+  matches: MatchData[];
+  onSelectMatch: (match: MatchData) => void;
+}
+
+export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
+  matches,
+  onSelectMatch,
+}) => {
+  // Extract all value bets across all matches and sort by highest EV edge
+  const allBargains = matches
+    .flatMap((m) =>
+      m.markets
+        .filter((market) => market.evPercent > 0)
+        .map((market) => ({
+          match: m,
+          market,
+        }))
+    )
+    .sort((a, b) => b.market.evPercent - a.market.evPercent)
+    .slice(0, 5);
+
+  return (
+    <div className="col-span-12 lg:col-span-3 grid grid-cols-1 gap-4 auto-rows-min">
+      {/* Top Value Picks (+EV) Card matching uefa-admin Top Value Picks */}
+      <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-5 flex flex-col shadow-xl backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Flame className="w-4 h-4 text-emerald-400" />
+            <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Top Value Picks (+EV)
+            </h2>
+          </div>
+          <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+            HIGHEST EDGE
+          </span>
+        </div>
+
+        <div className="space-y-3 flex-grow">
+          {allBargains.map((item, idx) => (
+            <div
+              key={`${item.match.id}-${item.market.selection}-${idx}`}
+              onClick={() => onSelectMatch(item.match)}
+              className="flex items-center justify-between border-b border-slate-800 pb-2.5 last:border-0 last:pb-0 hover:bg-slate-800/40 p-1.5 rounded-xl cursor-pointer transition-colors"
+            >
+              <div className="flex flex-col min-w-0 pr-2">
+                <span className="text-xs font-bold text-slate-200 truncate">
+                  {item.market.selection}
+                </span>
+                <span className="text-[10px] text-slate-400 truncate">
+                  {item.match.homeTeam} vs {item.match.awayTeam}
+                </span>
+                <span className="text-[9px] text-slate-500">
+                  {item.market.marketType} • @{item.market.sportyBetOdds.toFixed(2)}
+                </span>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="text-sm font-mono font-bold text-emerald-400">
+                  +{item.market.evPercent.toFixed(1)}%
+                </span>
+                <div className="text-[8px] text-slate-500 uppercase font-bold">Edge EV</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Fixtures Schedule Card matching uefa-admin FixtureList */}
+      <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-5 flex flex-col shadow-xl backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-cyan-400" />
+            <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Match Schedule
+            </h2>
+          </div>
+          <span className="text-[10px] text-slate-500 font-mono">LIVE / UPCOMING</span>
+        </div>
+
+        <div className="space-y-3">
+          {matches.slice(0, 4).map((m) => (
+            <div
+              key={m.id}
+              onClick={() => onSelectMatch(m)}
+              className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 transition cursor-pointer"
+            >
+              <div className="flex items-center justify-between text-[10px] text-slate-400 mb-2">
+                <span className="font-semibold text-emerald-400">{m.league}</span>
+                <span className="font-mono">{m.kickoff}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-bold text-white mb-2">
+                <span>{m.homeTeam}</span>
+                <span className="text-[10px] text-slate-500">VS</span>
+                <span>{m.awayTeam}</span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[10px] text-slate-400 font-mono">
+                <span>xG: {m.homeXG.toFixed(2)} - {m.awayXG.toFixed(2)}</span>
+                <span className="text-cyan-400 font-bold flex items-center gap-0.5">
+                  Analyze <ArrowUpRight className="w-3 h-3" />
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};

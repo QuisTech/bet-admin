@@ -7,6 +7,37 @@ interface ModelDiagnosticsProps {
 }
 
 export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({ match }) => {
+  // Heatmap class helper
+  const heatmapClass = (prob: number) => {
+    if (prob > 0.08) return 'heatmap-cell heatmap-cell--high';
+    if (prob > 0.04) return 'heatmap-cell heatmap-cell--mid';
+    return 'heatmap-cell heatmap-cell--low';
+  };
+
+  const ensembleModels = [
+    {
+      name: 'Dixon-Coles Poisson Model',
+      desc: 'Bivariate Poisson Goal Process',
+      weight: 25,
+      brier: 0.145,
+      color: 'var(--color-indigo)',
+    },
+    {
+      name: 'XGBoost & LightGBM Prop Classifier',
+      desc: 'Player Threat & Match Feature ML',
+      weight: 45,
+      brier: 0.138,
+      color: 'var(--color-fpl-pink)',
+    },
+    {
+      name: 'Pinnacle De-Vigged Market Fusion',
+      desc: "Shin's Method Market Odds De-Vigging",
+      weight: 30,
+      brier: 0.129,
+      color: 'var(--color-amber)',
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -40,34 +71,26 @@ export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({ match }) => 
             <BarChart2 className="w-5 h-5 text-indigo-400" />
           </div>
 
-          {/* 6x6 Matrix Table */}
+          {/* 6x6 Matrix Table with Heatmap */}
           <div className="overflow-x-auto">
-            <table className="w-full text-center text-xs border-collapse">
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 3, textAlign: 'center', fontSize: 11 }}>
               <thead>
-                <tr className="border-b border-slate-800/80 font-bold text-slate-400">
-                  <th className="p-2 text-left">H \ A</th>
+                <tr>
+                  <th style={{ padding: 6, fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textAlign: 'left' }}>H \ A</th>
                   {Array.from({ length: 6 }).map((_, a) => (
-                    <th key={a} className="p-2">{a}</th>
+                    <th key={a} style={{ padding: 6, fontSize: 9, color: 'var(--text-muted)', fontWeight: 700 }}>{a}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/40 font-mono">
+              <tbody>
                 {match.dixonColesMatrix.slice(0, 6).map((row, h) => (
                   <tr key={h}>
-                    <td className="p-2 text-left font-bold text-slate-400">{h}</td>
-                    {row.slice(0, 6).map((prob, a) => {
-                      const isHigh = prob > 0.08;
-                      return (
-                        <td
-                          key={a}
-                          className={`p-2 rounded ${
-                            isHigh ? 'bg-fpl-green/20 font-bold text-fpl-green' : 'text-slate-300'
-                          }`}
-                        >
-                          {(prob * 100).toFixed(1)}%
-                        </td>
-                      );
-                    })}
+                    <td style={{ padding: 6, fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textAlign: 'left' }}>{h}</td>
+                    {row.slice(0, 6).map((prob, a) => (
+                      <td key={a} className={heatmapClass(prob)}>
+                        {(prob * 100).toFixed(1)}%
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -82,38 +105,33 @@ export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({ match }) => 
             <p className="text-xs text-slate-400 mb-4">Walk-Forward Temporal Validation (Out-of-sample)</p>
 
             <div className="space-y-3">
-              <div className="p-3 bg-slate-950/80 rounded-xl flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-slate-200">Dixon-Coles Poisson Model</div>
-                  <div className="text-[11px] text-slate-400">Bivariate Poisson Goal Process</div>
+              {ensembleModels.map((model) => (
+                <div key={model.name} className="p-3 bg-slate-950/80 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">{model.name}</div>
+                      <div className="text-[11px] text-slate-400">{model.desc}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-indigo-400">Weight: {model.weight}%</div>
+                      <div className="text-[10px] text-fpl-green font-mono">Brier: {model.brier}</div>
+                    </div>
+                  </div>
+                  {/* Weight progress bar */}
+                  <div className="prob-bar-container" style={{ height: 4 }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        borderRadius: 'var(--radius-full)',
+                        background: model.color,
+                        width: `${model.weight}%`,
+                        transition: 'width 500ms',
+                        opacity: 0.8,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs font-bold text-indigo-400">Weight: 25%</div>
-                  <div className="text-[10px] text-fpl-green">Brier: 0.145</div>
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-950/80 rounded-xl flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-slate-200">XGBoost & LightGBM Prop Classifier</div>
-                  <div className="text-[11px] text-slate-400">Player Threat & Match Feature ML</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs font-bold text-indigo-400">Weight: 45%</div>
-                  <div className="text-[10px] text-fpl-green">Brier: 0.138</div>
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-950/80 rounded-xl flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-slate-200">Pinnacle De-Vigged Market Fusion</div>
-                  <div className="text-[11px] text-slate-400">Shin's Method Market Odds De-Vigging</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs font-bold text-indigo-400">Weight: 30%</div>
-                  <div className="text-[10px] text-fpl-green">Brier: 0.129</div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -122,11 +140,10 @@ export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({ match }) => 
               <CheckCircle2 className="w-3.5 h-3.5 text-fpl-green" />
               Platt Scaling Calibrated
             </span>
-            <span>Avg CLV Edge: <strong className="text-sky-400">+4.8%</strong></span>
+            <span>Avg CLV Edge: <strong className="text-sky-400 font-mono">+4.8%</strong></span>
           </div>
         </div>
       </div>
     </div>
   );
 };
-

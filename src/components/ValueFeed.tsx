@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Copy, Check, Info, Flame, Shield } from 'lucide-react';
+import { Sparkles, Copy, Check, Info, Flame, Shield, LayoutGrid, Table2 } from 'lucide-react';
 import type { MatchData, BankrollConfig } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
 
@@ -13,6 +13,7 @@ interface ValueFeedProps {
 export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectMatch, riskMode }) => {
   const [filter, setFilter] = useState<'ALL' | 'PROPS' | 'MATCH'>('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'terminal'>('cards');
 
   const strategy = STRATEGY_MODES[riskMode];
 
@@ -90,133 +91,218 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
             </p>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl">
-            <button
-              onClick={() => setFilter('ALL')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
-                filter === 'ALL' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              All Bargains ({allOpportunities.length})
-            </button>
-            <button
-              onClick={() => setFilter('PROPS')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
-                filter === 'PROPS' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Player Props ({playerPropMarkets.length})
-            </button>
-            <button
-              onClick={() => setFilter('MATCH')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
-                filter === 'MATCH' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Match Lines ({matchMarkets.length})
-            </button>
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle */}
+            <div className="view-toggle">
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`view-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`}
+              >
+                <LayoutGrid style={{ width: 14, height: 14 }} />
+                Cards
+              </button>
+              <button
+                onClick={() => setViewMode('terminal')}
+                className={`view-toggle-btn ${viewMode === 'terminal' ? 'active' : ''}`}
+              >
+                <Table2 style={{ width: 14, height: 14 }} />
+                Terminal
+              </button>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl">
+              <button
+                onClick={() => setFilter('ALL')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  filter === 'ALL' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+              >
+                All ({allOpportunities.length})
+              </button>
+              <button
+                onClick={() => setFilter('PROPS')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  filter === 'PROPS' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+              >
+                Props ({playerPropMarkets.length})
+              </button>
+              <button
+                onClick={() => setFilter('MATCH')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  filter === 'MATCH' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+              >
+                Match ({matchMarkets.length})
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {filteredOpportunities.map(opt => (
-          <div key={opt.id} className="glass-card p-6 flex flex-col justify-between gap-5 relative overflow-hidden">
-            <div>
-              {/* Header Info */}
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest bg-slate-950 px-2.5 py-1 rounded">
-                  {opt.match.league} • {opt.match.kickoff}
-                </span>
-                <span className="text-xs font-black px-3 py-1 rounded-full badge-ev flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-fpl-green" />
-                  +{opt.evPercent}% EV Edge
-                </span>
-              </div>
-
-              <h3 className="text-lg font-black text-slate-100 mb-1 tracking-tight">{opt.title}</h3>
-              <p className="text-sm font-bold text-fpl-green mb-4">{opt.selection}</p>
-
-              {/* Odds & Model Comparison Table */}
-              <div className="bg-slate-950/90 rounded-xl p-3 mb-4">
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="p-2 rounded bg-slate-900/60">
-                    <div className="text-[9px] uppercase font-bold text-slate-400">SportyBet Odds</div>
-                    <div className="text-base font-black text-amber-400">{opt.sportyBetOdds.toFixed(2)}</div>
-                  </div>
-                  <div className="p-2 rounded bg-slate-900/60">
-                    <div className="text-[9px] uppercase font-bold text-slate-400">Pinnacle Fair Odds</div>
-                    <div className="text-base font-black text-slate-300">{opt.pinnacleOdds.toFixed(2)}</div>
-                  </div>
-                  <div className="p-2 rounded bg-slate-900/60">
-                    <div className="text-[9px] uppercase font-bold text-slate-400">Model Fair Prob</div>
-                    <div className="text-base font-black text-sky-400">{(opt.modelProb * 100).toFixed(1)}%</div>
-                  </div>
-                </div>
-
-                {/* Model Probability Visual Progress Bar */}
-                <div className="mt-3">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1">
-                    <span>Model Confidence Bar</span>
-                    <span className="text-fpl-green font-mono">{(opt.modelProb * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-fpl-green to-sky-400 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min(100, opt.modelProb * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
+      {/* ===== QUANT TERMINAL TABLE VIEW ===== */}
+      {viewMode === 'terminal' && (
+        <div className="glass-card overflow-hidden" style={{ padding: 0 }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="quant-table">
+              <thead>
+                <tr>
+                  <th>Match</th>
+                  <th>Selection</th>
+                  <th style={{ textAlign: 'right' }}>SportyBet</th>
+                  <th style={{ textAlign: 'right' }}>Pinnacle</th>
+                  <th style={{ textAlign: 'right' }}>Model Prob</th>
+                  <th style={{ textAlign: 'right' }}>+EV%</th>
+                  <th style={{ textAlign: 'right' }}>Kelly Stake</th>
+                  <th style={{ textAlign: 'center' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOpportunities.map(opt => (
+                  <tr key={opt.id} onClick={() => onSelectMatch(opt.match)}>
+                    <td className="col-match">{opt.title}</td>
+                    <td className="col-selection">{opt.selection}</td>
+                    <td className="col-odds" style={{ textAlign: 'right' }}>{opt.sportyBetOdds.toFixed(2)}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{opt.pinnacleOdds.toFixed(2)}</td>
+                    <td className="col-prob" style={{ textAlign: 'right' }}>{(opt.modelProb * 100).toFixed(1)}%</td>
+                    <td className="col-ev" style={{ textAlign: 'right' }}>+{opt.evPercent.toFixed(1)}%</td>
+                    <td className="col-stake" style={{ textAlign: 'right' }}>₦{opt.stakeNGN.toLocaleString()}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCopySignal(opt); }}
+                        style={{
+                          background: copiedId === opt.id ? 'var(--color-fpl-green)' : 'var(--bg-elevated)',
+                          color: copiedId === opt.id ? 'var(--bg-primary)' : 'var(--text-secondary)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          fontFamily: 'Inter, sans-serif',
+                          transition: 'all 150ms',
+                        }}
+                      >
+                        {copiedId === opt.id ? '✓' : 'Copy'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filteredOpportunities.length === 0 && (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              No signals match current strategy filters.
             </div>
+          )}
+        </div>
+      )}
 
-            {/* Stake Calculation & Action Button Box */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-800/60 gap-3">
+      {/* ===== CARDS VIEW ===== */}
+      {viewMode === 'cards' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {filteredOpportunities.map(opt => (
+            <div key={opt.id} className="glass-card p-6 flex flex-col justify-between gap-5 relative overflow-hidden">
               <div>
-                <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-fpl-green" />
-                  Recommended Stake ({strategy.name}):
-                </div>
-                <div className="text-base font-black text-fpl-green mt-0.5">
-                  ₦{opt.stakeNGN.toLocaleString()} NGN
-                  <span className="text-xs font-medium text-slate-400 ml-1.5">
-                    (Returns ₦{Math.round(opt.stakeNGN * opt.sportyBetOdds).toLocaleString()})
+                {/* Header Info */}
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest bg-slate-950 px-2.5 py-1 rounded">
+                    {opt.match.league} • {opt.match.kickoff}
+                  </span>
+                  <span className="text-xs font-black px-3 py-1 rounded-full badge-ev flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-fpl-green" />
+                    +{opt.evPercent}% EV Edge
                   </span>
                 </div>
+
+                <h3 className="text-lg font-black text-slate-100 mb-1 tracking-tight">{opt.title}</h3>
+                <p className="text-sm font-bold text-fpl-green mb-4">{opt.selection}</p>
+
+                {/* Odds & Model Comparison Table */}
+                <div className="bg-slate-950/90 rounded-xl p-3 mb-4">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2 rounded bg-slate-900/60">
+                      <div className="text-[9px] uppercase font-bold text-slate-400">SportyBet Odds</div>
+                      <div className="text-base font-black text-amber-400 font-mono">{opt.sportyBetOdds.toFixed(2)}</div>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900/60">
+                      <div className="text-[9px] uppercase font-bold text-slate-400">Pinnacle Fair Odds</div>
+                      <div className="text-base font-black text-slate-300 font-mono">{opt.pinnacleOdds.toFixed(2)}</div>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900/60">
+                      <div className="text-[9px] uppercase font-bold text-slate-400">Model Fair Prob</div>
+                      <div className="text-base font-black text-sky-400 font-mono">{(opt.modelProb * 100).toFixed(1)}%</div>
+                    </div>
+                  </div>
+
+                  {/* Model Probability Visual Progress Bar */}
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1">
+                      <span>Model Confidence</span>
+                      <span className="text-fpl-green font-mono">{(opt.modelProb * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="prob-bar-container">
+                      <div
+                        className="prob-bar-fill"
+                        style={{ width: `${Math.min(100, opt.modelProb * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onSelectMatch(opt.match)}
-                  className="p-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 transition-colors"
-                  title="Inspect Model Diagnostics"
-                >
-                  <Info className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleCopySignal(opt)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-fpl-green hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all shadow-lg shadow-fpl-green/20"
-                >
-                  {copiedId === opt.id ? (
-                    <>
-                      <Check className="w-4 h-4" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      Copy Signal
-                    </>
-                  )}
-                </button>
+              {/* Stake Calculation & Action Button Box */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-800/60 gap-3">
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
+                    <Shield className="w-3 h-3 text-fpl-green" />
+                    Recommended Stake ({strategy.name}):
+                  </div>
+                  <div className="text-base font-black text-fpl-green mt-0.5 font-mono">
+                    ₦{opt.stakeNGN.toLocaleString()} NGN
+                    <span className="text-xs font-medium text-slate-400 ml-1.5">
+                      (Returns ₦{Math.round(opt.stakeNGN * opt.sportyBetOdds).toLocaleString()})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onSelectMatch(opt.match)}
+                    className="p-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 transition-colors"
+                    title="Inspect Model Diagnostics"
+                    style={{ border: 'none', cursor: 'pointer' }}
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleCopySignal(opt)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-fpl-green hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all shadow-lg shadow-fpl-green/20"
+                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                  >
+                    {copiedId === opt.id ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        Copy Signal
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
-

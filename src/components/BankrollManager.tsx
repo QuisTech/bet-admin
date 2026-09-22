@@ -49,6 +49,7 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
                       ? 'bg-fpl-green text-slate-950'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
                 >
                   ₦{(pool / 1000).toFixed(0)}k
                 </button>
@@ -60,6 +61,7 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 strategy === 'COMPOUND' ? 'bg-sky-400 text-slate-950 shadow-md' : 'text-slate-400 bg-slate-950'
               }`}
+              style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
             >
               100% Compounding
             </button>
@@ -68,6 +70,7 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 strategy === 'HYBRID' ? 'bg-sky-400 text-slate-950 shadow-md' : 'text-slate-400 bg-slate-950'
               }`}
+              style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
             >
               Hybrid Plan (Recommended)
             </button>
@@ -76,6 +79,7 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 strategy === 'INCOME' ? 'bg-sky-400 text-slate-950 shadow-md' : 'text-slate-400 bg-slate-950'
               }`}
+              style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
             >
               Monthly Salary
             </button>
@@ -90,8 +94,8 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Bankroll Pool</span>
             <DollarSign className="w-4 h-4 text-fpl-green" />
           </div>
-          <div className="text-2xl font-extrabold text-slate-100">
-            ₦{config.totalBankrollNGN.toLocaleString()} NGN
+          <div className="text-2xl font-extrabold text-slate-100 font-mono">
+            ₦{config.totalBankrollNGN.toLocaleString()} <span className="text-sm text-slate-400">NGN</span>
           </div>
           <p className="text-xs text-slate-400 mt-1">100% Capital Pool Allocation</p>
         </div>
@@ -101,8 +105,8 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Per-Bet Safe Stake (2% Max)</span>
             <ShieldAlert className="w-4 h-4 text-sky-400" />
           </div>
-          <div className="text-2xl font-extrabold text-sky-400">
-            ₦{Math.round(config.totalBankrollNGN * config.maxStakePercent).toLocaleString()} NGN
+          <div className="text-2xl font-extrabold text-sky-400 font-mono">
+            ₦{Math.round(config.totalBankrollNGN * config.maxStakePercent).toLocaleString()} <span className="text-sm text-slate-400">NGN</span>
           </div>
           <p className="text-xs text-slate-400 mt-1">Fractional Kelly (0.25x) Enforced</p>
         </div>
@@ -112,8 +116,8 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Est. Month 1 Net Profit</span>
             <Award className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-2xl font-extrabold text-amber-400">
-            +₦{Math.round(config.totalBankrollNGN * 0.12).toLocaleString()} NGN
+          <div className="text-2xl font-extrabold text-amber-400 font-mono">
+            +₦{Math.round(config.totalBankrollNGN * 0.12).toLocaleString()} <span className="text-sm text-slate-400">NGN</span>
           </div>
           <p className="text-xs text-slate-400 mt-1">Based on +EV Edge across ~30 bets</p>
         </div>
@@ -133,24 +137,32 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="quant-table">
             <thead>
-              <tr className="border-b border-slate-800/80 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                <th className="py-3 px-4">Timeline</th>
-                <th className="py-3 px-4">Bankroll Pool</th>
-                <th className="py-3 px-4">Safe 2% Bet Stake</th>
-                <th className="py-3 px-4">Est. Monthly Net Profit</th>
-                <th className="py-3 px-4">Strategy Milestone</th>
+              <tr>
+                <th>Timeline</th>
+                <th style={{ textAlign: 'right' }}>Bankroll Pool</th>
+                <th style={{ textAlign: 'right' }}>Safe 2% Stake</th>
+                <th style={{ textAlign: 'right' }}>Est. Monthly Profit</th>
+                <th>Milestone</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/40 text-sm">
+            <tbody>
               {timeline.map(t => (
-                <tr key={t.month} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3.5 px-4 font-bold text-slate-300">Month {t.month}</td>
-                  <td className="py-3.5 px-4 font-extrabold text-slate-100">₦{t.pool.toLocaleString()} NGN</td>
-                  <td className="py-3.5 px-4 font-bold text-sky-400">₦{t.stake.toLocaleString()} NGN</td>
-                  <td className="py-3.5 px-4 font-bold text-fpl-green">+₦{t.estMonthlyProfit.toLocaleString()} NGN</td>
-                  <td className="py-3.5 px-4 text-xs font-medium text-slate-400">
+                <tr key={t.month}>
+                  <td style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                    Month {t.month}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    ₦{t.pool.toLocaleString()}
+                  </td>
+                  <td className="col-prob" style={{ textAlign: 'right' }}>
+                    ₦{t.stake.toLocaleString()}
+                  </td>
+                  <td className="col-ev" style={{ textAlign: 'right' }}>
+                    +₦{t.estMonthlyProfit.toLocaleString()}
+                  </td>
+                  <td style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-muted)' }}>
                     {t.month === 1 && '🚀 Starter Launch'}
                     {t.month === 3 && '📈 Pool Doubled (+100%)'}
                     {t.month === 6 && '🎯 High-Roller Scale Threshold'}
@@ -165,4 +177,3 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
     </div>
   );
 };
-
