@@ -1,4 +1,5 @@
 import React from 'react';
+import { Globe } from 'lucide-react';
 import type { BankrollConfig } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
 
@@ -6,12 +7,18 @@ interface HeaderProps {
   config: BankrollConfig;
   onConfigChange: (newConfig: BankrollConfig) => void;
   activeSignalCount: number;
+  onOpenSettings?: () => void;
+  isOddsLive?: boolean;
+  isFplLive?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   config,
   onConfigChange,
   activeSignalCount,
+  onOpenSettings,
+  isOddsLive = false,
+  isFplLive = false,
 }) => {
   return (
     <header className="col-span-12 flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between mb-4">
@@ -79,15 +86,24 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Model Odds Feed Toggle */}
+          {/* Model Odds Feed & Settings Toggle */}
           <div className="flex flex-col w-full sm:w-auto">
             <span className="text-[10px] uppercase tracking-widest text-slate-400 text-left sm:text-right font-medium">
-              Odds Benchmark
+              Data Feeds
             </span>
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg mt-1 border border-slate-800">
-              <span className="px-2.5 py-1 text-[10px] rounded font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                PINNACLE DE-VIG
-              </span>
+            <div className="flex items-center gap-1.5 mt-1">
+              <button
+                onClick={onOpenSettings}
+                className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-extrabold rounded-lg bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500/40 transition cursor-pointer"
+              >
+                <Globe className="w-3 h-3 text-emerald-400" />
+                <span>{isOddsLive ? 'LIVE ODDS' : 'SHIN PINNACLE'}</span>
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isFplLive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                  }`}
+                />
+              </button>
             </div>
           </div>
         </div>

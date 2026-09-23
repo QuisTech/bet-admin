@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MetricsColumn } from './components/MetricsColumn';
 import { TopPicksColumn } from './components/TopPicksColumn';
@@ -6,9 +6,12 @@ import { ValueFeed } from './components/ValueFeed';
 import { BankrollManager } from './components/BankrollManager';
 import { ModelDiagnostics } from './components/ModelDiagnostics';
 import { StakingCalculator } from './components/StakingCalculator';
+import { ApiSettingsModal } from './components/ApiSettingsModal';
 import type { MatchData, BankrollConfig } from './types';
-import { fetchLiveFPLData, BASE_MATCHES } from './data/matchRepository';
+import { BASE_MATCHES } from './data/matchRepository';
 import { STRATEGY_MODES } from './models/strategyMode';
+import { fetchLiveFPLBootstrap } from './services/fplService';
+import { fetchLiveOddsFeed } from './services/oddsService';
 
 export default function App() {
   const [config, setConfig] = useState<BankrollConfig>({
@@ -24,13 +27,37 @@ export default function App() {
   const [matches, setMatches] = useState<MatchData[]>(BASE_MATCHES);
   const [selectedMatch, setSelectedMatch] = useState<MatchData | null>(null);
 
-  useEffect(() => {
-    fetchLiveFPLData().then((liveMatches) => {
-      if (liveMatches && liveMatches.length > 0) {
-        setMatches(liveMatches);
+  // Live Feed Status States
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isFplLive, setIsFplLive] = useState(false);
+  const [isOddsLive, setIsOddsLive] = useState(false);
+  const [oddsSource, setOddsSource] = useState('Pinnacle Benchmark');
+
+  const syncDataFeeds = useCallback(async (customOddsKey?: string) => {
+    // 1. Fetch live FPL stats via proxy
+    try {
+      const fplData = await fetchLiveFPLBootstrap();
+      setIsFplLive(fplData.isLive);
+    } catch {
+      setIsFplLive(false);
+    }
+
+    // 2. Fetch live odds feed
+    try {
+      const oddsResult = await fetchLiveOddsFeed(customOddsKey);
+      setIsOddsLive(oddsResult.isLive);
+      setOddsSource(oddsResult.source);
+      if (oddsResult.matches && oddsResult.matches.length > 0) {
+        setMatches(oddsResult.matches);
       }
-    });
+    } catch {
+      setIsOddsLive(false);
+    }
   }, []);
+
+  useEffect(() => {
+    syncDataFeeds();
+  }, [syncDataFeeds]);
 
   const currentMode = config.strategyMode || 'safe';
   const strategy = STRATEGY_MODES[currentMode];
@@ -61,6 +88,9 @@ export default function App() {
           config={config}
           onConfigChange={setConfig}
           activeSignalCount={activeSignals}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          isOddsLive={isOddsLive}
+          isFplLive={isFplLive}
         />
 
         {/* Left Metrics Column (Col 1-3) */}
@@ -150,6 +180,16 @@ export default function App() {
           onClose={() => setSelectedMatch(null)}
         />
       )}
+
+      {/* Live Data Feeds / Odds API Key Modal */}
+      <ApiSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onRefresh={(customKey) => syncDataFeeds(customKey)}
+        isFplLive={isFplLive}
+        isOddsLive={isOddsLive}
+        oddsSource={oddsSource}
+      />
     </div>
   );
 }
