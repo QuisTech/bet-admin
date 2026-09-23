@@ -331,11 +331,13 @@ export async function fetchLiveOddsFeed(
       const evDraw = Math.round((consensusDraw.consensusProb * bestRetailDraw - 1.0) * 1000) / 10;
       const evAway = Math.round((consensusAway.consensusProb * bestRetailAway - 1.0) * 1000) / 10;
 
-      // 9. Double Chance (1X: Home or Draw) -> Perfect for SAFE Mode (>65% Win Prob)
-      const domain1X = Math.min(0.92, Math.round((dc.homeWinProb + dc.drawProb) * 1000) / 1000);
-      const ml1X = Math.min(0.94, mlProbs.pHome + mlProbs.pDraw);
+      // 9. Double Chance (1X: Home or Draw) -> Derived from retail 1X2 lines and Shin de-vigged fair lines
+      const domain1X = Math.round((dc.homeWinProb + dc.drawProb) * 1000) / 1000;
+      const ml1X = Math.round((mlProbs.pHome + mlProbs.pDraw) * 1000) / 1000;
       const consensus1X = evaluateConsensus(domain1X, ml1X);
-      const retail1X = Math.round((1 / (consensus1X.consensusProb * 0.93)) * 100) / 100;
+      // Synthetic retail double chance from combined retail lines
+      const retail1X = Math.round((1 / ((1 / bestRetailHome) + (1 / bestRetailDraw))) * 100) / 100;
+      const pinnacle1X = Math.round((1 / Math.max(0.01, fairHomeProb + fairDrawProb)) * 100) / 100;
       const ev1X = Math.round((consensus1X.consensusProb * retail1X - 1.0) * 1000) / 10;
 
       // 10. Totals (Over 2.5)
@@ -410,14 +412,14 @@ export async function fetchLiveOddsFeed(
           marketType: '1X2',
           selection: `${fix.home_team} or Draw (1X)`,
           sportyBetOdds: retail1X,
-          pinnacleOdds: Math.round((1 / consensus1X.consensusProb) * 100) / 100,
+          pinnacleOdds: pinnacle1X,
           ensembleProb: consensus1X.consensusProb,
           domainProb: domain1X,
           trainedMlProb: Math.round(ml1X * 1000) / 1000,
           consensusProb: consensus1X.consensusProb,
           modelDelta: Math.round(consensus1X.delta * 1000) / 1000,
           consensusLevel: consensus1X.level,
-          evPercent: Math.max(3.2, ev1X), // High prob bankroll lock
+          evPercent: ev1X,
           recommendedStakePercent: 0.025,
           models: [
             { modelId: 'dixon_coles', modelName: 'Dixon-Coles Joint Matrix', probability: domain1X, uncertainty: 0.015 },

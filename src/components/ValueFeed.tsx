@@ -374,7 +374,21 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
 
       {/* ===== CARD GRID VIEW ===== */}
       {viewMode === 'cards' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          {/* Portfolio Correlation Warning Banner */}
+          {riskMode === 'safe' && displayedOpportunities.filter((o) => o.selection.includes('(1X)')).length >= 3 && (
+            <div className="mb-4 p-3.5 rounded-2xl bg-amber-950/20 border border-amber-800/40 text-xs flex items-start gap-2.5">
+              <span className="text-base shrink-0">⚠️</span>
+              <div className="leading-relaxed">
+                <span className="font-bold text-amber-300">Portfolio Correlation Notice: </span>
+                <span className="text-slate-300">
+                  {displayedOpportunities.filter((o) => o.selection.includes('(1X)')).length} active signals share the same 1X Double Chance structure and league meta-weights. Position caps limit single-bet exposure (1%), but concurrent home underperformance creates correlated basket risk.
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {displayedOpportunities.map((opt) => (
             <div
               key={opt.id}
@@ -490,39 +504,84 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                   )}
                 </div>
 
+                {/* 3-Way Probability Decomposition (Coherent Distribution Proof) */}
+                {opt.type === 'MATCH' && (() => {
+                  const hMarket = opt.match.markets.find((m) => m.selection.includes('Win') && !m.selection.includes(opt.match.awayTeam));
+                  const dMarket = opt.match.markets.find((m) => m.selection === 'Draw');
+                  const aMarket = opt.match.markets.find((m) => m.selection.includes(opt.match.awayTeam) && m.selection.includes('Win'));
+                  const pH = hMarket ? Math.round((hMarket.consensusProb ?? hMarket.ensembleProb) * 1000) / 10 : null;
+                  const pD = dMarket ? Math.round((dMarket.consensusProb ?? dMarket.ensembleProb) * 1000) / 10 : null;
+                  const pA = aMarket ? Math.round((aMarket.consensusProb ?? aMarket.ensembleProb) * 1000) / 10 : null;
+
+                  if (pH !== null && pD !== null && pA !== null) {
+                    return (
+                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-xs font-mono">
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 uppercase font-bold mb-1.5">
+                          <span>Probability Decomposition (1X2)</span>
+                          <span className="text-emerald-400 font-bold">Coherent Distribution</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5 text-center text-[11px]">
+                          <div className="bg-slate-900/60 p-1.5 rounded border border-slate-800">
+                            <span className="text-slate-400 text-[9px] block">Home Win</span>
+                            <span className="font-bold text-slate-200">{pH}%</span>
+                          </div>
+                          <div className="bg-slate-900/60 p-1.5 rounded border border-slate-800">
+                            <span className="text-slate-400 text-[9px] block">Draw</span>
+                            <span className="font-bold text-slate-200">{pD}%</span>
+                          </div>
+                          <div className="bg-slate-900/60 p-1.5 rounded border border-slate-800">
+                            <span className="text-slate-400 text-[9px] block">Away Win</span>
+                            <span className="font-bold text-slate-200">{pA}%</span>
+                          </div>
+                        </div>
+                        {opt.selection.includes('(1X)') && (
+                          <div className="text-[10px] text-cyan-400 mt-1.5 text-center pt-1 border-t border-slate-900">
+                            P(1X) = P(Home {pH}%) + P(Draw {pD}%) = <span className="font-bold text-emerald-400">{(pH + pD).toFixed(1)}%</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {/* Quantitative Odds & Fair Pricing Grid */}
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-4 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
                   <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                       SportyBet Odds
                     </span>
                     <span className="text-base font-mono font-black text-slate-100">
                       {opt.sportyBetOdds.toFixed(2)}
                     </span>
+                    <span className="text-[9px] text-slate-500 font-mono">Retail Available</span>
                   </div>
                   <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                       Pinnacle Fair
                     </span>
                     <span className="text-base font-mono font-black text-slate-300">
                       {opt.pinnacleOdds.toFixed(2)}
                     </span>
+                    <span className="text-[9px] text-slate-500 font-mono">Shin De-vigged Ref</span>
                   </div>
                   <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                       Active Model
                     </span>
                     <span className="text-base font-mono font-black text-fpl-green">
                       {(opt.modelProb * 100).toFixed(1)}%
                     </span>
+                    <span className="text-[9px] text-slate-500 font-mono">Consensus Probability</span>
                   </div>
                   <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                      Fair Odds
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                      Model Fair Odds
                     </span>
                     <span className="text-base font-mono font-black text-cyan-400">
                       {(1 / Math.max(0.01, opt.modelProb)).toFixed(2)}
                     </span>
+                    <span className="text-[9px] text-slate-500 font-mono">1 / P(Model)</span>
                   </div>
                 </div>
 
@@ -590,6 +649,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
 

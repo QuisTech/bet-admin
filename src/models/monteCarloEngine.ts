@@ -93,9 +93,9 @@ export function runMonteCarloSimulation(config: MonteCarloConfig): MonteCarloRes
     maxDrawdowns[s] = maxDD;
   }
 
-  // Sort ending bankrolls to extract percentiles
-  endingBankrolls.sort();
-  maxDrawdowns.sort();
+  // Sort ending bankrolls to extract percentiles (using numeric comparator)
+  endingBankrolls.sort((a, b) => a - b);
+  maxDrawdowns.sort((a, b) => a - b);
 
   const p5Idx = Math.floor(numSims * 0.05);
   const p50Idx = Math.floor(numSims * 0.50);

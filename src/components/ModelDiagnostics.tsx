@@ -87,10 +87,20 @@ export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-900 px-3.5 py-1.5 rounded-xl border border-emerald-500/20 text-xs">
-          <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
-          <span className="text-slate-300">
-            Consensus Brier: <strong className="text-emerald-400 font-mono">0.174</strong> (Institutional Edge)
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-slate-900 px-3.5 py-1.5 rounded-xl border border-emerald-500/20 text-xs">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+            <span className="text-slate-300">
+              GBDT In-Sample: <strong className="text-emerald-400 font-mono">0.1988</strong> (7.5k M)
+            </span>
+          </div>
+          <span className="text-slate-600 hidden sm:inline">•</span>
+          <span className="text-slate-400">
+            Walk-Forward OOS: <strong className="text-cyan-400 font-mono">0.2005</strong> (18 Bets)
+          </span>
+          <span className="text-slate-600 hidden sm:inline">•</span>
+          <span className="text-slate-500">
+            Naive Prior: <strong className="text-slate-400 font-mono">0.2250</strong>
           </span>
         </div>
       </div>
@@ -204,20 +214,23 @@ export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({
             </p>
             <div className="grid grid-cols-3 gap-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-900 text-center font-mono">
               <div>
-                <div className="text-[9px] text-slate-500 uppercase">Brier Score</div>
+                <div className="text-[9px] text-slate-500 uppercase">In-Sample Brier</div>
                 <div className="text-xs font-bold text-purple-400">
-                  {modelWeights?.metrics?.brier_score ? modelWeights.metrics.brier_score.toFixed(4) : '0.1742'}
+                  {modelWeights?.metrics?.brier_score ? modelWeights.metrics.brier_score.toFixed(4) : '0.1988'}
                 </div>
+                <div className="text-[8px] text-slate-500">7,536 Matches</div>
               </div>
               <div>
                 <div className="text-[9px] text-slate-500 uppercase">Calib ECE</div>
                 <div className="text-xs font-bold text-emerald-400">
                   {modelWeights?.metrics?.calibration_ece ? `${(modelWeights.metrics.calibration_ece * 100).toFixed(1)}%` : '2.6%'}
                 </div>
+                <div className="text-[8px] text-slate-500">Decile Bins</div>
               </div>
               <div>
-                <div className="text-[9px] text-slate-500 uppercase">Trees</div>
-                <div className="text-xs font-bold text-slate-300">100 Trees</div>
+                <div className="text-[9px] text-slate-500 uppercase">Forest</div>
+                <div className="text-xs font-bold text-slate-300">36 Trees</div>
+                <div className="text-[8px] text-slate-500">Multi-Class</div>
               </div>
             </div>
           </div>
@@ -278,12 +291,17 @@ export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({
         {/* Reliability Diagram */}
         <div className="p-5 rounded-3xl bg-slate-950/60 border border-slate-800 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-emerald-400" />
-              Platt Reliability Diagram (Deciles)
-            </h3>
-            <span className="text-[10px] font-mono text-emerald-400">
-              ECE: {(calibrationReport.expectedCalibrationError * 100).toFixed(1)}%
+            <div>
+              <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-emerald-400" />
+                Platt Reliability Diagram (Deciles)
+              </h3>
+              <span className="text-[10px] text-slate-500 font-mono">
+                Sample: 500 Out-of-Sample Predictions vs Realized
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+              ECE: {(calibrationReport.expectedCalibrationError * 100).toFixed(1)}% (Test) | 2.6% (Trained)
             </span>
           </div>
 

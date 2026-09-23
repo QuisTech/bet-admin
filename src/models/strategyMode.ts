@@ -14,15 +14,15 @@ export interface StrategyModeConfig {
 export const STRATEGY_MODES: Record<'safe' | 'risky' | 'value', StrategyModeConfig> = {
   safe: {
     id: 'safe',
-    name: 'SAFE (Bankroll Shield)',
+    name: 'SAFE (Capital Preservation)',
     badgeClass: 'badge-safe',
     minProb: 0.65,
     minEV: 3.0,
     kellyMultiplier: 0.15,
     maxStakePercent: 0.01, // 1% max stake
     oddsRange: '1.30 – 1.70',
-    description: 'High-probability match locks with strict 1% stake capping to protect your pool.',
-    justification: 'Filters for matches with >65% win probability. Uses conservative 0.15x Fractional Kelly to ensure near-zero drawdown risk while maintaining high hit-rate consistency.'
+    description: 'High-probability selections with conservative 0.15× Fractional Kelly sizing (1% cap).',
+    justification: 'Filters for high win-probability matches (>65%). Conservative 0.15x Fractional Kelly minimizes volatility and reduces drawdown risk. Note: Position caps limit single-bet loss, but cannot eliminate correlation or systemic model risk across multiple bets.'
   },
   risky: {
     id: 'risky',
