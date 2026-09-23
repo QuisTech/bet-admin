@@ -209,11 +209,33 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right Column (Col 10-12 -> col-span-12 lg:col-span-3) */}
         <TopPicksColumn
           matches={matches}
           onSelectMatch={(m) => setSelectedMatch(m)}
         />
+
+        {/* Footer & Quant Disclaimer */}
+        <footer className="col-span-12 mt-8 pt-6 pb-4 border-t border-slate-900/80 text-center text-xs text-slate-500 space-y-2">
+          <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] font-mono">
+            <span className="text-slate-400 font-bold">BET HORIZON v1.0.0</span>
+            <span className="text-slate-700">•</span>
+            <span>Dual-Pipeline Ensemble (Dixon-Coles & XGBoost)</span>
+            <span className="text-slate-700">•</span>
+            <span>Evolutionary Strategy Meta-Learner</span>
+            <span className="text-slate-700">•</span>
+            <a
+              href="https://github.com/QuisTech/bet-admin"
+              target="_blank"
+              rel="noreferrer"
+              className="text-cyan-400 hover:text-cyan-300 hover:underline"
+            >
+              GitHub (MIT License)
+            </a>
+          </div>
+          <p className="text-[11px] text-slate-500 max-w-3xl mx-auto leading-relaxed">
+            <strong>Decision-Support Tool Only:</strong> BET HORIZON does not accept wagers, place bets, or provide real-money gambling services. All probabilities and expected values are mathematical estimations for research and educational purposes. Users are strictly responsible for local legal compliance and responsible bankroll management. Past statistical edge is not indicative of future results.
+          </p>
+        </footer>
       </div>
 
       {/* Staking Calculator Modal */}

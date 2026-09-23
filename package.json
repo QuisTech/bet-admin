@@ -1,7 +1,8 @@
 {
   "name": "bet-admin",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "homepage": "https://bet-admin-iota.vercel.app/",
   "type": "module",
   "scripts": {
     "dev": "vite",

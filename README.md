@@ -1,49 +1,66 @@
-# BET HORIZON | AI-Powered Sports Betting Optimization Platform
+﻿# BET HORIZON | AI-Powered Sports Betting Optimization Platform
 
-Outsmart traditional bookmakers with **BET HORIZON**. Modeled on the quantitative architecture of **FPL Horizon**, **BET HORIZON** leverages **Dixon-Coles Bivariate Poisson Matrices**, **Shin's Market De-Vigging Method**, **XGBoost Player Prop Regressors**, and **Fractional Kelly Staking Algorithms** to identify price mismatches (+EV bargains) and manage capital growth without emotional drawdown risk.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-bet--admin--iota.vercel.app-emerald?style=for-the-badge&logo=vercel)](https://bet-admin-iota.vercel.app/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![React 19](https://img.shields.io/badge/React-19-cyan?style=for-the-badge&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+
+Outsmart traditional bookmakers with **BET HORIZON**. Designed for quantitative research and decision support, **BET HORIZON** leverages **Dixon-Coles Bivariate Poisson Matrices**, **Shin's Market De-Vigging Method**, **Offline-Trained XGBoost Regressors**, and an **Evolutionary Strategy (Genetic Algorithm) Meta-Learner** to identify mathematical price mismatches (+EV bargains) and optimize capital growth with Fractional Kelly sizing.
+
+---
+
+## 🌐 Live Deployment
+
+👉 **Production Application:** [https://bet-admin-iota.vercel.app/](https://bet-admin-iota.vercel.app/)
+
+- **Immediate Access**: Loads with a pre-baked European benchmark dataset across the Premier League, La Liga, Serie A, Bundesliga, Ligue 1, and Champions League.
+- **Optional Live Feed**: Paste your free [The Odds API](https://the-odds-api.com/) key in the settings modal to instantly switch to real-time sportsbook lines and live FPL player data.
 
 ---
 
 ## 🌟 Key Features & Quantitative Modules
 
-### 1. 🎯 Live Price Mismatch (+EV) Bargain Feed
-- **Pinnacle Market Fusion:** Strips bookmaker overround (margin/vig) using Shin's Method to compute the true, un-biased market probability.
-- **+EV Edge Calculation:** Automatically highlights mispriced odds on bookmaker platforms (e.g. SportyBet) where the offered price exceeds model fair value.
-- **Copy Signal:** One-click copying of structured signal payloads formatted for telegram/whatsapp sharing.
+### 1. 🎯 Dual-Pipeline Machine Learning & Consensus Engine
+- **Pipeline 1: Domain Ensemble (Live Champion)**: Bivariate Dixon-Coles Poisson matrices, low-score tau corrections, and Shin (1993) Pinnacle de-vigging.
+- **Pipeline 2: Trained XGBoost (Offline Challenger)**: 100 gradient-boosted decision trees trained on 5 complete European football seasons (~9,500 matches) with Platt scaling calibration.
+- **Dynamic Consensus Blend**: Evaluates consensus probability, model delta spread, and flags divergence alerts.
 
-### 2. 🧮 Dixon-Coles Poisson Scoreline Matrix
-- Computes exact home vs away score probabilities using a bivariate Poisson distribution.
-- Integrates tau-adjustment parameter to correct for low-score correlation biases (0-0, 1-0, 0-1, 1-1 scorelines).
+### 2. 🧬 Evolutionary Strategy (ES) Meta-Learner
+- In-browser genetic algorithm simulating **150 generations of natural selection, crossover, and mutation**.
+- Optimizes blending weights ($\alpha$ Domain vs $\beta$ XGBoost) and Kelly multipliers per league.
+- Pre-evolved Pareto-optimal factory weights for the Big 5 European leagues + Champions League.
 
-### 3. 🤖 XGBoost Player Prop Regression Engine
-- Regresses player prop lines (Anytime Goalscorer, Shots on Target, Assists) using expected goals per 90 (xG/90), expected assists (xA/90), fixture difficulty ratings, and predicted minutes (xMins).
+### 3. 🛡️ Fractional Kelly Bankroll Allocator & Safety Modes
+- **SAFE Mode (1% Max Stake • 0.15x Kelly)**: Capital preservation targeting high-probability match locks (odds 1.15–1.70).
+- **VALUE Mode (2% Max Stake • 0.25x Kelly — Default)**: Optimal logarithmic compounding growth (+8% EV edge).
+- **RISKY Mode (3% Max Stake • 0.50x Kelly)**: Aggressive growth targeting mispriced longshots (+15% EV edge).
 
-### 4. 🛡️ Fractional Kelly Bankroll Manager & Capital Allocator
-- Enforces strict 1%–3% per-bet staking limits based on fractional Kelly criterion (0.15x to 0.50x Kelly multiplier).
-- Eliminates tilt, revenge betting, and emotional over-leveraging.
-- Interactive 9-month compounding timeline projection assuming a +12% target monthly yield.
+### 4. 🧮 Empirical Bayesian Shrinkage for Player Props
+- Regresses small sample sizes (< 450 minutes) toward positional baselines, preventing distortions on substitute players.
+- Restricts Anytime Goalscorer lines strictly to starters with $\ge 50$ expected minutes.
 
-### 5. ⚙️ 3 Distinct Strategy Modes
-- **SAFE Mode (1% Max Stake • 0.15x Kelly):** Capital preservation mode targeting high-probability match locks (odds 1.30–1.70) with minimal variance.
-- **VALUE Mode (2% Max Stake • 0.25x Kelly — Default):** The mathematical sweet spot for optimal logarithmic compounding growth (+8% EV edge, odds 1.75–2.45).
-- **RISKY Mode (3% Max Stake • 0.50x Kelly):** High-yield mode targeting major bookmaker mispriced longshots (+15% EV edge, odds 2.50+).
+### 5. ⚡ Multi-Criteria Sort & Quant Terminal
+- Instant sorting by:
+  - 🚀 **Highest +EV Edge (%)**
+  - 🛡️ **Highest Win Probability (%)**
+  - 🎯 **Strongest Model Agreement (Lowest Spread)**
+  - 💰 **Highest Projected Profit (₦)**
+  - 🔒 **Heavy Favorites First (Low Odds)**
+  - ⚡ **Value Underdogs First (High Odds)**
 
 ---
 
 ## 🛠️ Tech Stack & Design System
 
-- **Framework:** React 19 + TypeScript + Vite
-- **Styling:** TailwindCSS with custom FPL Horizon dark theme design system
-  - `--color-fpl-green`: `#00ff85`
-  - `--color-fpl-pink`: `#ff005a`
-  - `--color-fpl-purple`: `#37003c`
-  - `--color-card-bg`: `#0f172a`
-- **Icons:** Lucide React (`lucide-react`)
-- **Deployment:** Vercel
+- **Framework**: React 19 + TypeScript + Vite
+- **Styling**: TailwindCSS with bespoke Obsidian Dark Theme design system
+- **Charts & Graphs**: Recharts + Custom SVG Genetic Convergence Curves
+- **Icons**: Lucide React (lucide-react)
+- **Hosting**: Vercel (Static Client-Side SPA)
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting Started Locally
 
 ### Prerequisites
 - Node.js 18+
@@ -52,39 +69,37 @@ Outsmart traditional bookmakers with **BET HORIZON**. Modeled on the quantitativ
 ### Installation
 
 1. Clone the repository:
-   ```bash
+   `ash
    git clone https://github.com/QuisTech/bet-admin.git
    cd bet-admin
-   ```
+   `
 
 2. Install dependencies:
-   ```bash
+   `ash
    npm install
-   ```
+   `
 
 3. Start the development server on port 3010:
-   ```bash
+   `ash
    npm run dev -- --port 3010
-   ```
+   `
 
 4. Open your browser at [http://localhost:3010/](http://localhost:3010/).
 
 ### Production Build
 
-To build the static bundle for production:
-```bash
+`ash
 npm run build
-```
+`
 
 ---
 
-## 🌐 Live Links & Deployment
+## 📄 License
 
-- **GitHub Repository:** [https://github.com/QuisTech/bet-admin](https://github.com/QuisTech/bet-admin)
-- **Production Deployment:** [https://bet-admin-aqkq0p55y-quistechs-projects.vercel.app](https://bet-admin-aqkq0p55y-quistechs-projects.vercel.app)
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## ⚠️ Disclaimer
 
-BET HORIZON is an analytical decision-support and expected value (+EV) research tool. It does not facilitate real-money gambling or bookmaking services. Always practice responsible bankroll management.
+**Decision-Support Tool Only:** BET HORIZON is an analytical research and expected value (+EV) calculation engine. It does not accept wagers, place bets, or operate as a gambling operator. All odds, probabilities, and model projections are mathematical estimations for educational and decision-support purposes only. Users are strictly responsible for adhering to their local gambling laws and practicing responsible bankroll management. Past statistical edge is not indicative of future results.
