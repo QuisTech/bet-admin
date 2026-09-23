@@ -95,18 +95,41 @@ export async function fetchLiveFPLBootstrap(): Promise<FPLBootstrapData> {
 }
 
 /**
- * Transforms an FPL player into feature inputs for our XGBoost Prop Engine.
+ * Transforms an FPL player into feature inputs for our XGBoost Prop Engine,
+ * applying Bayesian shrinkage to small sample sizes and realistic expected minutes.
  */
 export function buildPlayerPropFeatures(
   player: FPLPlayer,
   opponentTeam: FPLTeam | null,
   isHome: boolean
 ): PlayerFeatures {
-  const xG90 = parseFloat(player.expected_goals_per_90) || 0;
-  const xA90 = parseFloat(player.expected_assists_per_90) || 0;
+  const rawXG90 = parseFloat(player.expected_goals_per_90) || 0;
+  const rawXA90 = parseFloat(player.expected_assists_per_90) || 0;
 
-  // Estimate expected minutes based on historical season minutes and injury status
-  let xMins = player.minutes > 600 ? 85 : player.minutes > 200 ? 70 : 45;
+  // Bayesian shrinkage for small sample sizes:
+  // Forward: ~0.30 xG90 baseline, Midfielder: ~0.16 xG90 baseline, Defender: ~0.05 xG90 baseline
+  const baselineXG = player.element_type === 4 ? 0.30 : player.element_type === 3 ? 0.16 : 0.05;
+  const baselineXA = player.element_type === 4 ? 0.12 : player.element_type === 3 ? 0.18 : 0.08;
+
+  // Weight towards empirical data increases with sample size (confidence reaches 1.0 at 450 minutes = 5 full games)
+  const sampleConfidence = Math.min(1.0, Math.max(0.12, (player.minutes || 0) / 450));
+  const xG90 = Math.round((rawXG90 * sampleConfidence + baselineXG * (1.0 - sampleConfidence)) * 100) / 100;
+  const xA90 = Math.round((rawXA90 * sampleConfidence + baselineXA * (1.0 - sampleConfidence)) * 100) / 100;
+
+  // Realistic expected minutes based on historical playing time
+  // Starter: > 450 mins -> 80 mins
+  // Rotation Starter: 250-450 mins -> 60 mins
+  // Regular Sub: 100-250 mins -> 30 mins
+  // Bench / Fringe Sub: < 100 mins -> 15 mins
+  let xMins =
+    player.minutes > 450
+      ? 80
+      : player.minutes > 250
+      ? 60
+      : player.minutes > 100
+      ? 30
+      : 15;
+
   if (player.chance_of_playing_next_round === 0) xMins = 0;
   else if (player.chance_of_playing_next_round === 50) xMins = Math.round(xMins * 0.5);
   else if (player.chance_of_playing_next_round === 75) xMins = Math.round(xMins * 0.75);

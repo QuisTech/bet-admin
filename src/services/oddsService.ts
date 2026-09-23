@@ -448,26 +448,26 @@ export async function fetchLiveOddsFeed(
       const playerProps: PlayerProp[] = [];
       const homeTeamObj = fplData ? findFplTeam(fix.home_team, fplData.teams) : null;
       const awayTeamObj = fplData ? findFplTeam(fix.away_team, fplData.teams) : null;
-
       if (fplData && fplData.players && fplData.players.length > 0) {
+        // Select established squad members (>= 90 minutes) and rank by total goal involvement volume
         const homePlayers = homeTeamObj
           ? fplData.players
-              .filter((p) => p.team === homeTeamObj.id && p.status === 'a')
+              .filter((p) => p.team === homeTeamObj.id && p.status === 'a' && p.minutes >= 90)
               .sort(
                 (a, b) =>
-                  parseFloat(b.expected_goal_involvements_per_90) -
-                  parseFloat(a.expected_goal_involvements_per_90)
+                  parseFloat(b.expected_goal_involvements_per_90) * (b.minutes / 90) -
+                  parseFloat(a.expected_goal_involvements_per_90) * (a.minutes / 90)
               )
               .slice(0, 2)
           : [];
 
         const awayPlayers = awayTeamObj
           ? fplData.players
-              .filter((p) => p.team === awayTeamObj.id && p.status === 'a')
+              .filter((p) => p.team === awayTeamObj.id && p.status === 'a' && p.minutes >= 90)
               .sort(
                 (a, b) =>
-                  parseFloat(b.expected_goal_involvements_per_90) -
-                  parseFloat(a.expected_goal_involvements_per_90)
+                  parseFloat(b.expected_goal_involvements_per_90) * (b.minutes / 90) -
+                  parseFloat(a.expected_goal_involvements_per_90) * (a.minutes / 90)
               )
               .slice(0, 1)
           : [];
@@ -516,8 +516,8 @@ export async function fetchLiveOddsFeed(
             recommendedStakePercent: 0.015,
           });
 
-          // Prop 2: Anytime Goalscorer
-          if (domainPred.anytimeGoalProb >= 0.28) {
+          // Prop 2: Anytime Goalscorer (Only evaluate for regular starters with >= 50 expected minutes)
+          if (domainPred.anytimeGoalProb >= 0.28 && features.xMins >= 50) {
             const domainGoal = domainPred.anytimeGoalProb;
             const mlGoal = computeTrainedMlPropProbability(
               'GOAL',
