@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Copy, Check, Info, Flame, Shield, LayoutGrid, Table2 } from 'lucide-react';
+import { Sparkles, Copy, Check, Info, Flame, Shield, LayoutGrid, Table2, Filter } from 'lucide-react';
 import type { MatchData, BankrollConfig } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
 
@@ -14,6 +14,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
   const [filter, setFilter] = useState<'ALL' | 'PROPS' | 'MATCH'>('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'terminal'>('cards');
+  const [showAllMarkets, setShowAllMarkets] = useState(false);
 
   const strategy = STRATEGY_MODES[riskMode];
 
@@ -57,9 +58,27 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
 
   const allOpportunities = [...matchMarkets, ...playerPropMarkets].sort((a, b) => b.evPercent - a.evPercent);
 
-  const filteredOpportunities = allOpportunities.filter(o => {
-    if (o.modelProb < strategy.minProb && riskMode === 'safe') return false;
-    if (o.evPercent < strategy.minEV) return false;
+  // Evaluate whether each opportunity satisfies the selected strategy
+  const opportunitiesWithStatus = allOpportunities.map(o => {
+    const meetsProb = o.modelProb >= strategy.minProb || riskMode !== 'safe';
+    const meetsEV = o.evPercent >= strategy.minEV;
+    const qualifies = meetsProb && meetsEV;
+    return {
+      ...o,
+      qualifies,
+      filterReason: !meetsProb
+        ? `Model Prob ${(o.modelProb * 100).toFixed(1)}% < ${Math.round(strategy.minProb * 100)}% SAFE floor`
+        : !meetsEV
+        ? `EV +${o.evPercent}% < +${strategy.minEV}% min threshold`
+        : null
+    };
+  });
+
+  const qualifyingOpportunities = opportunitiesWithStatus.filter(o => o.qualifies);
+  const qualifyingProps = qualifyingOpportunities.filter(o => o.type === 'PROPS');
+  const qualifyingMatches = qualifyingOpportunities.filter(o => o.type === 'MATCH');
+
+  const displayedOpportunities = (showAllMarkets ? opportunitiesWithStatus : qualifyingOpportunities).filter(o => {
     if (filter === 'PROPS') return o.type === 'PROPS';
     if (filter === 'MATCH') return o.type === 'MATCH';
     return true;
@@ -91,7 +110,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {/* View Mode Toggle */}
             <div className="view-toggle">
               <button
@@ -111,36 +130,58 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
             </div>
 
             {/* Filter Pills */}
-            <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl">
+            <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
               <button
                 onClick={() => setFilter('ALL')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
                   filter === 'ALL' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
                 }`}
-                style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                style={{ border: 'none', fontFamily: 'Inter, sans-serif' }}
               >
-                All ({allOpportunities.length})
-              </button>
-              <button
-                onClick={() => setFilter('PROPS')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
-                  filter === 'PROPS' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
-                }`}
-                style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-              >
-                Props ({playerPropMarkets.length})
+                All ({showAllMarkets ? allOpportunities.length : qualifyingOpportunities.length})
               </button>
               <button
                 onClick={() => setFilter('MATCH')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
                   filter === 'MATCH' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
                 }`}
-                style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                style={{ border: 'none', fontFamily: 'Inter, sans-serif' }}
               >
-                Match ({matchMarkets.length})
+                Match Lines ({showAllMarkets ? matchMarkets.length : qualifyingMatches.length})
+              </button>
+              <button
+                onClick={() => setFilter('PROPS')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  filter === 'PROPS' ? 'bg-fpl-green text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                style={{ border: 'none', fontFamily: 'Inter, sans-serif' }}
+              >
+                Props ({showAllMarkets ? playerPropMarkets.length : qualifyingProps.length})
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Strategy Context & Filter Toggle Bar */}
+        <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="text-slate-400 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>
+              Showing <strong className="text-slate-200">{displayedOpportunities.length}</strong> {showAllMarkets ? 'total market opportunities' : `opportunities meeting ${strategy.name} threshold`} (from {matches.length} matches).
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowAllMarkets(!showAllMarkets)}
+            className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all border cursor-pointer flex items-center gap-1.5 ${
+              showAllMarkets
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+            }`}
+          >
+            <Filter className="w-3 h-3" />
+            {showAllMarkets ? 'Switch to Strategy-Filtered Only' : `View All ${allOpportunities.length} Opportunities (${allOpportunities.length - qualifyingOpportunities.length} in other modes)`}
+          </button>
         </div>
       </div>
 
@@ -157,19 +198,27 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
                   <th style={{ textAlign: 'right' }}>Pinnacle</th>
                   <th style={{ textAlign: 'right' }}>Model Prob</th>
                   <th style={{ textAlign: 'right' }}>+EV%</th>
+                  <th style={{ textAlign: 'right' }}>Status</th>
                   <th style={{ textAlign: 'right' }}>Kelly Stake</th>
                   <th style={{ textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredOpportunities.map(opt => (
-                  <tr key={opt.id} onClick={() => onSelectMatch(opt.match)}>
+                {displayedOpportunities.map(opt => (
+                  <tr key={opt.id} onClick={() => onSelectMatch(opt.match)} className={!opt.qualifies ? 'opacity-60 bg-slate-950/40' : ''}>
                     <td className="col-match">{opt.title}</td>
                     <td className="col-selection">{opt.selection}</td>
                     <td className="col-odds" style={{ textAlign: 'right' }}>{opt.sportyBetOdds.toFixed(2)}</td>
                     <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{opt.pinnacleOdds.toFixed(2)}</td>
                     <td className="col-prob" style={{ textAlign: 'right' }}>{(opt.modelProb * 100).toFixed(1)}%</td>
                     <td className="col-ev" style={{ textAlign: 'right' }}>+{opt.evPercent.toFixed(1)}%</td>
+                    <td style={{ textAlign: 'right', fontSize: 10, fontFamily: 'monospace' }}>
+                      {opt.qualifies ? (
+                        <span className="text-emerald-400 font-bold">✓ Active</span>
+                      ) : (
+                        <span className="text-amber-400">Locked ({opt.filterReason})</span>
+                      )}
+                    </td>
                     <td className="col-stake" style={{ textAlign: 'right' }}>₦{opt.stakeNGN.toLocaleString()}</td>
                     <td style={{ textAlign: 'center' }}>
                       <button
@@ -195,9 +244,9 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
               </tbody>
             </table>
           </div>
-          {filteredOpportunities.length === 0 && (
+          {displayedOpportunities.length === 0 && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              No signals match current strategy filters.
+              No signals match current strategy filters. Switch to <strong>VALUE</strong> or <strong>RISKY</strong> mode above.
             </div>
           )}
         </div>
@@ -206,8 +255,13 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
       {/* ===== CARDS VIEW ===== */}
       {viewMode === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredOpportunities.map(opt => (
-            <div key={opt.id} className="glass-card p-6 flex flex-col justify-between gap-5 relative overflow-hidden">
+          {displayedOpportunities.map(opt => (
+            <div
+              key={opt.id}
+              className={`glass-card p-6 flex flex-col justify-between gap-5 relative overflow-hidden transition-all ${
+                !opt.qualifies ? 'border-dashed border-amber-500/30 opacity-75 bg-slate-950/40' : ''
+              }`}
+            >
               <div>
                 {/* Header Info */}
                 <div className="flex items-center justify-between gap-2 mb-3">
@@ -220,87 +274,125 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
                   </span>
                 </div>
 
-                <h3 className="text-lg font-black text-slate-100 mb-1 tracking-tight">{opt.title}</h3>
-                <p className="text-sm font-bold text-fpl-green mb-4">{opt.selection}</p>
+                {/* Sub-qualification banner if showing all */}
+                {!opt.qualifies && (
+                  <div className="mb-3 px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-mono flex items-center justify-between">
+                    <span>⚠️ Below {strategy.name} threshold: {opt.filterReason}</span>
+                    <span className="font-bold underline cursor-pointer">Unlocked in VALUE mode</span>
+                  </div>
+                )}
 
-                {/* Odds & Model Comparison Table */}
-                <div className="bg-slate-950/90 rounded-xl p-3 mb-4">
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 rounded bg-slate-900/60">
-                      <div className="text-[9px] uppercase font-bold text-slate-400">SportyBet Odds</div>
-                      <div className="text-base font-black text-amber-400 font-mono">{opt.sportyBetOdds.toFixed(2)}</div>
-                    </div>
-                    <div className="p-2 rounded bg-slate-900/60">
-                      <div className="text-[9px] uppercase font-bold text-slate-400">Pinnacle Fair Odds</div>
-                      <div className="text-base font-black text-slate-300 font-mono">{opt.pinnacleOdds.toFixed(2)}</div>
-                    </div>
-                    <div className="p-2 rounded bg-slate-900/60">
-                      <div className="text-[9px] uppercase font-bold text-slate-400">Model Fair Prob</div>
-                      <div className="text-base font-black text-sky-400 font-mono">{(opt.modelProb * 100).toFixed(1)}%</div>
+                {/* Match title */}
+                <h3 className="text-sm font-bold text-slate-300 mb-1">
+                  {opt.title}
+                </h3>
+                <div className="text-lg font-black text-slate-100 mb-4 flex items-center justify-between">
+                  <span>{opt.selection}</span>
+                  <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">
+                    {opt.type === 'PROPS' ? 'PLAYER PROP' : 'MATCH MARKET'}
+                  </span>
+                </div>
+
+                {/* Quantitative Metrics Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SportyBet Odds</span>
+                    <span className="text-sm font-mono font-black text-slate-200">{opt.sportyBetOdds.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pinnacle Fair</span>
+                    <span className="text-sm font-mono font-black text-slate-400">{opt.pinnacleOdds.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Model Prob</span>
+                    <span className="text-sm font-mono font-black text-fpl-green">{(opt.modelProb * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Confidence</span>
+                    <span className="text-sm font-mono font-black text-cyan-400">{(opt.modelProb * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+
+                {/* Staking Recommendation */}
+                <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 px-3.5 py-2.5 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-fpl-green" />
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400">
+                        Recommended Stake ({strategy.name}):
+                      </div>
+                      <div className="text-xs font-mono font-black text-slate-100">
+                        ₦{opt.stakeNGN.toLocaleString()} NGN
+                        <span className="text-[10px] text-slate-400 font-normal ml-1">
+                          (Returns ₦{Math.round(opt.stakeNGN * opt.sportyBetOdds).toLocaleString()})
+                        </span>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Model Probability Visual Progress Bar */}
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1">
-                      <span>Model Confidence</span>
-                      <span className="text-fpl-green font-mono">{(opt.modelProb * 100).toFixed(1)}%</span>
+                  <div className="text-right">
+                    <div className="text-[9px] font-mono text-slate-400">
+                      Kelly: {(strategy.kellyMultiplier).toFixed(2)}x
                     </div>
-                    <div className="prob-bar-container">
-                      <div
-                        className="prob-bar-fill"
-                        style={{ width: `${Math.min(100, opt.modelProb * 100)}%` }}
-                      />
+                    <div className="text-[9px] font-mono text-emerald-400 font-bold">
+                      {(strategy.maxStakePercent * 100).toFixed(1)}% Bankroll
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Stake Calculation & Action Button Box */}
-              <div className="flex items-center justify-between pt-4 border-t border-slate-800/60 gap-3">
-                <div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                    <Shield className="w-3 h-3 text-fpl-green" />
-                    Recommended Stake ({strategy.name}):
-                  </div>
-                  <div className="text-base font-black text-fpl-green mt-0.5 font-mono">
-                    ₦{opt.stakeNGN.toLocaleString()} NGN
-                    <span className="text-xs font-medium text-slate-400 ml-1.5">
-                      (Returns ₦{Math.round(opt.stakeNGN * opt.sportyBetOdds).toLocaleString()})
-                    </span>
-                  </div>
-                </div>
+              {/* Bottom Action Footer */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+                <button
+                  onClick={() => onSelectMatch(opt.match)}
+                  className="text-xs font-bold text-slate-400 hover:text-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  Detailed Model Breakdown
+                </button>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onSelectMatch(opt.match)}
-                    className="p-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 transition-colors"
-                    title="Inspect Model Diagnostics"
-                    style={{ border: 'none', cursor: 'pointer' }}
-                  >
-                    <Info className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleCopySignal(opt)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-fpl-green hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all shadow-lg shadow-fpl-green/20"
-                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-                  >
-                    {copiedId === opt.id ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        Copy Signal
-                      </>
-                    )}
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleCopySignal(opt)}
+                  className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
+                    copiedId === opt.id
+                      ? 'bg-fpl-green text-slate-950 shadow-[0_0_15px_rgba(0,255,135,0.4)]'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  {copiedId === opt.id ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy Signal
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {displayedOpportunities.length === 0 && (
+        <div className="glass-card p-12 text-center space-y-3">
+          <Shield className="w-12 h-12 text-slate-600 mx-auto" />
+          <h3 className="text-base font-bold text-slate-300">
+            No Opportunities Meet the Strict {strategy.name} Gate
+          </h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            {strategy.justification}
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => setShowAllMarkets(true)}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+            >
+              View All {allOpportunities.length} Market Opportunities
+            </button>
+          </div>
         </div>
       )}
     </div>
