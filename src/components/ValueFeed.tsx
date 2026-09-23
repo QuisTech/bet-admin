@@ -10,6 +10,7 @@ import {
   Table2,
   Filter,
   GitCompare,
+  ArrowUpDown,
 } from 'lucide-react';
 import type { MatchData, BankrollConfig, ModelPipelineMode } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
@@ -43,6 +44,9 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'terminal'>('cards');
   const [showAllMarkets, setShowAllMarkets] = useState(false);
+  const [sortBy, setSortBy] = useState<
+    'evDesc' | 'probDesc' | 'agreementAsc' | 'returnDesc' | 'oddsAsc' | 'oddsDesc'
+  >('evDesc');
 
   const strategy = STRATEGY_MODES[riskMode];
   const currSym = config.currency === 'USD' ? '$' : '₦';
@@ -63,13 +67,27 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     [allOpportunities]
   );
 
-  const displayedOpportunities = (
-    showAllMarkets ? allOpportunities : qualifyingOpportunities
-  ).filter((o) => {
-    if (filter === 'PROPS') return o.type === 'PROPS';
-    if (filter === 'MATCH') return o.type === 'MATCH';
-    return true;
-  });
+  const displayedOpportunities = useMemo(() => {
+    const list = (showAllMarkets ? allOpportunities : qualifyingOpportunities).filter((o) => {
+      if (filter === 'PROPS') return o.type === 'PROPS';
+      if (filter === 'MATCH') return o.type === 'MATCH';
+      return true;
+    });
+
+    return list.slice().sort((a, b) => {
+      if (sortBy === 'evDesc') return b.evPercent - a.evPercent;
+      if (sortBy === 'probDesc') return b.modelProb - a.modelProb;
+      if (sortBy === 'agreementAsc') return a.modelDelta - b.modelDelta;
+      if (sortBy === 'returnDesc') {
+        const profitA = a.stakeAmount * (a.sportyBetOdds - 1);
+        const profitB = b.stakeAmount * (b.sportyBetOdds - 1);
+        return profitB - profitA;
+      }
+      if (sortBy === 'oddsAsc') return a.sportyBetOdds - b.sportyBetOdds;
+      if (sortBy === 'oddsDesc') return b.sportyBetOdds - a.sportyBetOdds;
+      return b.evPercent - a.evPercent;
+    });
+  }, [allOpportunities, qualifyingOpportunities, showAllMarkets, filter, sortBy]);
 
   const handleCopySignal = (opt: OpportunityItem) => {
     if (opt.evPercent <= 0) return;
@@ -165,6 +183,38 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
               >
                 Props ({showAllMarkets ? playerPropMarkets.length : qualifyingProps.length})
               </button>
+            </div>
+
+            {/* Sort Selector Dropdown */}
+            <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs shadow-inner">
+              <ArrowUpDown className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider shrink-0">
+                Sort:
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-transparent text-xs font-bold text-slate-200 focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="evDesc" className="bg-slate-900 text-slate-200">
+                  🚀 Highest +EV Edge (%)
+                </option>
+                <option value="probDesc" className="bg-slate-900 text-slate-200">
+                  🛡️ Highest Win Probability (%)
+                </option>
+                <option value="agreementAsc" className="bg-slate-900 text-slate-200">
+                  🎯 Strongest Consensus (Lowest Spread)
+                </option>
+                <option value="returnDesc" className="bg-slate-900 text-slate-200">
+                  💰 Highest Projected Profit ({currSym})
+                </option>
+                <option value="oddsAsc" className="bg-slate-900 text-slate-200">
+                  🔒 Heavy Favorites First (Low Odds)
+                </option>
+                <option value="oddsDesc" className="bg-slate-900 text-slate-200">
+                  ⚡ Value Underdogs First (High Odds)
+                </option>
+              </select>
             </div>
           </div>
         </div>
