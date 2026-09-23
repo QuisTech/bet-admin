@@ -16,10 +16,10 @@ import { fetchLiveOddsFeed } from './services/oddsService';
 export default function App() {
   const [config, setConfig] = useState<BankrollConfig>({
     totalBankrollNGN: 200000,
-    totalBankroll: 10000,
+    totalBankroll: 200000,
     kellyFraction: 0.25,
     maxStakePercent: 0.02,
-    currency: 'USD',
+    currency: 'NGN',
     strategyMode: 'safe',
   });
 

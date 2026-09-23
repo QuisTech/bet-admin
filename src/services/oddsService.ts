@@ -39,6 +39,9 @@ export interface OddsApiFixture {
 }
 
 const STORAGE_KEY = 'bet_admin_odds_api_key';
+const CACHE_MATCHES_KEY = 'bet_admin_cached_matches';
+const CACHE_TIME_KEY = 'bet_admin_cached_matches_time';
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15-minute cache to preserve monthly credits
 
 export function getSavedOddsApiKey(): string {
   try {
@@ -94,6 +97,27 @@ export async function fetchLiveOddsFeed(
   count: number;
 }> {
   const apiKey = customKey || getSavedOddsApiKey();
+
+  // Check in-memory / localStorage cache first to avoid burning credits on refresh
+  const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(CACHE_MATCHES_KEY) : null;
+  const cachedTime = typeof localStorage !== 'undefined' ? localStorage.getItem(CACHE_TIME_KEY) : null;
+
+  if (!customKey && apiKey && cached && cachedTime) {
+    const age = Date.now() - parseInt(cachedTime, 10);
+    if (age < CACHE_TTL_MS) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return {
+            matches: parsed,
+            isLive: true,
+            source: 'The Odds API (Live Pinnacle / Bet365 Feed - Cached)',
+            count: parsed.length,
+          };
+        }
+      } catch {}
+    }
+  }
 
   // If no API key is provided, use structured baseline matches
   if (!apiKey) {
@@ -379,6 +403,12 @@ export async function fetchLiveOddsFeed(
       };
     });
 
+    // Cache the successfully ingested live matches
+    try {
+      localStorage.setItem(CACHE_MATCHES_KEY, JSON.stringify(matches));
+      localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+    } catch {}
+
     console.log(`[bet-admin] Successfully ingested ${matches.length} live matches with full markets & FPL props.`);
     return {
       matches,
@@ -387,7 +417,20 @@ export async function fetchLiveOddsFeed(
       count: matches.length,
     };
   } catch (err: any) {
-    console.warn('[bet-admin] Live odds fetch error, using baseline matches:', err.message);
+    console.warn('[bet-admin] Live odds fetch error, checking cache before baseline fallback:', err.message);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return {
+            matches: parsed,
+            isLive: true,
+            source: 'The Odds API (Cached Feed)',
+            count: parsed.length,
+          };
+        }
+      } catch {}
+    }
     return {
       matches: BASE_MATCHES,
       isLive: false,

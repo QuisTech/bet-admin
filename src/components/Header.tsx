@@ -86,6 +86,35 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
+          {/* Currency Toggle */}
+          <div className="flex flex-col w-full sm:w-auto">
+            <span className="text-[10px] uppercase tracking-widest text-slate-400 text-left sm:text-right font-medium">
+              Currency
+            </span>
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg mt-1 border border-slate-800">
+              <button
+                onClick={() => onConfigChange({ ...config, currency: 'NGN' })}
+                className={`px-2.5 py-1 text-[10px] rounded font-bold transition-all cursor-pointer ${
+                  config.currency !== 'USD'
+                    ? 'bg-emerald-500 text-slate-950 font-black shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                ₦ NGN
+              </button>
+              <button
+                onClick={() => onConfigChange({ ...config, currency: 'USD' })}
+                className={`px-2.5 py-1 text-[10px] rounded font-bold transition-all cursor-pointer ${
+                  config.currency === 'USD'
+                    ? 'bg-emerald-500 text-slate-950 font-black shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                $ USD
+              </button>
+            </div>
+          </div>
+
           {/* Model Odds Feed & Settings Toggle */}
           <div className="flex flex-col w-full sm:w-auto">
             <span className="text-[10px] uppercase tracking-widest text-slate-400 text-left sm:text-right font-medium">

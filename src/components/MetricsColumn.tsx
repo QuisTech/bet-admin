@@ -12,10 +12,12 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
   config,
   onConfigChange,
 }) => {
-  const activeExposure = 1240; // Simulated active in-flight portfolio risk
-  const liquidCash = Math.max(0, config.totalBankroll - activeExposure);
-  const exposurePct = ((activeExposure / config.totalBankroll) * 100).toFixed(1);
-  const maxSingleBetAmount = (config.totalBankroll * config.maxStakePercent).toFixed(0);
+  const sym = config.currency === 'USD' ? '$' : '₦';
+  const totalAmount = config.currency === 'USD' ? config.totalBankroll : config.totalBankrollNGN;
+  const activeExposure = Math.round(totalAmount * 0.124); // 12.4% portfolio exposure
+  const liquidCash = Math.max(0, totalAmount - activeExposure);
+  const exposurePct = ((activeExposure / totalAmount) * 100).toFixed(1);
+  const maxSingleBetAmount = Math.round(totalAmount * config.maxStakePercent);
 
   const handleKellySlider = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
@@ -40,12 +42,12 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
 
         <div>
           <div className="text-4xl font-bold font-mono tracking-tighter text-white">
-            ${config.totalBankroll.toLocaleString()}
+            {sym}{totalAmount.toLocaleString()}
           </div>
           <div className="flex justify-between mt-3 pt-3 border-t border-slate-800">
             <span className="text-slate-400 text-xs font-medium">Liquid Cash</span>
             <span className="font-mono font-black text-sm text-emerald-400">
-              ${liquidCash.toLocaleString()}
+              {sym}{liquidCash.toLocaleString()}
             </span>
           </div>
         </div>
@@ -54,7 +56,7 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
           <div className="flex justify-between items-center text-[11px]">
             <span className="text-slate-400">Portfolio Exposure</span>
             <span className="font-bold font-mono text-cyan-400">
-              ${activeExposure.toLocaleString()} ({exposurePct}%)
+              {sym}{activeExposure.toLocaleString()} ({exposurePct}%)
             </span>
           </div>
           <div className="flex justify-between items-center text-[11px]">
@@ -115,7 +117,7 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
         <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
           <span className="text-slate-400">Max Single Bet Cap</span>
           <span className="font-mono font-bold text-slate-200">
-            {(config.maxStakePercent * 100).toFixed(0)}% (${maxSingleBetAmount})
+            {(config.maxStakePercent * 100).toFixed(0)}% ({sym}{maxSingleBetAmount.toLocaleString()})
           </span>
         </div>
       </div>
