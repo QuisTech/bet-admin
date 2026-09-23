@@ -217,6 +217,8 @@ export default function App() {
         <TopPicksColumn
           matches={matches}
           onSelectMatch={(m) => setSelectedMatch(m)}
+          isLive={isOddsLive}
+          oddsSource={oddsSource}
         />
 
         {/* Footer & Quant Disclaimer */}

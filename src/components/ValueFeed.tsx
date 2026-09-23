@@ -473,18 +473,23 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                     <span className="text-slate-500">Pipeline Spread:</span>
                     {opt.consensusLevel === 'STRONG_AGREEMENT' ? (
                       <span className="text-emerald-400 font-bold">
-                        ✓ Strong Agreement (Δ{(opt.modelDelta * 100).toFixed(1)}%)
+                        ✓ Strong Consensus (Δ{(opt.modelDelta * 100).toFixed(1)}%)
                       </span>
                     ) : opt.consensusLevel === 'MODERATE' ? (
-                      <span className="text-amber-400">
+                      <span className="text-amber-400 font-semibold">
                         Moderate Spread (Δ{(opt.modelDelta * 100).toFixed(1)}%)
                       </span>
                     ) : (
-                      <span className="text-red-400 font-bold">
-                        ⚠ Divergence Alert (Δ{(opt.modelDelta * 100).toFixed(1)}%)
+                      <span className="text-rose-400 font-bold">
+                        ⚠ High Divergence Alert (Δ{(opt.modelDelta * 100).toFixed(1)}%)
                       </span>
                     )}
                   </div>
+                  {opt.consensusLevel === 'DIVERGENCE' && (
+                    <div className="text-[10px] text-rose-300 bg-rose-950/40 border border-rose-900/50 p-1.5 rounded font-mono">
+                      ⚠️ Pipeline Divergence (&gt;7pp): Domain Ensemble and Trained ML disagree on probability. Proceed with caution.
+                    </div>
+                  )}
 
                   {/* Evolutionary strategy deep-link */}
                   {onOpenEvolution && (
@@ -584,6 +589,23 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                     <span className="text-[9px] text-slate-500 font-mono">1 / P(Model)</span>
                   </div>
                 </div>
+
+                {/* Edge vs Pinnacle Sharp Line */}
+                {opt.pinnacleOdds > 1.0 && (() => {
+                  const pinnacleImplied = (1 / opt.pinnacleOdds) * 100;
+                  const alphaEdge = (opt.modelProb * 100) - pinnacleImplied;
+                  return (
+                    <div className="flex items-center justify-between text-[11px] font-mono bg-slate-950/70 px-3.5 py-2.5 rounded-xl border border-slate-800/80 mb-4">
+                      <span className="text-slate-400">Edge vs. Pinnacle Sharp Line:</span>
+                      <span className={`font-bold ${alphaEdge > 0 ? 'text-cyan-400' : 'text-slate-400'}`}>
+                        {alphaEdge > 0 ? `+${alphaEdge.toFixed(1)}pp` : `${alphaEdge.toFixed(1)}pp`} Alpha Claim
+                        <span className="text-[9px] text-slate-500 font-normal ml-1.5">
+                          (Model {(opt.modelProb * 100).toFixed(1)}% vs Pin {pinnacleImplied.toFixed(1)}%)
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* Staking Recommendation */}
                 <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 px-3.5 py-2.5 rounded-xl">

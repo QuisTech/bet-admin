@@ -79,7 +79,7 @@ export function saveOddsApiKey(key: string): void {
  */
 function findFplTeam(teamName: string, teams: FPLTeam[]): FPLTeam | null {
   if (!teams || teams.length === 0) return null;
-  const norm = teamName.toLowerCase().replace(/[\.\-]/g, ' ');
+  const norm = teamName.toLowerCase().replace(/[.-]/g, ' ');
 
   return (
     teams.find((t) => {

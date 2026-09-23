@@ -5,11 +5,15 @@ import type { MatchData } from '../types';
 interface TopPicksColumnProps {
   matches: MatchData[];
   onSelectMatch: (match: MatchData) => void;
+  isLive?: boolean;
+  oddsSource?: string;
 }
 
 export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
   matches,
   onSelectMatch,
+  isLive = false,
+  oddsSource = 'Pinnacle Benchmark',
 }) => {
   // Extract all value bets across all matches and sort by highest EV edge
   const allBargains = matches
@@ -35,12 +39,22 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
               Top Value Picks (+EV)
             </h2>
           </div>
-          <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-            HIGHEST EDGE
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`inline-block w-1.5 h-1.5 rounded-full ${
+                isLive ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'
+              }`}
+            />
+            <span className="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 uppercase">
+              {isLive ? 'LIVE CAPTURE' : 'BASELINE SLATE'}
+            </span>
+          </div>
         </div>
-        <div className="text-[10px] text-slate-500 mb-3 font-mono">
-          Ranked by theoretical edge (+EV). Note: Higher odds imply lower win rates and higher variance.
+        <div className="text-[10px] text-slate-500 mb-3 font-mono flex items-center justify-between">
+          <span>Ranked by model EV edge.</span>
+          <span className="text-[9px] text-slate-400 font-mono">
+            {oddsSource.includes('Live') ? 'LIVE' : 'REF'}: {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} WAT
+          </span>
         </div>
 
         <div className="space-y-3 flex-grow">

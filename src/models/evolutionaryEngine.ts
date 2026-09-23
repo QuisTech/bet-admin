@@ -224,7 +224,7 @@ export function calculateEvolvedConsensus(
   const delta = Math.round(Math.abs(mlProb - domainProb) * 1000) / 1000;
 
   const level: 'STRONG_AGREEMENT' | 'MODERATE' | 'DIVERGENCE' =
-    delta <= 0.04 ? 'STRONG_AGREEMENT' : delta <= 0.09 ? 'MODERATE' : 'DIVERGENCE';
+    delta <= 0.03 ? 'STRONG_AGREEMENT' : delta <= 0.07 ? 'MODERATE' : 'DIVERGENCE';
 
   return {
     consensusProb,
