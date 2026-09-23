@@ -10,7 +10,7 @@ interface BankrollManagerProps {
 export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConfigChange }) => {
   const [strategy, setStrategy] = useState<'COMPOUND' | 'HYBRID' | 'INCOME'>('HYBRID');
 
-  const presetPools = [200000, 1200000, 10000000];
+  const presetPools = [200000, 1000000, 10000000];
 
   // Generate 9-month compounding timeline projection
   const timeline = Array.from({ length: 9 }).map((_, i) => {

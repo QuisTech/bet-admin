@@ -65,7 +65,7 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
             <span className="text-slate-400">Strategy Profile</span>
             <span
               className={`font-bold uppercase ${
-                config.strategyMode === 'aggressive'
+                config.strategyMode === 'risky'
                   ? 'text-amber-400'
                   : config.strategyMode === 'safe'
                   ? 'text-emerald-400'

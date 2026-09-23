@@ -58,7 +58,7 @@ export interface BankrollConfig {
   kellyFraction: number;      // e.g. 0.25 (0.25x Kelly)
   maxStakePercent: number;   // e.g. 0.02 (2%)
   currency: 'NGN' | 'USD';
-  strategyMode: 'safe' | 'value' | 'aggressive';
+  strategyMode: 'safe' | 'risky' | 'value';
 }
 
 export interface BacktestMetric {

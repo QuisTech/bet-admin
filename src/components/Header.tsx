@@ -47,13 +47,13 @@ export const Header: React.FC<HeaderProps> = ({
               Strategy Mode
             </span>
             <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg mt-1 border border-slate-800">
-              {(['safe', 'value', 'aggressive'] as const).map((modeKey) => {
+              {(['safe', 'risky', 'value'] as const).map((modeKey) => {
                 const mode = STRATEGY_MODES[modeKey];
                 const active = config.strategyMode === modeKey;
                 const activeColor =
                   modeKey === 'safe'
                     ? 'bg-emerald-500 text-slate-950 shadow'
-                    : modeKey === 'aggressive'
+                    : modeKey === 'risky'
                     ? 'bg-amber-500 text-slate-950 shadow'
                     : 'bg-cyan-500 text-slate-950 shadow';
 

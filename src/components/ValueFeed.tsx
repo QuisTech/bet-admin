@@ -7,7 +7,7 @@ interface ValueFeedProps {
   matches: MatchData[];
   config: BankrollConfig;
   onSelectMatch: (match: MatchData) => void;
-  riskMode: 'safe' | 'value' | 'aggressive';
+  riskMode: 'safe' | 'risky' | 'value';
 }
 
 export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectMatch, riskMode }) => {
