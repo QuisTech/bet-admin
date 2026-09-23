@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Python virtual environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+scripts/cache/
