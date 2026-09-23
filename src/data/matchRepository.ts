@@ -13,13 +13,36 @@ const chelseaBournemouth = calculateDixonColes(1.9, 1.1, 1.0, 1.6); // Chelsea H
 const liverpoolManCity = calculateDixonColes(1.6, 1.2, 1.8, 1.1); // Liverpool H vs Man City
 const realMadridBarca = calculateDixonColes(1.8, 1.0, 1.7, 1.1); // Real Madrid H vs Barcelona
 
+/**
+ * Computes dynamic upcoming match kickoff with Day, Date, Month and Time (e.g. Sat, 26 Sep • 15:00)
+ */
+function getUpcomingKickoff(dayOffset: number, hour: number, minute: number): string {
+  const d = new Date();
+  const day = d.getDay(); // 0 is Sun, 6 is Sat
+  const daysUntilSat = (6 - day + 7) % 7 || 7;
+  const matchDate = new Date(d);
+  matchDate.setDate(d.getDate() + daysUntilSat + dayOffset);
+  matchDate.setHours(hour, minute, 0, 0);
+
+  const dayMonth = matchDate.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+  const time = matchDate.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return `${dayMonth} • ${time}`;
+}
+
 export const BASE_MATCHES: MatchData[] = [
   {
     id: 'match-1',
     league: 'Premier League',
     homeTeam: 'Arsenal',
     awayTeam: 'Leeds United',
-    kickoff: 'Saturday, 15:00',
+    kickoff: getUpcomingKickoff(0, 12, 30),
     homeXG: 2.1,
     awayXG: 0.9,
     dixonColesMatrix: arsensalLeeds.matrix,
@@ -105,7 +128,7 @@ export const BASE_MATCHES: MatchData[] = [
     league: 'Premier League',
     homeTeam: 'Chelsea',
     awayTeam: 'Bournemouth',
-    kickoff: 'Saturday, 17:30',
+    kickoff: getUpcomingKickoff(0, 15, 0),
     homeXG: 1.9,
     awayXG: 1.0,
     dixonColesMatrix: chelseaBournemouth.matrix,
@@ -162,7 +185,7 @@ export const BASE_MATCHES: MatchData[] = [
     league: 'Premier League',
     homeTeam: 'Liverpool',
     awayTeam: 'Manchester City',
-    kickoff: 'Sunday, 16:30',
+    kickoff: getUpcomingKickoff(1, 16, 30),
     homeXG: 1.6,
     awayXG: 1.8,
     dixonColesMatrix: liverpoolManCity.matrix,
@@ -204,7 +227,7 @@ export const BASE_MATCHES: MatchData[] = [
     league: 'La Liga',
     homeTeam: 'Real Madrid',
     awayTeam: 'Barcelona',
-    kickoff: 'Sunday, 20:00',
+    kickoff: getUpcomingKickoff(1, 20, 0),
     homeXG: 1.8,
     awayXG: 1.7,
     dixonColesMatrix: realMadridBarca.matrix,

@@ -573,11 +573,17 @@ export async function fetchLiveOddsFeed(
         playerProps.push(...enriched);
       }
 
-      const kickoffFormatted = new Date(fix.commence_time).toLocaleDateString('en-GB', {
+      const kickoffDate = new Date(fix.commence_time);
+      const dayMonth = kickoffDate.toLocaleDateString('en-GB', {
         weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      });
+      const time = kickoffDate.toLocaleTimeString('en-GB', {
         hour: '2-digit',
         minute: '2-digit',
       });
+      const kickoffFormatted = `${dayMonth} • ${time}`;
 
       return {
         id: fix.id,
