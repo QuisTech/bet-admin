@@ -480,24 +480,24 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
                 </div>
 
                 {/* Quantitative Odds & Fair Pricing Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5 mb-4 bg-slate-950/70 p-3.5 sm:p-4 rounded-2xl border border-slate-800/80">
-                  <div className="flex flex-col justify-between pr-2">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-4 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
+                  <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                       SportyBet Odds
                     </span>
-                    <span className="text-base font-mono font-black text-slate-200">
+                    <span className="text-base font-mono font-black text-slate-100">
                       {opt.sportyBetOdds.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex flex-col justify-between px-2 sm:border-l sm:border-slate-800/80">
+                  <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                       Pinnacle Fair
                     </span>
-                    <span className="text-base font-mono font-black text-slate-400">
+                    <span className="text-base font-mono font-black text-slate-300">
                       {opt.pinnacleOdds.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex flex-col justify-between px-2 sm:border-l sm:border-slate-800/80">
+                  <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                       Active Model
                     </span>
@@ -505,7 +505,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
                       {(opt.modelProb * 100).toFixed(1)}%
                     </span>
                   </div>
-                  <div className="flex flex-col justify-between pl-2 sm:border-l sm:border-slate-800/80">
+                  <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                       Fair Odds
                     </span>
