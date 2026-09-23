@@ -14,14 +14,33 @@ import { fetchLiveFPLBootstrap } from './services/fplService';
 import { fetchLiveOddsFeed } from './services/oddsService';
 
 export default function App() {
-  const [config, setConfig] = useState<BankrollConfig>({
-    totalBankrollNGN: 200000,
-    totalBankroll: 200000,
-    kellyFraction: 0.25,
-    maxStakePercent: 0.02,
-    currency: 'NGN',
-    strategyMode: 'safe',
+  const [config, setConfig] = useState<BankrollConfig>(() => {
+    let savedBankroll = 200000;
+    let savedCurrency: 'NGN' | 'USD' = 'NGN';
+    try {
+      const b = localStorage.getItem('bet_admin_bankroll');
+      if (b && parseFloat(b) > 0) savedBankroll = parseFloat(b);
+      const c = localStorage.getItem('bet_admin_currency');
+      if (c === 'USD' || c === 'NGN') savedCurrency = c;
+    } catch {}
+
+    return {
+      totalBankrollNGN: savedBankroll,
+      totalBankroll: savedBankroll,
+      kellyFraction: 0.25,
+      maxStakePercent: 0.02,
+      currency: savedCurrency,
+      strategyMode: 'safe',
+    };
   });
+
+  const handleConfigChange = (newConfig: BankrollConfig) => {
+    setConfig(newConfig);
+    try {
+      localStorage.setItem('bet_admin_bankroll', newConfig.totalBankrollNGN.toString());
+      localStorage.setItem('bet_admin_currency', newConfig.currency);
+    } catch {}
+  };
 
   const [tab, setTab] = useState<'feed' | 'bankroll' | 'diagnostics'>('feed');
   const [matches, setMatches] = useState<MatchData[]>(BASE_MATCHES);
@@ -87,7 +106,7 @@ export default function App() {
         {/* Top Header (Col 12) */}
         <Header
           config={config}
-          onConfigChange={setConfig}
+          onConfigChange={handleConfigChange}
           activeSignalCount={activeSignals}
           onOpenSettings={() => setIsSettingsOpen(true)}
           isOddsLive={isOddsLive}
@@ -97,7 +116,7 @@ export default function App() {
         {/* Left Metrics Column (Col 1-3) */}
         <MetricsColumn
           config={config}
-          onConfigChange={setConfig}
+          onConfigChange={handleConfigChange}
           activeSignalCount={activeSignals}
         />
 
@@ -156,7 +175,7 @@ export default function App() {
               )}
 
               {tab === 'bankroll' && (
-                <BankrollManager config={config} onConfigChange={setConfig} />
+                <BankrollManager config={config} onConfigChange={handleConfigChange} />
               )}
 
               {tab === 'diagnostics' && (

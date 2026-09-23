@@ -48,22 +48,43 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
-            <span className="text-[11px] font-bold text-slate-400 px-2">Pool:</span>
+            <span className="text-[11px] font-bold text-slate-400 px-2">Presets:</span>
             {presetPools.map((pool) => (
               <button
                 key={pool}
-                onClick={() => onConfigChange({ ...config, totalBankrollNGN: pool, totalBankroll: pool / 1000 })}
+                onClick={() => {
+                  onConfigChange({ ...config, totalBankrollNGN: pool, totalBankroll: pool });
+                  try { localStorage.setItem('bet_admin_bankroll', pool.toString()); } catch {}
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
                   config.totalBankrollNGN === pool
                     ? 'bg-emerald-500 text-slate-950 shadow'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                ₦{(pool / 1000).toFixed(0)}k
+                {config.currency === 'USD' ? `$${pool >= 1000 ? `${pool / 1000}k` : pool}` : `₦${(pool / 1000).toFixed(0)}k`}
               </button>
             ))}
+          </div>
+
+          {/* Interactive Custom Capital Input */}
+          <div className="flex items-center gap-1.5 bg-slate-900 px-3 py-1 rounded-xl border border-emerald-500/40 focus-within:border-emerald-400 transition-all">
+            <span className="text-xs font-mono font-bold text-emerald-400">{config.currency === 'USD' ? '$' : '₦'}</span>
+            <input
+              type="number"
+              min="100"
+              step="1000"
+              value={config.totalBankrollNGN}
+              onChange={(e) => {
+                const val = Math.max(100, Math.round(parseFloat(e.target.value) || 0));
+                onConfigChange({ ...config, totalBankrollNGN: val, totalBankroll: val });
+                try { localStorage.setItem('bet_admin_bankroll', val.toString()); } catch {}
+              }}
+              className="w-28 bg-transparent text-xs font-mono font-bold text-white focus:outline-none"
+              placeholder="Custom pool..."
+            />
           </div>
         </div>
       </div>
