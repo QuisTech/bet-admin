@@ -1,20 +1,32 @@
 {
   "model_name": "XGBoost European Multi-League Ensemble V3",
   "training_dataset": {
-    "leagues": ["E0", "SP1", "I1", "D1", "F1"],
-    "match_count": 9500,
-    "seasons": ["2324", "2223", "2122", "2021", "1920"]
+    "leagues": [
+      "E0",
+      "SP1",
+      "I1",
+      "D1",
+      "F1"
+    ],
+    "match_count": 7536,
+    "seasons": [
+      "2324",
+      "2223",
+      "2122",
+      "2021",
+      "1920"
+    ]
   },
   "metrics": {
-    "brier_score": 0.1742,
+    "brier_score": 0.199,
     "over25_brier": 0.2018,
     "log_loss": 0.892,
     "calibration_ece": 0.026
   },
   "feature_importances": {
-    "league_tempo": 0.182,
     "home_atk": 0.214,
     "away_atk": 0.189,
+    "league_tempo": 0.182,
     "home_def": 0.141,
     "away_def": 0.138,
     "home_dominance": 0.068,
@@ -22,9 +34,18 @@
     "home_boost": 0.023
   },
   "platt_calibration": [
-    { "slope_A": 1.042, "intercept_B": -0.015 },
-    { "slope_A": 0.985, "intercept_B": 0.021 },
-    { "slope_A": 1.018, "intercept_B": -0.008 }
+    {
+      "slope_A": 4.5249,
+      "intercept_B": 0.9083
+    },
+    {
+      "slope_A": 1.1719,
+      "intercept_B": 0.1869
+    },
+    {
+      "slope_A": 2.4962,
+      "intercept_B": 1.0857
+    }
   ],
   "player_prop_params": {
     "sot_baseline_rate": 0.725,
@@ -34,5 +55,215 @@
     "goal_xg90_weight": 1.15,
     "assist_xa90_weight": 1.05,
     "opponent_defense_scaling": 0.78
-  }
+  },
+  "sample_trees": [
+    {
+      "feature": "away_def",
+      "threshold": 1.375,
+      "left": {
+        "feature": "home_def",
+        "threshold": 0.875,
+        "left": {
+          "feature": "away_def",
+          "threshold": 0.875,
+          "left": {
+            "leaf": -0.0874
+          },
+          "right": {
+            "leaf": 0.1374
+          }
+        },
+        "right": {
+          "feature": "home_dominance",
+          "threshold": -0.0568,
+          "left": {
+            "leaf": -0.0703
+          },
+          "right": {
+            "leaf": -0.2673
+          }
+        }
+      },
+      "right": {
+        "feature": "home_def",
+        "threshold": 1.125,
+        "left": {
+          "feature": "home_dominance",
+          "threshold": -0.3409,
+          "left": {
+            "leaf": 0.3977
+          },
+          "right": {
+            "leaf": 0.1968
+          }
+        },
+        "right": {
+          "feature": "away_def",
+          "threshold": 2.375,
+          "left": {
+            "leaf": -0.0688
+          },
+          "right": {
+            "leaf": 0.335
+          }
+        }
+      }
+    },
+    {
+      "feature": "home_def",
+      "threshold": 0.875,
+      "left": {
+        "feature": "home_dominance",
+        "threshold": -0.1818,
+        "left": {
+          "feature": "away_def",
+          "threshold": 1.625,
+          "left": {
+            "leaf": 0.2709
+          },
+          "right": {
+            "leaf": 0.4232
+          }
+        },
+        "right": {
+          "feature": "away_def",
+          "threshold": 0.625,
+          "left": {
+            "leaf": -0.1741
+          },
+          "right": {
+            "leaf": 0.092
+          }
+        }
+      },
+      "right": {
+        "feature": "home_dominance",
+        "threshold": 0.1023,
+        "left": {
+          "feature": "home_def",
+          "threshold": 1.375,
+          "left": {
+            "leaf": 0.0676
+          },
+          "right": {
+            "leaf": -0.132
+          }
+        },
+        "right": {
+          "feature": "away_def",
+          "threshold": 0.625,
+          "left": {
+            "leaf": -0.349
+          },
+          "right": {
+            "leaf": -0.1873
+          }
+        }
+      }
+    },
+    {
+      "feature": "away_def",
+      "threshold": 0.875,
+      "left": {
+        "feature": "away_def",
+        "threshold": 0.625,
+        "left": {
+          "feature": "away_def",
+          "threshold": 0.375,
+          "left": {
+            "leaf": -0.37
+          },
+          "right": {
+            "leaf": -0.256
+          }
+        },
+        "right": {
+          "feature": "home_def",
+          "threshold": 0.625,
+          "left": {
+            "leaf": 0.1279
+          },
+          "right": {
+            "leaf": -0.1986
+          }
+        }
+      },
+      "right": {
+        "feature": "home_def",
+        "threshold": 1.375,
+        "left": {
+          "feature": "home_dominance",
+          "threshold": -0.2045,
+          "left": {
+            "leaf": 0.2748
+          },
+          "right": {
+            "leaf": 0.0604
+          }
+        },
+        "right": {
+          "feature": "home_dominance",
+          "threshold": -0.3977,
+          "left": {
+            "leaf": 0.0778
+          },
+          "right": {
+            "leaf": -0.2626
+          }
+        }
+      }
+    },
+    {
+      "feature": "away_def",
+      "threshold": 1.375,
+      "left": {
+        "feature": "home_def",
+        "threshold": 0.875,
+        "left": {
+          "feature": "away_def",
+          "threshold": 0.625,
+          "left": {
+            "leaf": -0.163
+          },
+          "right": {
+            "leaf": 0.0787
+          }
+        },
+        "right": {
+          "feature": "home_dominance",
+          "threshold": 0.1023,
+          "left": {
+            "leaf": -0.1131
+          },
+          "right": {
+            "leaf": -0.279
+          }
+        }
+      },
+      "right": {
+        "feature": "home_def",
+        "threshold": 0.875,
+        "left": {
+          "feature": "home_dominance",
+          "threshold": -0.5455,
+          "left": {
+            "leaf": 0.4452
+          },
+          "right": {
+            "leaf": 0.2506
+          }
+        },
+        "right": {
+          "feature": "away_def",
+          "threshold": 2.375,
+          "left": {
+            "leaf": 0.0053
+          },
+          "right": {
+            "leaf": 0.3199
+          }
+        }
+      }
+    }
+  ]
 }
