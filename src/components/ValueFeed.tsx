@@ -1,18 +1,43 @@
-import React, { useState } from 'react';
-import { Sparkles, Copy, Check, Info, Flame, Shield, LayoutGrid, Table2, Filter, GitCompare } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  Sparkles,
+  Copy,
+  Check,
+  Info,
+  Flame,
+  Shield,
+  LayoutGrid,
+  Table2,
+  Filter,
+  GitCompare,
+} from 'lucide-react';
 import type { MatchData, BankrollConfig, ModelPipelineMode } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
+import { evaluateOpportunities, type OpportunityItem } from '../models/opportunityEngine';
 
 interface ValueFeedProps {
   matches: MatchData[];
   config: BankrollConfig;
   onSelectMatch: (match: MatchData) => void;
   riskMode: 'safe' | 'risky' | 'value';
+  pipelineFilter?: ModelPipelineMode;
+  onPipelineFilterChange?: (mode: ModelPipelineMode) => void;
 }
 
-export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectMatch, riskMode }) => {
+export const ValueFeed: React.FC<ValueFeedProps> = ({
+  matches,
+  config,
+  onSelectMatch,
+  riskMode,
+  pipelineFilter: propsPipelineFilter,
+  onPipelineFilterChange,
+}) => {
   const [filter, setFilter] = useState<'ALL' | 'PROPS' | 'MATCH'>('ALL');
-  const [pipelineFilter, setPipelineFilter] = useState<ModelPipelineMode>('ALL_CONSENSUS');
+  const [internalPipelineFilter, setInternalPipelineFilter] =
+    useState<ModelPipelineMode>('ALL_CONSENSUS');
+  const pipelineFilter = propsPipelineFilter ?? internalPipelineFilter;
+  const setPipelineFilter = onPipelineFilterChange ?? setInternalPipelineFilter;
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'terminal'>('cards');
   const [showAllMarkets, setShowAllMarkets] = useState(false);
@@ -20,126 +45,43 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
   const strategy = STRATEGY_MODES[riskMode];
   const currSym = config.currency === 'USD' ? '$' : '₦';
 
-  const matchMarkets = matches.flatMap((m) =>
-    m.markets.map((mk) => {
-      const stakePct = strategy.maxStakePercent;
-      const domainProb = mk.domainProb ?? mk.ensembleProb;
-      const trainedMlProb = mk.trainedMlProb ?? mk.ensembleProb;
-      const consensusProb = mk.consensusProb ?? mk.ensembleProb;
-      const modelDelta = mk.modelDelta ?? Math.abs(trainedMlProb - domainProb);
-      const consensusLevel = mk.consensusLevel ?? (modelDelta <= 0.04 ? 'STRONG_AGREEMENT' : 'MODERATE');
+  const slateStats = useMemo(() => {
+    return evaluateOpportunities(matches, config, pipelineFilter, riskMode);
+  }, [matches, config, pipelineFilter, riskMode]);
 
-      // Active probability evaluated based on selected pipeline view
-      let activeProb = consensusProb;
-      if (pipelineFilter === 'DOMAIN_ONLY') activeProb = domainProb;
-      if (pipelineFilter === 'TRAINED_ML_ONLY') activeProb = trainedMlProb;
+  const { allOpportunities, qualifyingOpportunities, qualifyingMatches, qualifyingProps } =
+    slateStats;
 
-      const activeEv = Math.round((activeProb * mk.sportyBetOdds - 1.0) * 1000) / 10;
-
-      return {
-        match: m,
-        type: 'MATCH' as const,
-        id: `${m.id}-${mk.marketType}-${mk.selection}`,
-        title: `${m.homeTeam} vs ${m.awayTeam}`,
-        selection: `${mk.selection} (${mk.marketType})`,
-        sportyBetOdds: mk.sportyBetOdds,
-        pinnacleOdds: mk.pinnacleOdds,
-        modelProb: activeProb,
-        domainProb,
-        trainedMlProb,
-        consensusProb,
-        modelDelta,
-        consensusLevel,
-        evPercent: activeEv,
-        recommendedStakePercent: stakePct,
-        stakeAmount: Math.round(config.totalBankrollNGN * stakePct),
-      };
-    })
+  const matchMarkets = useMemo(
+    () => allOpportunities.filter((o) => o.type === 'MATCH'),
+    [allOpportunities]
   );
-
-  const playerPropMarkets = matches.flatMap((m) =>
-    m.playerProps.map((p) => {
-      const stakePct = strategy.maxStakePercent;
-      const domainProb = p.domainProb ?? p.modelProb;
-      const trainedMlProb = p.trainedMlProb ?? p.modelProb;
-      const consensusProb = p.consensusProb ?? p.modelProb;
-      const modelDelta = p.modelDelta ?? Math.abs(trainedMlProb - domainProb);
-      const consensusLevel = p.consensusLevel ?? (modelDelta <= 0.04 ? 'STRONG_AGREEMENT' : 'MODERATE');
-
-      let activeProb = consensusProb;
-      if (pipelineFilter === 'DOMAIN_ONLY') activeProb = domainProb;
-      if (pipelineFilter === 'TRAINED_ML_ONLY') activeProb = trainedMlProb;
-
-      const activeEv = Math.round((activeProb * p.sportyBetOdds - 1.0) * 1000) / 10;
-
-      return {
-        match: m,
-        type: 'PROPS' as const,
-        id: p.id,
-        title: `${p.playerName} (${p.team})`,
-        selection: `${
-          p.propType === 'GOAL'
-            ? 'Anytime Goalscorer'
-            : p.propType === 'SOT'
-            ? `Over ${p.threshold || 1.5} Shots on Target`
-            : 'To Assist'
-        } vs ${p.opponent}`,
-        sportyBetOdds: p.sportyBetOdds,
-        pinnacleOdds: p.pinnacleFairOdds,
-        modelProb: activeProb,
-        domainProb,
-        trainedMlProb,
-        consensusProb,
-        modelDelta,
-        consensusLevel,
-        evPercent: activeEv,
-        recommendedStakePercent: stakePct,
-        stakeAmount: Math.round(config.totalBankrollNGN * stakePct),
-      };
-    })
+  const playerPropMarkets = useMemo(
+    () => allOpportunities.filter((o) => o.type === 'PROPS'),
+    [allOpportunities]
   );
-
-  const allOpportunities = [...matchMarkets, ...playerPropMarkets].sort(
-    (a, b) => b.evPercent - a.evPercent
-  );
-
-  // Evaluate whether each opportunity satisfies the selected strategy
-  const opportunitiesWithStatus = allOpportunities.map((o) => {
-    // If user filtered by Dual Consensus, require strong or moderate agreement
-    const meetsPipeline =
-      pipelineFilter !== 'ALL_CONSENSUS' || o.consensusLevel !== 'DIVERGENCE';
-    const meetsProb = o.modelProb >= strategy.minProb || riskMode !== 'safe';
-    const meetsEV = o.evPercent >= strategy.minEV;
-    const qualifies = meetsProb && meetsEV && meetsPipeline;
-
-    return {
-      ...o,
-      qualifies,
-      filterReason: !meetsProb
-        ? `Model Prob ${(o.modelProb * 100).toFixed(1)}% < ${Math.round(strategy.minProb * 100)}% SAFE floor`
-        : !meetsEV
-        ? `EV ${o.evPercent > 0 ? '+' : ''}${o.evPercent}% < +${strategy.minEV}% min threshold`
-        : !meetsPipeline
-        ? `Pipeline Divergence (Δ ${(o.modelDelta * 100).toFixed(1)}% between Domain & ML)`
-        : null,
-    };
-  });
-
-  const qualifyingOpportunities = opportunitiesWithStatus.filter((o) => o.qualifies);
-  const qualifyingProps = qualifyingOpportunities.filter((o) => o.type === 'PROPS');
-  const qualifyingMatches = qualifyingOpportunities.filter((o) => o.type === 'MATCH');
 
   const displayedOpportunities = (
-    showAllMarkets ? opportunitiesWithStatus : qualifyingOpportunities
+    showAllMarkets ? allOpportunities : qualifyingOpportunities
   ).filter((o) => {
     if (filter === 'PROPS') return o.type === 'PROPS';
     if (filter === 'MATCH') return o.type === 'MATCH';
     return true;
   });
 
-  const handleCopySignal = (opt: (typeof allOpportunities)[0]) => {
+  const handleCopySignal = (opt: OpportunityItem) => {
     if (opt.evPercent <= 0) return;
-    const text = `🎯 BET HORIZON +EV SIGNAL\nMatch: ${opt.title}\nSelection: ${opt.selection}\nSportyBet Odds: ${opt.sportyBetOdds.toFixed(2)}\nPipeline 1 (Domain): ${(opt.domainProb * 100).toFixed(1)}%\nPipeline 2 (Trained ML): ${(opt.trainedMlProb * 100).toFixed(1)}%\nDual Consensus: ${(opt.consensusProb * 100).toFixed(1)}%\nEdge: ${opt.evPercent > 0 ? '+' : ''}${opt.evPercent}%\nStrategy: ${strategy.name}\nRecommended Stake: ${currSym}${opt.stakeAmount.toLocaleString()} ${config.currency}`;
+    const text = `🎯 BET HORIZON +EV SIGNAL\nMatch: ${opt.title}\nSelection: ${
+      opt.selection
+    }\nSportyBet Odds: ${opt.sportyBetOdds.toFixed(2)}\nPipeline 1 (Domain): ${(
+      opt.domainProb * 100
+    ).toFixed(1)}%\nPipeline 2 (Trained ML): ${(opt.trainedMlProb * 100).toFixed(
+      1
+    )}%\nDual Consensus: ${(opt.consensusProb * 100).toFixed(1)}%\nEdge: ${
+      opt.evPercent > 0 ? '+' : ''
+    }${opt.evPercent}%\nStrategy: ${strategy.name}\nRecommended Stake: ${currSym}${opt.stakeAmount.toLocaleString()} ${
+      config.currency
+    }`;
     navigator.clipboard.writeText(text);
     setCopiedId(opt.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -277,7 +219,9 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
             <Filter className="w-3 h-3" />
             {showAllMarkets
               ? 'Switch to Strategy-Filtered Only'
-              : `View All ${allOpportunities.length} Opportunities (${allOpportunities.length - qualifyingOpportunities.length} in other modes)`}
+              : `View All ${allOpportunities.length} Opportunities (${
+                  allOpportunities.length - qualifyingOpportunities.length
+                } in other modes)`}
           </button>
         </div>
       </div>
@@ -338,10 +282,13 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
                       )}
                     </td>
                     <td className="col-ev" style={{ textAlign: 'right' }}>
-                      {opt.evPercent > 0 ? `+${opt.evPercent.toFixed(1)}%` : `${opt.evPercent.toFixed(1)}%`}
+                      {opt.evPercent > 0
+                        ? `+${opt.evPercent.toFixed(1)}%`
+                        : `${opt.evPercent.toFixed(1)}%`}
                     </td>
                     <td className="col-stake" style={{ textAlign: 'right' }}>
-                      {currSym}{opt.stakeAmount.toLocaleString()}
+                      {currSym}
+                      {opt.stakeAmount.toLocaleString()}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <button
@@ -350,30 +297,14 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
                           handleCopySignal(opt);
                         }}
                         disabled={opt.evPercent <= 0}
+                        className="btn-primary"
                         style={{
-                          background:
-                            opt.evPercent <= 0
-                              ? '#1e293b'
-                              : copiedId === opt.id
-                              ? 'var(--color-fpl-green)'
-                              : 'var(--bg-elevated)',
-                          color:
-                            opt.evPercent <= 0
-                              ? '#64748b'
-                              : copiedId === opt.id
-                              ? 'var(--bg-primary)'
-                              : 'var(--text-secondary)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: 'var(--radius-sm)',
-                          padding: '4px 8px',
-                          cursor: opt.evPercent <= 0 ? 'not-allowed' : 'pointer',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          fontFamily: 'Inter, sans-serif',
-                          transition: 'all 150ms',
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          opacity: opt.evPercent <= 0 ? 0.3 : 1,
                         }}
                       >
-                        {copiedId === opt.id ? '✓' : 'Copy'}
+                        {copiedId === opt.id ? 'Copied!' : 'Copy'}
                       </button>
                     </td>
                   </tr>
@@ -381,101 +312,102 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
               </tbody>
             </table>
           </div>
-          {displayedOpportunities.length === 0 && (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              No signals match current strategy filters. Switch to <strong>VALUE</strong> or{' '}
-              <strong>RISKY</strong> mode above.
-            </div>
-          )}
         </div>
       )}
 
-      {/* ===== CARDS VIEW ===== */}
+      {/* ===== CARD GRID VIEW ===== */}
       {viewMode === 'cards' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {displayedOpportunities.map((opt) => (
             <div
               key={opt.id}
-              className={`glass-card p-6 flex flex-col justify-between gap-5 relative overflow-hidden transition-all ${
-                !opt.qualifies ? 'border-dashed border-amber-500/30 opacity-75 bg-slate-950/40' : ''
+              className={`glass-card p-5 relative overflow-hidden transition-all duration-200 ${
+                !opt.qualifies
+                  ? 'opacity-60 border-slate-800/40 bg-slate-950/40 hover:opacity-100'
+                  : 'hover:border-slate-700/80 hover:shadow-lg'
               }`}
             >
-              <div>
-                {/* Header Info */}
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest bg-slate-950 px-2.5 py-1 rounded">
-                    {opt.match.league} • {opt.match.kickoff}
-                  </span>
-                  <span
-                    className={`text-xs font-black px-3 py-1 rounded-full flex items-center gap-1.5 ${
-                      opt.evPercent > 0
-                        ? 'badge-ev text-emerald-400'
-                        : 'bg-red-950/60 text-red-400 border border-red-800/40'
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    {opt.evPercent > 0 ? `+${opt.evPercent}%` : `${opt.evPercent}%`} EV Edge
-                  </span>
-                </div>
-
-                {/* Sub-qualification banner if showing all */}
-                {!opt.qualifies && (
-                  <div className="mb-3 px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-mono flex items-center justify-between">
-                    <span>⚠️ Below {strategy.name} threshold: {opt.filterReason}</span>
-                    <span className="font-bold underline cursor-pointer">Unlocked in VALUE mode</span>
-                  </div>
-                )}
-
-                {/* Match title */}
-                <h3 className="text-sm font-bold text-slate-300 mb-1">{opt.title}</h3>
-                <div className="text-lg font-black text-slate-100 mb-3 flex items-center justify-between">
-                  <span>{opt.selection}</span>
-                  <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">
-                    {opt.type === 'PROPS' ? 'PLAYER PROP' : 'MATCH MARKET'}
-                  </span>
-                </div>
-
-                {/* DUAL-PIPELINE COMPARISON BAR */}
-                <div className="mb-4 p-3 rounded-2xl bg-slate-950/80 border border-slate-800/90 space-y-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-                      <span className="text-slate-400 font-medium">Domain Ensemble (P1):</span>
-                      <strong className="text-cyan-300 font-mono">
-                        {(opt.domainProb * 100).toFixed(1)}%
-                      </strong>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-                      <span className="text-slate-400 font-medium">Trained XGBoost (P2):</span>
-                      <strong className="text-purple-300 font-mono">
-                        {(opt.trainedMlProb * 100).toFixed(1)}%
-                      </strong>
+              {/* Card Header */}
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold text-slate-400">
+                      {opt.match.league} • {opt.match.kickoff}
+                    </span>
+                    <div
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black ${
+                        opt.evPercent > 0 ? 'badge-ev' : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {opt.evPercent > 0 ? `+${opt.evPercent}%` : `${opt.evPercent}%`} EV Edge
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-900 text-[10px] font-mono">
-                    <span className="text-slate-400 flex items-center gap-1">
-                      <span className="text-emerald-400 font-bold">Consensus Blend:</span>
-                      <span className="text-white font-bold text-xs">
-                        {(opt.consensusProb * 100).toFixed(1)}%
+                  {/* Sub-qualification banner if showing all */}
+                  {!opt.qualifies && (
+                    <div className="mb-3 px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-mono flex items-center justify-between">
+                      <span>
+                        ⚠️ Below {strategy.name} threshold: {opt.filterReason}
                       </span>
+                      <span
+                        className="font-bold underline cursor-pointer"
+                        onClick={() => setShowAllMarkets(true)}
+                      >
+                        Unlocked in VALUE mode
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Match title */}
+                  <h3 className="text-sm font-bold text-slate-300 mb-1">{opt.title}</h3>
+                  <div className="text-lg font-black text-slate-100 mb-3 flex items-center justify-between">
+                    <span>{opt.selection}</span>
+                    <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">
+                      {opt.type === 'PROPS' ? 'PLAYER PROP' : 'MATCH MARKET'}
                     </span>
-                    <span>
-                      {opt.consensusLevel === 'STRONG_AGREEMENT' ? (
-                        <span className="text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
-                          ✓ Strong Agreement (Δ{(opt.modelDelta * 100).toFixed(1)}%)
-                        </span>
-                      ) : opt.consensusLevel === 'MODERATE' ? (
-                        <span className="text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40">
-                          Moderate Spread (Δ{(opt.modelDelta * 100).toFixed(1)}%)
-                        </span>
-                      ) : (
-                        <span className="text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-800/40">
-                          Model Divergence (Δ{(opt.modelDelta * 100).toFixed(1)}%)
-                        </span>
-                      )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quantitative Section */}
+              <div className="space-y-3 mb-4">
+                {/* DUAL-PIPELINE COMPARISON BAR */}
+                <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/60 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-slate-400">Domain Ensemble (P1):</span>
+                    <span className="font-bold text-cyan-400">
+                      {(opt.domainProb * 100).toFixed(1)}%
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-slate-400">Trained XGBoost (P2):</span>
+                    <span className="font-bold text-purple-400">
+                      {(opt.trainedMlProb * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="pt-1 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                    <span className="font-bold text-slate-300">Consensus Blend:</span>
+                    <span className="font-black text-fpl-green">
+                      {(opt.consensusProb * 100).toFixed(1)}%
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] pt-1">
+                    <span className="text-slate-500">Pipeline Spread:</span>
+                    {opt.consensusLevel === 'STRONG_AGREEMENT' ? (
+                      <span className="text-emerald-400 font-bold">
+                        ✓ Strong Agreement (Δ{(opt.modelDelta * 100).toFixed(1)}%)
+                      </span>
+                    ) : opt.consensusLevel === 'MODERATE' ? (
+                      <span className="text-amber-400">
+                        Moderate Spread (Δ{(opt.modelDelta * 100).toFixed(1)}%)
+                      </span>
+                    ) : (
+                      <span className="text-red-400 font-bold">
+                        ⚠ Divergence Alert (Δ{(opt.modelDelta * 100).toFixed(1)}%)
+                      </span>
+                    )}
                   </div>
                 </div>
 

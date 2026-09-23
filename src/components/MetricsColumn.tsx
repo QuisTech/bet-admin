@@ -6,11 +6,13 @@ interface MetricsColumnProps {
   config: BankrollConfig;
   onConfigChange: (newConfig: BankrollConfig) => void;
   activeSignalCount?: number;
+  brierScore?: number;
 }
 
 export const MetricsColumn: React.FC<MetricsColumnProps> = ({
   config,
   onConfigChange,
+  brierScore,
 }) => {
   const sym = config.currency === 'USD' ? '$' : '₦';
   const totalAmount = config.currency === 'USD' ? config.totalBankroll : config.totalBankrollNGN;
@@ -228,7 +230,9 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
               Engine Health
             </h2>
           </div>
-          <span className="text-cyan-400 text-[10px] font-bold font-mono">0.178 BRIER</span>
+          <span className="text-cyan-400 text-[10px] font-bold font-mono">
+            {brierScore ? brierScore.toFixed(3) : '0.178'} BRIER
+          </span>
         </div>
 
         <div className="space-y-2.5 text-xs">

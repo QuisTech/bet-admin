@@ -7,11 +7,11 @@ import { BankrollManager } from './components/BankrollManager';
 import { ModelDiagnostics } from './components/ModelDiagnostics';
 import { StakingCalculator } from './components/StakingCalculator';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
-import type { MatchData, BankrollConfig } from './types';
+import type { MatchData, BankrollConfig, ModelPipelineMode } from './types';
 import { BASE_MATCHES } from './data/matchRepository';
-import { STRATEGY_MODES } from './models/strategyMode';
 import { fetchLiveFPLBootstrap } from './services/fplService';
 import { fetchLiveOddsFeed } from './services/oddsService';
+import { evaluateOpportunities } from './models/opportunityEngine';
 
 export default function App() {
   const [config, setConfig] = useState<BankrollConfig>(() => {
@@ -46,6 +46,7 @@ export default function App() {
   const [matches, setMatches] = useState<MatchData[]>(BASE_MATCHES);
   const [selectedMatch, setSelectedMatch] = useState<MatchData | null>(null);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>('soccer_epl');
+  const [pipelineFilter, setPipelineFilter] = useState<ModelPipelineMode>('ALL_CONSENSUS');
 
   // Live Feed Status States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -91,24 +92,11 @@ export default function App() {
   };
 
   const currentMode = config.strategyMode || 'safe';
-  const strategy = STRATEGY_MODES[currentMode];
 
-  const activeSignals = useMemo(() => {
-    return [
-      ...matches.flatMap((m) =>
-        m.markets.filter((mk) => {
-          if (mk.ensembleProb < strategy.minProb && currentMode === 'safe') return false;
-          return mk.evPercent >= strategy.minEV;
-        })
-      ),
-      ...matches.flatMap((m) =>
-        m.playerProps.filter((p) => {
-          if (p.modelProb < strategy.minProb && currentMode === 'safe') return false;
-          return p.evPercent >= strategy.minEV;
-        })
-      ),
-    ].length;
-  }, [matches, strategy, currentMode]);
+  // Dynamic portfolio aggregate statistics
+  const slateStats = useMemo(() => {
+    return evaluateOpportunities(matches, config, pipelineFilter, currentMode);
+  }, [matches, config, pipelineFilter, currentMode]);
 
   return (
     <div className="min-h-screen bg-[#020617] text-[#f8fafc] p-4 sm:p-6 font-sans">
@@ -118,7 +106,9 @@ export default function App() {
         <Header
           config={config}
           onConfigChange={handleConfigChange}
-          activeSignalCount={activeSignals}
+          activeSignalCount={slateStats.activeSignalCount}
+          averageEV={slateStats.averageEV}
+          brierScore={slateStats.brierScore}
           onOpenSettings={() => setIsSettingsOpen(true)}
           isOddsLive={isOddsLive}
           isFplLive={isFplLive}
@@ -130,7 +120,8 @@ export default function App() {
         <MetricsColumn
           config={config}
           onConfigChange={handleConfigChange}
-          activeSignalCount={activeSignals}
+          activeSignalCount={slateStats.activeSignalCount}
+          brierScore={slateStats.brierScore}
         />
 
         {/* Center Primary Stage (Col 4-9 -> col-span-12 lg:col-span-6) */}
@@ -172,7 +163,8 @@ export default function App() {
               </div>
 
               <div className="text-right text-[11px] font-mono text-slate-400">
-                <span className="text-emerald-400 font-bold">{activeSignals}</span> signals active
+                <span className="text-emerald-400 font-bold">{slateStats.activeSignalCount}</span>{' '}
+                signals active
               </div>
             </div>
 
@@ -184,6 +176,8 @@ export default function App() {
                   config={config}
                   onSelectMatch={(m) => setSelectedMatch(m)}
                   riskMode={currentMode}
+                  pipelineFilter={pipelineFilter}
+                  onPipelineFilterChange={setPipelineFilter}
                 />
               )}
 

@@ -8,6 +8,8 @@ interface HeaderProps {
   config: BankrollConfig;
   onConfigChange: (newConfig: BankrollConfig) => void;
   activeSignalCount: number;
+  averageEV?: number;
+  brierScore?: number;
   onOpenSettings?: () => void;
   isOddsLive?: boolean;
   isFplLive?: boolean;
@@ -19,6 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   config,
   onConfigChange,
   activeSignalCount,
+  averageEV = 0,
+  brierScore = 0.174,
   onOpenSettings,
   isOddsLive = false,
   isFplLive = false,
@@ -172,12 +176,21 @@ export const Header: React.FC<HeaderProps> = ({
               Projected Edge
             </span>
             <div className="flex items-baseline gap-1.5 xl:justify-end">
-              <span className="text-xl font-bold font-mono text-emerald-400 tabular-nums">
-                +14.8% EV
+              <span
+                className={`text-xl font-bold font-mono tabular-nums ${
+                  averageEV > 0
+                    ? 'text-emerald-400'
+                    : averageEV < 0
+                    ? 'text-rose-400'
+                    : 'text-slate-400'
+                }`}
+              >
+                {averageEV > 0 ? '+' : ''}
+                {averageEV.toFixed(1)}% EV
               </span>
             </div>
             <span className="text-[9px] font-mono text-slate-500 hidden sm:inline">
-              {activeSignalCount} Active Opportunities • Brier 0.174
+              {activeSignalCount} Active Opportunities • Brier {brierScore.toFixed(3)}
             </span>
           </div>
         </div>
