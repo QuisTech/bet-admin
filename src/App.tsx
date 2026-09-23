@@ -43,10 +43,18 @@ export default function App() {
   };
 
   const [tab, setTab] = useState<'feed' | 'bankroll' | 'diagnostics'>('feed');
+  const [diagnosticsSubTab, setDiagnosticsSubTab] = useState<'diagnostics' | 'evolution'>('diagnostics');
+  const [tuningLeague, setTuningLeague] = useState<string | undefined>(undefined);
   const [matches, setMatches] = useState<MatchData[]>(BASE_MATCHES);
   const [selectedMatch, setSelectedMatch] = useState<MatchData | null>(null);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>('soccer_epl');
   const [pipelineFilter, setPipelineFilter] = useState<ModelPipelineMode>('ALL_CONSENSUS');
+
+  const handleOpenEvolution = (league: string) => {
+    setTuningLeague(league);
+    setDiagnosticsSubTab('evolution');
+    setTab('diagnostics');
+  };
 
   // Live Feed Status States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -152,13 +160,13 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setTab('diagnostics')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
                     tab === 'diagnostics'
                       ? 'bg-emerald-500 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                   }`}
                 >
-                  Model Diagnostics
+                  <span>🧬 Model Lab</span>
                 </button>
               </div>
 
@@ -178,6 +186,7 @@ export default function App() {
                   riskMode={currentMode}
                   pipelineFilter={pipelineFilter}
                   onPipelineFilterChange={setPipelineFilter}
+                  onOpenEvolution={handleOpenEvolution}
                 />
               )}
 
@@ -186,7 +195,15 @@ export default function App() {
               )}
 
               {tab === 'diagnostics' && (
-                <ModelDiagnostics match={selectedMatch || matches[0]} />
+                <ModelDiagnostics
+                  match={selectedMatch || matches[0]}
+                  activeSubTab={diagnosticsSubTab}
+                  onSubTabChange={setDiagnosticsSubTab}
+                  selectedLeague={tuningLeague}
+                  onWeightsUpdated={() => {
+                    setMatches((prev) => [...prev]);
+                  }}
+                />
               )}
             </div>
           </div>

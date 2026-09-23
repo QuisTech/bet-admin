@@ -22,6 +22,7 @@ interface ValueFeedProps {
   riskMode: 'safe' | 'risky' | 'value';
   pipelineFilter?: ModelPipelineMode;
   onPipelineFilterChange?: (mode: ModelPipelineMode) => void;
+  onOpenEvolution?: (league: string) => void;
 }
 
 export const ValueFeed: React.FC<ValueFeedProps> = ({
@@ -31,6 +32,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
   riskMode,
   pipelineFilter: propsPipelineFilter,
   onPipelineFilterChange,
+  onOpenEvolution,
 }) => {
   const [filter, setFilter] = useState<'ALL' | 'PROPS' | 'MATCH'>('ALL');
   const [internalPipelineFilter, setInternalPipelineFilter] =
@@ -264,7 +266,12 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       {(opt.trainedMlProb * 100).toFixed(1)}%
                     </td>
                     <td className="col-prob" style={{ textAlign: 'right' }}>
-                      {(opt.consensusProb * 100).toFixed(1)}%
+                      <div className="font-bold text-emerald-400">
+                        {(opt.consensusProb * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-[9px] text-slate-500 font-mono">
+                        🧬 {Math.round((opt.domainWeight ?? 0.5) * 100)}/{Math.round((opt.mlWeight ?? 0.5) * 100)}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right', fontSize: 10, fontFamily: 'monospace' }}>
                       {opt.consensusLevel === 'STRONG_AGREEMENT' ? (
@@ -387,7 +394,12 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                     </span>
                   </div>
                   <div className="pt-1 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                    <span className="font-bold text-slate-300">Consensus Blend:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-300">Consensus Blend:</span>
+                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/70 px-1.5 py-0.5 rounded border border-emerald-800/50 flex items-center gap-1">
+                        🧬 {Math.round((opt.domainWeight ?? 0.5) * 100)}% / {Math.round((opt.mlWeight ?? 0.5) * 100)}% Evolved
+                      </span>
+                    </div>
                     <span className="font-black text-fpl-green">
                       {(opt.consensusProb * 100).toFixed(1)}%
                     </span>
@@ -409,6 +421,23 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       </span>
                     )}
                   </div>
+
+                  {/* Evolutionary strategy deep-link */}
+                  {onOpenEvolution && (
+                    <div className="pt-1.5 border-t border-slate-900 flex justify-end">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenEvolution(opt.match.league);
+                        }}
+                        className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline cursor-pointer"
+                        title="Tune and evolve machine learning consensus weights for this league"
+                      >
+                        <span>🧬 Tune {opt.match.league} Weights</span>
+                        <span>↗</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Quantitative Odds & Fair Pricing Grid */}

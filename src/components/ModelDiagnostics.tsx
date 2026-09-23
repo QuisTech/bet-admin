@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Cpu, Activity, ShieldCheck, BarChart2, GitCompare, Layers, Award } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Cpu, Activity, ShieldCheck, BarChart2, GitCompare, Layers, Award, Dna } from 'lucide-react';
 import type { MatchData } from '../types';
 import { calculateDixonColes } from '../models/dixonColes';
 import { calculateShinDevig } from '../models/shinDevig';
@@ -7,24 +7,50 @@ import { getBenchmarkCalibration } from '../models/calibrationEngine';
 import { calculateBrierDecomposition } from '../models/validationEngine';
 import { aggregateCLVMetrics } from '../models/clvEngine';
 import { modelWeights } from '../models/trainedXGBoostEngine';
+import { EvolutionaryOptimizer } from './EvolutionaryOptimizer';
+import { normalizeLeagueId } from '../models/evolutionaryEngine';
 
 interface ModelDiagnosticsProps {
   match: MatchData;
+  activeSubTab?: 'diagnostics' | 'evolution';
+  onSubTabChange?: (tab: 'diagnostics' | 'evolution') => void;
+  selectedLeague?: string;
+  onWeightsUpdated?: () => void;
 }
 
-export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({ match }) => {
+export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({
+  match,
+  activeSubTab = 'diagnostics',
+  onSubTabChange,
+  selectedLeague,
+  onWeightsUpdated,
+}) => {
+  const [internalSubTab, setInternalSubTab] = useState<'diagnostics' | 'evolution'>(activeSubTab);
+
+  useEffect(() => {
+    if (activeSubTab) {
+      setInternalSubTab(activeSubTab);
+    }
+  }, [activeSubTab]);
+
+  const currentSubTab = onSubTabChange ? activeSubTab : internalSubTab;
+  const setSubTab = (t: 'diagnostics' | 'evolution') => {
+    if (onSubTabChange) onSubTabChange(t);
+    setInternalSubTab(t);
+  };
+
   // 1. Calculate live Dixon-Coles goal matrix for current match
   const dcResult = useMemo(() => {
     return calculateDixonColes(
-      Math.max(0.8, match.homeXG),
-      Math.max(0.8, match.awayXG * 0.9),
-      Math.max(0.8, match.awayXG),
-      Math.max(0.8, match.homeXG * 0.9)
+      Math.max(0.8, match?.homeXG || 1.2),
+      Math.max(0.8, (match?.awayXG || 1.1) * 0.9),
+      Math.max(0.8, match?.awayXG || 1.1),
+      Math.max(0.8, (match?.homeXG || 1.2) * 0.9)
     );
   }, [match]);
 
   // 2. Calculate Shin De-Vigging on match primary 1X2 market
-  const primaryMarket = match.markets[0];
+  const primaryMarket = match?.markets?.[0];
   const sportyOdds = primaryMarket ? primaryMarket.sportyBetOdds : 2.0;
   const shinResult = useMemo(() => {
     return calculateShinDevig([sportyOdds, 3.40, 3.80]);
@@ -68,6 +94,54 @@ export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({ match }) => 
           </span>
         </div>
       </div>
+
+      {/* Sub-tab Navigation Pill */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950 p-2 rounded-2xl border border-slate-800">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSubTab('diagnostics')}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+              currentSubTab === 'diagnostics'
+                ? 'bg-slate-800 text-white shadow-md border border-slate-700'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+            }`}
+          >
+            <GitCompare className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Diagnostic Benchmark</span>
+          </button>
+          <button
+            onClick={() => setSubTab('evolution')}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+              currentSubTab === 'evolution'
+                ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 shadow-md border border-emerald-500/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+            }`}
+          >
+            <Dna className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Evolutionary Strategy Optimizer</span>
+            <span className="text-[9px] font-mono bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800">
+              AI META-LEARNER
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs font-mono text-slate-400 px-2">
+          <span className="text-slate-500">Active Match:</span>
+          <span className="text-cyan-400 font-bold">{match?.league || 'Premier League'}</span>
+        </div>
+      </div>
+
+      {/* View 1: Evolutionary Strategy Optimizer */}
+      {currentSubTab === 'evolution' && (
+        <EvolutionaryOptimizer
+          selectedLeagueId={selectedLeague || normalizeLeagueId(match?.league || 'soccer_epl')}
+          onWeightsUpdated={onWeightsUpdated}
+        />
+      )}
+
+      {/* View 2: Diagnostic Benchmark Suite */}
+      {currentSubTab === 'diagnostics' && (
+        <div className="space-y-6">
 
       {/* CHAMPION VS CHALLENGER A/B BENCHMARK CARD */}
       <div className="p-5 rounded-3xl bg-slate-950/70 border border-slate-800 relative overflow-hidden">
@@ -329,5 +403,7 @@ export const ModelDiagnostics: React.FC<ModelDiagnosticsProps> = ({ match }) => 
         </div>
       </div>
     </div>
-  );
+  )}
+</div>
+);
 };

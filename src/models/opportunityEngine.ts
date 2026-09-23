@@ -1,11 +1,12 @@
 /**
  * Institutional Opportunity & Slate Aggregator Engine
  * Evaluates live match markets and player props against active strategy modes,
- * risk tolerances, and dual ML/Domain forecasting pipelines.
+ * risk tolerances, and dual ML/Domain forecasting pipelines with Evolutionary Meta-Learner consensus.
  */
 
 import type { MatchData, BankrollConfig, ModelPipelineMode } from '../types';
 import { STRATEGY_MODES } from './strategyMode';
+import { calculateEvolvedConsensus, getEvolvedWeights } from './evolutionaryEngine';
 
 export interface OpportunityItem {
   match: MatchData;
@@ -19,6 +20,8 @@ export interface OpportunityItem {
   domainProb: number;
   trainedMlProb: number;
   consensusProb: number;
+  domainWeight?: number;
+  mlWeight?: number;
   modelDelta: number;
   consensusLevel: 'STRONG_AGREEMENT' | 'MODERATE' | 'DIVERGENCE';
   evPercent: number;
@@ -54,10 +57,12 @@ export function evaluateOpportunities(
       const stakePct = strategy.maxStakePercent;
       const domainProb = mk.domainProb ?? mk.ensembleProb;
       const trainedMlProb = mk.trainedMlProb ?? mk.ensembleProb;
-      const consensusProb = mk.consensusProb ?? mk.ensembleProb;
-      const modelDelta = mk.modelDelta ?? Math.abs(trainedMlProb - domainProb);
-      const consensusLevel =
-        mk.consensusLevel ?? (modelDelta <= 0.04 ? 'STRONG_AGREEMENT' : 'MODERATE');
+
+      // Evolved meta-learning consensus
+      const evolved = calculateEvolvedConsensus(domainProb, trainedMlProb, m.league || 'soccer_epl');
+      const consensusProb = evolved.consensusProb;
+      const modelDelta = evolved.delta;
+      const consensusLevel = evolved.level;
 
       // Active probability evaluated based on selected pipeline view
       let activeProb = consensusProb;
@@ -78,6 +83,8 @@ export function evaluateOpportunities(
         domainProb,
         trainedMlProb,
         consensusProb,
+        domainWeight: evolved.domainWeight,
+        mlWeight: evolved.mlWeight,
         modelDelta,
         consensusLevel,
         evPercent: activeEv,
@@ -94,10 +101,12 @@ export function evaluateOpportunities(
       const stakePct = strategy.maxStakePercent;
       const domainProb = p.domainProb ?? p.modelProb;
       const trainedMlProb = p.trainedMlProb ?? p.modelProb;
-      const consensusProb = p.consensusProb ?? p.modelProb;
-      const modelDelta = p.modelDelta ?? Math.abs(trainedMlProb - domainProb);
-      const consensusLevel =
-        p.consensusLevel ?? (modelDelta <= 0.04 ? 'STRONG_AGREEMENT' : 'MODERATE');
+
+      // Evolved meta-learning consensus
+      const evolved = calculateEvolvedConsensus(domainProb, trainedMlProb, m.league || 'soccer_epl');
+      const consensusProb = evolved.consensusProb;
+      const modelDelta = evolved.delta;
+      const consensusLevel = evolved.level;
 
       let activeProb = consensusProb;
       if (pipelineFilter === 'DOMAIN_ONLY') activeProb = domainProb;
@@ -123,6 +132,8 @@ export function evaluateOpportunities(
         domainProb,
         trainedMlProb,
         consensusProb,
+        domainWeight: evolved.domainWeight,
+        mlWeight: evolved.mlWeight,
         modelDelta,
         consensusLevel,
         evPercent: activeEv,
@@ -174,12 +185,13 @@ export function evaluateOpportunities(
       : 0;
 
   // Real-time Brier calibration score corresponding to active model pipeline
+  const evolvedWeights = getEvolvedWeights(matches[0]?.league || 'soccer_epl');
   const brierScore =
     pipelineFilter === 'TRAINED_ML_ONLY'
       ? 0.199
       : pipelineFilter === 'DOMAIN_ONLY'
       ? 0.178
-      : 0.174;
+      : evolvedWeights.brierScore;
 
   return {
     allOpportunities: opportunitiesWithStatus,
