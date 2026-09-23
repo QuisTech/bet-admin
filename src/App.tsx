@@ -35,16 +35,17 @@ export default function App() {
 
   const syncDataFeeds = useCallback(async (customOddsKey?: string) => {
     // 1. Fetch live FPL stats via proxy
+    let fplData = null;
     try {
-      const fplData = await fetchLiveFPLBootstrap();
+      fplData = await fetchLiveFPLBootstrap();
       setIsFplLive(fplData.isLive);
     } catch {
       setIsFplLive(false);
     }
 
-    // 2. Fetch live odds feed
+    // 2. Fetch live odds feed with FPL player props fusion
     try {
-      const oddsResult = await fetchLiveOddsFeed(customOddsKey);
+      const oddsResult = await fetchLiveOddsFeed(customOddsKey, fplData);
       setIsOddsLive(oddsResult.isLive);
       setOddsSource(oddsResult.source);
       if (oddsResult.matches && oddsResult.matches.length > 0) {
