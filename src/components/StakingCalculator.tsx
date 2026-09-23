@@ -19,6 +19,8 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
   const [kellyFraction, setKellyFraction] = useState(config.kellyFraction);
   const [copied, setCopied] = useState(false);
 
+  const sym = config.currency === 'USD' ? '$' : '₦';
+
   if (!match) return null;
 
   const market = match.markets[marketIndex] || match.markets[0];
@@ -39,7 +41,7 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
   const formattedEdge = edge >= 0 ? `+${(edge * 100).toFixed(1)}%` : `${(edge * 100).toFixed(1)}%`;
 
   const handleCopy = () => {
-    const text = `🎯 BET HORIZON QUANT EVALUATION\nMatch: ${match.homeTeam} vs ${match.awayTeam}\nLeague: ${match.league}\nSelection: ${market.selection} (${market.marketType})\nOdds: ${market.sportyBetOdds.toFixed(2)}\nModel Fair Prob: ${(modelProb * 100).toFixed(1)}%\nEdge: ${formattedEv}\nKelly Recommendation: ${isPositiveEV ? `$${kelly.stakeNGN.toLocaleString()}` : '$0 (Pass / Negative EV)'}`;
+    const text = `🎯 BET HORIZON QUANT EVALUATION\nMatch: ${match.homeTeam} vs ${match.awayTeam}\nLeague: ${match.league}\nSelection: ${market.selection} (${market.marketType})\nOdds: ${market.sportyBetOdds.toFixed(2)}\nModel Fair Prob: ${(modelProb * 100).toFixed(1)}%\nEdge: ${formattedEv}\nKelly Recommendation: ${isPositiveEV ? `${sym}${kelly.stakeNGN.toLocaleString()} ${config.currency}` : `${sym}0 (Pass / Negative EV)`}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -86,7 +88,7 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
               <div className="font-bold text-rose-300">Negative Expected Value ({formattedEv} EV) — Pass / No Bet</div>
               <div className="text-[11px] text-rose-400/80 mt-0.5">
                 The sportsbook is underpaying on this selection (offering {market.sportyBetOdds.toFixed(2)} vs fair price of {(1 / modelProb).toFixed(2)}).
-                The Fractional Kelly solver protects your bankroll by recommending a <strong>$0 stake</strong>.
+                The Fractional Kelly solver protects your bankroll by recommending a <strong className="text-slate-200 font-mono">{sym}0 stake</strong>.
               </div>
             </div>
           </div>
@@ -155,7 +157,7 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
           <div>
             <div className="text-[10px] text-slate-400 uppercase font-bold">Recommended Stake</div>
             <div className={`text-xl font-mono font-bold mt-1 ${isPositiveEV ? 'text-white' : 'text-slate-500'}`}>
-              ${kelly.stakeNGN.toLocaleString()}
+              {sym}{kelly.stakeNGN.toLocaleString()}
             </div>
             <div className="text-[10px] text-slate-500 font-mono mt-0.5">
               {isPositiveEV ? `${kelly.stakePercent.toFixed(1)}% of total bankroll` : '0.0% (Bankroll Protected)'}
@@ -164,10 +166,10 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
           <div className="text-right">
             <div className="text-[10px] text-slate-400 uppercase font-bold">Projected Profit</div>
             <div className={`text-xl font-mono font-bold mt-1 ${isPositiveEV ? 'text-emerald-400' : 'text-slate-500'}`}>
-              {isPositiveEV ? `+$${netProfit.toLocaleString()}` : '$0 (No Bet)'}
+              {isPositiveEV ? `+${sym}${netProfit.toLocaleString()}` : `${sym}0 (No Bet)`}
             </div>
             <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-              Payout: ${projectedReturn.toLocaleString()}
+              Payout: {sym}{projectedReturn.toLocaleString()}
             </div>
           </div>
         </div>

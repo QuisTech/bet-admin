@@ -11,6 +11,8 @@ interface MatchModalProps {
 export const MatchModal: React.FC<MatchModalProps> = ({ match, config, onClose }) => {
   if (!match) return null;
 
+  const sym = config.currency === 'USD' ? '$' : '₦';
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="glass-card max-w-2xl w-full p-6 bg-slate-900/95 relative animate-in fade-in zoom-in duration-200">
@@ -57,7 +59,7 @@ export const MatchModal: React.FC<MatchModalProps> = ({ match, config, onClose }
                     +{mk.evPercent}% EV Edge
                   </div>
                   <div className="text-xs text-slate-300 font-semibold">
-                    Stake: <strong className="text-fpl-green">₦{Math.round(config.totalBankrollNGN * mk.recommendedStakePercent).toLocaleString()} NGN</strong>
+                    Stake: <strong className="text-fpl-green">{sym}{Math.round(config.totalBankrollNGN * mk.recommendedStakePercent).toLocaleString()} {config.currency}</strong>
                   </div>
                 </div>
               </div>
@@ -98,18 +100,17 @@ export const MatchModal: React.FC<MatchModalProps> = ({ match, config, onClose }
 
         <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
           <span className="flex items-center gap-1">
-            <ShieldCheck className="w-4 h-4 text-fpl-green" />
-            0.25x Fractional Kelly Safe Stake Applied
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            Quant Ensemble Checked
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition-colors"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition-colors"
           >
-            Close
+            Close Breakdown
           </button>
         </div>
       </div>
     </div>
   );
 };
-

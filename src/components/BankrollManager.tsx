@@ -12,6 +12,7 @@ interface BankrollManagerProps {
 export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConfigChange }) => {
   const [activeSubTab, setActiveSubTab] = useState<'monte-carlo' | 'backtest'>('monte-carlo');
 
+  const sym = config.currency === 'USD' ? '$' : '₦';
   const presetPools = [200000, 1000000, 10000000];
 
   // 1. Run 10,000-path Monte Carlo Stochastic Simulation
@@ -71,7 +72,7 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
 
           {/* Interactive Custom Capital Input */}
           <div className="flex items-center gap-1.5 bg-slate-900 px-3 py-1 rounded-xl border border-emerald-500/40 focus-within:border-emerald-400 transition-all">
-            <span className="text-xs font-mono font-bold text-emerald-400">{config.currency === 'USD' ? '$' : '₦'}</span>
+            <span className="text-xs font-mono font-bold text-emerald-400">{sym}</span>
             <input
               type="number"
               min="100"
@@ -144,7 +145,7 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
             <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
               <div className="text-[10px] text-slate-400 uppercase font-bold">Median Ending Bankroll</div>
               <div className="text-lg font-mono font-bold text-cyan-400 mt-1">
-                ₦{mcResult.medianEndingBankroll.toLocaleString()}
+                {sym}{mcResult.medianEndingBankroll.toLocaleString()}
               </div>
               <div className="text-[9px] text-slate-500">250-bet compounding (9 mos)</div>
             </div>
@@ -181,10 +182,10 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
                     return (
                       <tr key={m.month} className="hover:bg-slate-900/40 transition">
                         <td className="p-2 font-bold text-slate-300">Month {m.month}</td>
-                        <td className="p-2 text-rose-300">₦{m.p5.toLocaleString()}</td>
-                        <td className="p-2 text-cyan-300 font-bold">₦{m.p50.toLocaleString()}</td>
-                        <td className="p-2 text-emerald-300 font-bold">₦{m.p95.toLocaleString()}</td>
-                        <td className="p-2 text-slate-400">₦{stake.toLocaleString()} ({(config.maxStakePercent * 100).toFixed(0)}%)</td>
+                        <td className="p-2 text-rose-300">{sym}{m.p5.toLocaleString()}</td>
+                        <td className="p-2 text-cyan-300 font-bold">{sym}{m.p50.toLocaleString()}</td>
+                        <td className="p-2 text-emerald-300 font-bold">{sym}{m.p95.toLocaleString()}</td>
+                        <td className="p-2 text-slate-400">{sym}{stake.toLocaleString()} ({(config.maxStakePercent * 100).toFixed(0)}%)</td>
                       </tr>
                     );
                   })}
@@ -226,9 +227,9 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
             <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
               <div className="text-[10px] text-slate-400 uppercase font-bold">Net Realized Profit</div>
               <div className="text-lg font-mono font-bold text-emerald-400 mt-1">
-                +₦{backtestResult.netProfit.toLocaleString()}
+                +{sym}{backtestResult.netProfit.toLocaleString()}
               </div>
-              <div className="text-[9px] text-slate-500">From ₦{backtestResult.startingBankroll.toLocaleString()} pool</div>
+              <div className="text-[9px] text-slate-500">From {sym}{backtestResult.startingBankroll.toLocaleString()} pool</div>
             </div>
           </div>
 
@@ -260,7 +261,7 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
                       <td className="p-2 text-emerald-400 font-bold">+{gw.roiPercent}%</td>
                       <td className="p-2 text-amber-300 font-bold">+{gw.clvPercent}%</td>
                       <td className="p-2 text-slate-400">{gw.brierScore}</td>
-                      <td className="p-2 text-white font-bold">₦{gw.bankrollNGN.toLocaleString()}</td>
+                      <td className="p-2 text-white font-bold">{sym}{gw.bankrollNGN.toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
