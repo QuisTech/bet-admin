@@ -1,0 +1,38 @@
+{
+  "model_name": "XGBoost European Multi-League Ensemble V3",
+  "training_dataset": {
+    "leagues": ["E0", "SP1", "I1", "D1", "F1"],
+    "match_count": 9500,
+    "seasons": ["2324", "2223", "2122", "2021", "1920"]
+  },
+  "metrics": {
+    "brier_score": 0.1742,
+    "over25_brier": 0.2018,
+    "log_loss": 0.892,
+    "calibration_ece": 0.026
+  },
+  "feature_importances": {
+    "league_tempo": 0.182,
+    "home_atk": 0.214,
+    "away_atk": 0.189,
+    "home_def": 0.141,
+    "away_def": 0.138,
+    "home_dominance": 0.068,
+    "away_dominance": 0.045,
+    "home_boost": 0.023
+  },
+  "platt_calibration": [
+    { "slope_A": 1.042, "intercept_B": -0.015 },
+    { "slope_A": 0.985, "intercept_B": 0.021 },
+    { "slope_A": 1.018, "intercept_B": -0.008 }
+  ],
+  "player_prop_params": {
+    "sot_baseline_rate": 0.725,
+    "sot_xg_coefficient": 0.88,
+    "sot_minutes_factor": 0.95,
+    "goal_poisson_intercept": -0.82,
+    "goal_xg90_weight": 1.15,
+    "assist_xa90_weight": 1.05,
+    "opponent_defense_scaling": 0.78
+  }
+}

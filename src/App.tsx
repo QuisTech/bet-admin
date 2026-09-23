@@ -45,6 +45,7 @@ export default function App() {
   const [tab, setTab] = useState<'feed' | 'bankroll' | 'diagnostics'>('feed');
   const [matches, setMatches] = useState<MatchData[]>(BASE_MATCHES);
   const [selectedMatch, setSelectedMatch] = useState<MatchData | null>(null);
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string>('soccer_epl');
 
   // Live Feed Status States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -52,32 +53,42 @@ export default function App() {
   const [isOddsLive, setIsOddsLive] = useState(false);
   const [oddsSource, setOddsSource] = useState('Pinnacle Benchmark');
 
-  const syncDataFeeds = useCallback(async (customOddsKey?: string) => {
-    // 1. Fetch live FPL stats via proxy
-    let fplData = null;
-    try {
-      fplData = await fetchLiveFPLBootstrap();
-      setIsFplLive(fplData.isLive);
-    } catch {
-      setIsFplLive(false);
-    }
+  const syncDataFeeds = useCallback(
+    async (customOddsKey?: string, leagueId?: string) => {
+      const targetLeague = leagueId || selectedLeagueId;
 
-    // 2. Fetch live odds feed with FPL player props fusion
-    try {
-      const oddsResult = await fetchLiveOddsFeed(customOddsKey, fplData);
-      setIsOddsLive(oddsResult.isLive);
-      setOddsSource(oddsResult.source);
-      if (oddsResult.matches && oddsResult.matches.length > 0) {
-        setMatches(oddsResult.matches);
+      // 1. Fetch live FPL stats via proxy
+      let fplData = null;
+      try {
+        fplData = await fetchLiveFPLBootstrap();
+        setIsFplLive(fplData.isLive);
+      } catch {
+        setIsFplLive(false);
       }
-    } catch {
-      setIsOddsLive(false);
-    }
-  }, []);
+
+      // 2. Fetch live odds feed with FPL player props fusion & dual-model evaluation
+      try {
+        const oddsResult = await fetchLiveOddsFeed(customOddsKey, fplData, targetLeague);
+        setIsOddsLive(oddsResult.isLive);
+        setOddsSource(oddsResult.source);
+        if (oddsResult.matches && oddsResult.matches.length > 0) {
+          setMatches(oddsResult.matches);
+        }
+      } catch {
+        setIsOddsLive(false);
+      }
+    },
+    [selectedLeagueId]
+  );
 
   useEffect(() => {
     syncDataFeeds();
   }, [syncDataFeeds]);
+
+  const handleLeagueChange = (newLeagueId: string) => {
+    setSelectedLeagueId(newLeagueId);
+    syncDataFeeds(undefined, newLeagueId);
+  };
 
   const currentMode = config.strategyMode || 'safe';
   const strategy = STRATEGY_MODES[currentMode];
@@ -111,6 +122,8 @@ export default function App() {
           onOpenSettings={() => setIsSettingsOpen(true)}
           isOddsLive={isOddsLive}
           isFplLive={isFplLive}
+          selectedLeagueId={selectedLeagueId}
+          onLeagueChange={handleLeagueChange}
         />
 
         {/* Left Metrics Column (Col 1-3) */}

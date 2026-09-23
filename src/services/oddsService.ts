@@ -1,14 +1,28 @@
 /**
  * Live Odds Ingestion & Pinnacle Shin Market Fusion Service
+ * Supports multi-league ingestion (EPL, La Liga, Serie A, Bundesliga, Ligue 1, Champions League).
  * Connects to The Odds API (/api/odds) to fetch real-time sportsbook lines,
  * runs Pinnacle lines through Shin's De-Vigging engine, scans retail books for best odds,
- * and attaches live FPL player props evaluated by the XGBoost ensemble engine.
+ * attaches live FPL player props, and evaluates both Pipeline 1 (Domain Ensemble)
+ * and Pipeline 2 (Offline Trained XGBoost ML) with real-time consensus calculations.
  */
 
-import type { MatchData, PlayerProp, ModelScore } from '../types';
+import {
+  type MatchData,
+  type PlayerProp,
+  type ModelScore,
+  type MarketSelection,
+  type SupportedLeague,
+  SUPPORTED_LEAGUES,
+} from '../types';
 import { calculateShinDevig } from '../models/shinDevig';
 import { calculateDixonColes } from '../models/dixonColes';
 import { evaluatePropEnsemble } from '../models/propEnsembleEngine';
+import {
+  computeTrainedMlMatchOutcome,
+  computeTrainedMlPropProbability,
+  evaluateConsensus,
+} from '../models/trainedXGBoostEngine';
 import { BASE_MATCHES } from '../data/matchRepository';
 import {
   type FPLBootstrapData,
@@ -39,8 +53,8 @@ export interface OddsApiFixture {
 }
 
 const STORAGE_KEY = 'bet_admin_odds_api_key';
-const CACHE_MATCHES_KEY = 'bet_admin_cached_matches';
-const CACHE_TIME_KEY = 'bet_admin_cached_matches_time';
+const CACHE_MATCHES_BASE = 'bet_admin_cached_matches';
+const CACHE_TIME_BASE = 'bet_admin_cached_matches_time';
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15-minute cache to preserve monthly credits
 
 export function getSavedOddsApiKey(): string {
@@ -84,23 +98,116 @@ function findFplTeam(teamName: string, teams: FPLTeam[]): FPLTeam | null {
 }
 
 /**
- * Fetches live bookmaker odds and maps them into our MatchData model with Shin de-vigging
- * and live FPL player props.
+ * Enriches baseline offline matches with dual-model Pipeline 1 & Pipeline 2 predictions
+ */
+function enrichBaselineMatches(selectedLeague: SupportedLeague): MatchData[] {
+  return BASE_MATCHES.map((m) => {
+    const mlProbs = computeTrainedMlMatchOutcome(
+      selectedLeague.tempo,
+      1.35,
+      1.05,
+      0.95,
+      1.20
+    );
+
+    const enrichedMarkets: MarketSelection[] = m.markets.map((mkt) => {
+      let domainProb = mkt.ensembleProb;
+      let trainedMlProb = domainProb;
+
+      if (mkt.selection.includes('Win') && !mkt.selection.includes('Draw')) {
+        trainedMlProb = mkt.selection.includes(m.homeTeam) ? mlProbs.pHome : mlProbs.pAway;
+      } else if (mkt.selection === 'Draw') {
+        trainedMlProb = mlProbs.pDraw;
+      } else if (mkt.selection.includes('or Draw')) {
+        trainedMlProb = Math.min(0.94, mlProbs.pHome + mlProbs.pDraw);
+      } else if (mkt.selection.includes('Over 2.5')) {
+        trainedMlProb = mlProbs.pOver25;
+      }
+
+      const consensus = evaluateConsensus(domainProb, trainedMlProb);
+      const ev = Math.round((consensus.consensusProb * mkt.sportyBetOdds - 1.0) * 1000) / 10;
+
+      const models: ModelScore[] = [
+        ...mkt.models,
+        {
+          modelId: 'trained_xgboost',
+          modelName: 'Trained XGBoost ML',
+          probability: Math.round(trainedMlProb * 1000) / 1000,
+          uncertainty: 0.018,
+        },
+      ];
+
+      return {
+        ...mkt,
+        ensembleProb: consensus.consensusProb,
+        domainProb,
+        trainedMlProb: Math.round(trainedMlProb * 1000) / 1000,
+        consensusProb: consensus.consensusProb,
+        modelDelta: Math.round(consensus.delta * 1000) / 1000,
+        consensusLevel: consensus.level,
+        evPercent: ev,
+        models,
+      };
+    });
+
+    const enrichedProps: PlayerProp[] = m.playerProps.map((p) => {
+      const domainProb = p.modelProb;
+      const trainedMlProb = computeTrainedMlPropProbability(
+        p.propType,
+        p.xG90,
+        p.xA90,
+        p.xMins,
+        1.35
+      );
+      const consensus = evaluateConsensus(domainProb, trainedMlProb);
+      const ev = Math.round((consensus.consensusProb * p.sportyBetOdds - 1.0) * 1000) / 10;
+
+      return {
+        ...p,
+        modelProb: consensus.consensusProb,
+        domainProb,
+        trainedMlProb: Math.round(trainedMlProb * 1000) / 1000,
+        consensusProb: consensus.consensusProb,
+        modelDelta: Math.round(consensus.delta * 1000) / 1000,
+        consensusLevel: consensus.level,
+        evPercent: ev,
+      };
+    });
+
+    return {
+      ...m,
+      league: selectedLeague.name,
+      markets: enrichedMarkets,
+      playerProps: enrichedProps,
+    };
+  });
+}
+
+/**
+ * Fetches live bookmaker odds across any selected global league, mapping them into
+ * our MatchData model with Shin de-vigging, FPL player props, and dual-pipeline consensus.
  */
 export async function fetchLiveOddsFeed(
   customKey?: string,
-  fplData?: FPLBootstrapData | null
+  fplData?: FPLBootstrapData | null,
+  leagueId: string = 'soccer_epl'
 ): Promise<{
   matches: MatchData[];
   isLive: boolean;
   source: string;
   count: number;
+  selectedLeague: SupportedLeague;
 }> {
+  const selectedLeague =
+    SUPPORTED_LEAGUES.find((l) => l.id === leagueId) || SUPPORTED_LEAGUES[0];
+
   const apiKey = customKey || getSavedOddsApiKey();
+  const cacheMatchesKey = `${CACHE_MATCHES_BASE}_${leagueId}`;
+  const cacheTimeKey = `${CACHE_TIME_BASE}_${leagueId}`;
 
   // Check in-memory / localStorage cache first to avoid burning credits on refresh
-  const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(CACHE_MATCHES_KEY) : null;
-  const cachedTime = typeof localStorage !== 'undefined' ? localStorage.getItem(CACHE_TIME_KEY) : null;
+  const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheMatchesKey) : null;
+  const cachedTime = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheTimeKey) : null;
 
   if (!customKey && apiKey && cached && cachedTime) {
     const age = Date.now() - parseInt(cachedTime, 10);
@@ -111,27 +218,30 @@ export async function fetchLiveOddsFeed(
           return {
             matches: parsed,
             isLive: true,
-            source: 'The Odds API (Live Pinnacle / Bet365 Feed - Cached)',
+            source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} - Cached)`,
             count: parsed.length,
+            selectedLeague,
           };
         }
       } catch {}
     }
   }
 
-  // If no API key is provided, use structured baseline matches
+  // If no API key is provided, use structured baseline matches enriched with dual model
   if (!apiKey) {
+    const baseEnriched = enrichBaselineMatches(selectedLeague);
     return {
-      matches: BASE_MATCHES,
+      matches: baseEnriched,
       isLive: false,
-      source: 'Offline Benchmark Dataset',
-      count: BASE_MATCHES.length,
+      source: `${selectedLeague.flag} Offline Benchmark Dataset (${selectedLeague.name})`,
+      count: baseEnriched.length,
+      selectedLeague,
     };
   }
 
   try {
-    // The Odds API endpoint proxied via Vite (/api/odds/sports/soccer_epl/odds/)
-    const url = `/api/odds/sports/soccer_epl/odds/?apiKey=${apiKey}&regions=eu,uk&markets=h2h,totals&oddsFormat=decimal`;
+    // The Odds API endpoint proxied via Vite (/api/odds/sports/{leagueId}/odds/)
+    const url = `/api/odds/sports/${leagueId}/odds/?apiKey=${apiKey}&regions=eu,uk&markets=h2h,totals&oddsFormat=decimal`;
     const res = await fetch(url);
 
     if (!res.ok) {
@@ -140,15 +250,17 @@ export async function fetchLiveOddsFeed(
 
     const rawFixtures: OddsApiFixture[] = await res.json();
     if (!Array.isArray(rawFixtures) || rawFixtures.length === 0) {
+      const baseEnriched = enrichBaselineMatches(selectedLeague);
       return {
-        matches: BASE_MATCHES,
+        matches: baseEnriched,
         isLive: true,
-        source: 'Live Feed (0 fixtures found, showing baseline)',
-        count: BASE_MATCHES.length,
+        source: `${selectedLeague.flag} Live Feed (0 fixtures found, showing baseline)`,
+        count: baseEnriched.length,
+        selectedLeague,
       };
     }
 
-    // Process and enrich fixtures with Shin's De-Vigging and FPL props
+    // Process and enrich fixtures with Shin's De-Vigging, Pipeline 2 XGBoost ML, and props
     const matches: MatchData[] = rawFixtures.slice(0, 10).map((fix, idx) => {
       // 1. Identify Sharp (Pinnacle/Betfair) vs Retail Bookmakers
       const sharpBook =
@@ -195,51 +307,65 @@ export async function fetchLiveOddsFeed(
       const awayXG = Math.max(0.6, Math.min(2.4, (1 / sharpAway) * 2.0));
       const dc = calculateDixonColes(homeXG, 1.0, awayXG, 1.0);
 
-      // 6. Ensemble Probabilities (50% Dixon-Coles + 50% Shin Pinnacle)
-      const ensembleHome = Math.round((0.5 * dc.homeWinProb + 0.5 * fairHomeProb) * 1000) / 1000;
-      const ensembleDraw = Math.round((0.5 * dc.drawProb + 0.5 * fairDrawProb) * 1000) / 1000;
-      const ensembleAway = Math.round((0.5 * dc.awayWinProb + 0.5 * fairAwayProb) * 1000) / 1000;
+      // 6. Pipeline 1: Domain Ensemble Probabilities (50% Dixon-Coles + 50% Shin Pinnacle)
+      const domainHome = Math.round((0.5 * dc.homeWinProb + 0.5 * fairHomeProb) * 1000) / 1000;
+      const domainDraw = Math.round((0.5 * dc.drawProb + 0.5 * fairDrawProb) * 1000) / 1000;
+      const domainAway = Math.round((0.5 * dc.awayWinProb + 0.5 * fairAwayProb) * 1000) / 1000;
 
-      // 7. Calculate +EV % across markets
-      const evHome = Math.round((ensembleHome * bestRetailHome - 1.0) * 1000) / 10;
-      const evDraw = Math.round((ensembleDraw * bestRetailDraw - 1.0) * 1000) / 10;
-      const evAway = Math.round((ensembleAway * bestRetailAway - 1.0) * 1000) / 10;
+      // 7. Pipeline 2: Offline Trained XGBoost ML Model Evaluation
+      const mlProbs = computeTrainedMlMatchOutcome(
+        selectedLeague.tempo,
+        homeXG / 1.35,
+        awayXG / 1.35,
+        (3.0 - awayXG) / 1.5,
+        (3.0 - homeXG) / 1.5
+      );
 
-      // 8. Double Chance (1X: Home or Draw) -> Perfect for SAFE Mode (>65% Win Prob)
-      const prob1X = Math.min(0.92, Math.round((dc.homeWinProb + dc.drawProb) * 1000) / 1000);
-      const retail1X = Math.round((1 / (prob1X * 0.93)) * 100) / 100;
-      const ev1X = Math.round((prob1X * retail1X - 1.0) * 1000) / 10;
+      // 8. Dual-Model Consensus Evaluation
+      const consensusHome = evaluateConsensus(domainHome, mlProbs.pHome);
+      const consensusDraw = evaluateConsensus(domainDraw, mlProbs.pDraw);
+      const consensusAway = evaluateConsensus(domainAway, mlProbs.pAway);
 
-      // 9. Totals (Over 2.5)
+      // Calculate +EV % using consensus fair probabilities
+      const evHome = Math.round((consensusHome.consensusProb * bestRetailHome - 1.0) * 1000) / 10;
+      const evDraw = Math.round((consensusDraw.consensusProb * bestRetailDraw - 1.0) * 1000) / 10;
+      const evAway = Math.round((consensusAway.consensusProb * bestRetailAway - 1.0) * 1000) / 10;
+
+      // 9. Double Chance (1X: Home or Draw) -> Perfect for SAFE Mode (>65% Win Prob)
+      const domain1X = Math.min(0.92, Math.round((dc.homeWinProb + dc.drawProb) * 1000) / 1000);
+      const ml1X = Math.min(0.94, mlProbs.pHome + mlProbs.pDraw);
+      const consensus1X = evaluateConsensus(domain1X, ml1X);
+      const retail1X = Math.round((1 / (consensus1X.consensusProb * 0.93)) * 100) / 100;
+      const ev1X = Math.round((consensus1X.consensusProb * retail1X - 1.0) * 1000) / 10;
+
+      // 10. Totals (Over 2.5)
       const sharpTotals = sharpBook?.markets.find((m) => m.key === 'totals');
       let bestRetailOver = 1.95;
       if (sharpTotals) {
         bestRetailOver = sharpTotals.outcomes.find((o) => o.name === 'Over')?.price || 1.95;
       }
-      const ensembleOver = Math.round(dc.over25Prob * 1000) / 1000;
-      const evOver = Math.round((ensembleOver * bestRetailOver - 1.0) * 1000) / 10;
+      const domainOver = Math.round(dc.over25Prob * 1000) / 1000;
+      const consensusOver = evaluateConsensus(domainOver, mlProbs.pOver25);
+      const evOver = Math.round((consensusOver.consensusProb * bestRetailOver - 1.0) * 1000) / 10;
 
-      const markets: {
-        marketType: '1X2' | 'BTTS' | 'OVER_2_5';
-        selection: string;
-        sportyBetOdds: number;
-        pinnacleOdds: number;
-        ensembleProb: number;
-        evPercent: number;
-        recommendedStakePercent: number;
-        models: ModelScore[];
-      }[] = [
+      const markets: MarketSelection[] = [
         {
           marketType: '1X2',
           selection: `${fix.home_team} Win`,
           sportyBetOdds: bestRetailHome,
           pinnacleOdds: sharpHome,
-          ensembleProb: ensembleHome,
+          ensembleProb: consensusHome.consensusProb,
+          domainProb: domainHome,
+          trainedMlProb: Math.round(mlProbs.pHome * 1000) / 1000,
+          consensusProb: consensusHome.consensusProb,
+          modelDelta: Math.round(consensusHome.delta * 1000) / 1000,
+          consensusLevel: consensusHome.level,
           evPercent: evHome,
           recommendedStakePercent: 0.02,
           models: [
             { modelId: 'dixon_coles', modelName: 'Dixon-Coles Poisson', probability: dc.homeWinProb, uncertainty: 0.02 },
             { modelId: 'shin_devig', modelName: 'Shin Pinnacle De-Vigged', probability: fairHomeProb, uncertainty: 0.01 },
+            { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: Math.round(mlProbs.pHome * 1000) / 1000, uncertainty: 0.018 },
           ],
         },
         {
@@ -247,12 +373,18 @@ export async function fetchLiveOddsFeed(
           selection: 'Draw',
           sportyBetOdds: bestRetailDraw,
           pinnacleOdds: sharpDraw,
-          ensembleProb: ensembleDraw,
+          ensembleProb: consensusDraw.consensusProb,
+          domainProb: domainDraw,
+          trainedMlProb: Math.round(mlProbs.pDraw * 1000) / 1000,
+          consensusProb: consensusDraw.consensusProb,
+          modelDelta: Math.round(consensusDraw.delta * 1000) / 1000,
+          consensusLevel: consensusDraw.level,
           evPercent: evDraw,
           recommendedStakePercent: 0.01,
           models: [
             { modelId: 'dixon_coles', modelName: 'Dixon-Coles Poisson', probability: dc.drawProb, uncertainty: 0.03 },
             { modelId: 'shin_devig', modelName: 'Shin Pinnacle De-Vigged', probability: fairDrawProb, uncertainty: 0.01 },
+            { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: Math.round(mlProbs.pDraw * 1000) / 1000, uncertainty: 0.018 },
           ],
         },
         {
@@ -260,47 +392,64 @@ export async function fetchLiveOddsFeed(
           selection: `${fix.away_team} Win`,
           sportyBetOdds: bestRetailAway,
           pinnacleOdds: sharpAway,
-          ensembleProb: ensembleAway,
+          ensembleProb: consensusAway.consensusProb,
+          domainProb: domainAway,
+          trainedMlProb: Math.round(mlProbs.pAway * 1000) / 1000,
+          consensusProb: consensusAway.consensusProb,
+          modelDelta: Math.round(consensusAway.delta * 1000) / 1000,
+          consensusLevel: consensusAway.level,
           evPercent: evAway,
           recommendedStakePercent: 0.015,
           models: [
             { modelId: 'dixon_coles', modelName: 'Dixon-Coles Poisson', probability: dc.awayWinProb, uncertainty: 0.02 },
             { modelId: 'shin_devig', modelName: 'Shin Pinnacle De-Vigged', probability: fairAwayProb, uncertainty: 0.01 },
+            { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: Math.round(mlProbs.pAway * 1000) / 1000, uncertainty: 0.018 },
           ],
         },
         {
           marketType: '1X2',
           selection: `${fix.home_team} or Draw (1X)`,
           sportyBetOdds: retail1X,
-          pinnacleOdds: Math.round((1 / prob1X) * 100) / 100,
-          ensembleProb: prob1X,
+          pinnacleOdds: Math.round((1 / consensus1X.consensusProb) * 100) / 100,
+          ensembleProb: consensus1X.consensusProb,
+          domainProb: domain1X,
+          trainedMlProb: Math.round(ml1X * 1000) / 1000,
+          consensusProb: consensus1X.consensusProb,
+          modelDelta: Math.round(consensus1X.delta * 1000) / 1000,
+          consensusLevel: consensus1X.level,
           evPercent: Math.max(3.2, ev1X), // High prob bankroll lock
           recommendedStakePercent: 0.025,
           models: [
-            { modelId: 'dixon_coles', modelName: 'Dixon-Coles Joint Matrix', probability: prob1X, uncertainty: 0.015 },
+            { modelId: 'dixon_coles', modelName: 'Dixon-Coles Joint Matrix', probability: domain1X, uncertainty: 0.015 },
+            { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: Math.round(ml1X * 1000) / 1000, uncertainty: 0.018 },
           ],
         },
         {
           marketType: 'OVER_2_5',
           selection: 'Over 2.5 Goals',
           sportyBetOdds: bestRetailOver,
-          pinnacleOdds: Math.round((1 / dc.over25Prob) * 100) / 100,
-          ensembleProb: ensembleOver,
+          pinnacleOdds: Math.round((1 / consensusOver.consensusProb) * 100) / 100,
+          ensembleProb: consensusOver.consensusProb,
+          domainProb: domainOver,
+          trainedMlProb: Math.round(mlProbs.pOver25 * 1000) / 1000,
+          consensusProb: consensusOver.consensusProb,
+          modelDelta: Math.round(consensusOver.delta * 1000) / 1000,
+          consensusLevel: consensusOver.level,
           evPercent: evOver,
           recommendedStakePercent: 0.015,
           models: [
-            { modelId: 'dixon_coles', modelName: 'Dixon-Coles Poisson Integral', probability: dc.over25Prob, uncertainty: 0.025 },
+            { modelId: 'dixon_coles', modelName: 'Dixon-Coles Poisson Integral', probability: domainOver, uncertainty: 0.025 },
+            { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: Math.round(mlProbs.pOver25 * 1000) / 1000, uncertainty: 0.020 },
           ],
         },
       ];
 
-      // 10. Generate Player Props from Live FPL Data
+      // 11. Generate Player Props with Dual Model Evaluation
       const playerProps: PlayerProp[] = [];
       const homeTeamObj = fplData ? findFplTeam(fix.home_team, fplData.teams) : null;
       const awayTeamObj = fplData ? findFplTeam(fix.away_team, fplData.teams) : null;
 
       if (fplData && fplData.players && fplData.players.length > 0) {
-        // Find candidate attacking players for home and away teams
         const homePlayers = homeTeamObj
           ? fplData.players
               .filter((p) => p.team === homeTeamObj.id && p.status === 'a')
@@ -330,11 +479,20 @@ export async function fetchLiveOddsFeed(
 
         candidatePlayers.forEach(({ player, isHome, oppTeam }, pIdx) => {
           const features = buildPlayerPropFeatures(player, oppTeam, isHome);
-          const pred = evaluatePropEnsemble(features);
+          const domainPred = evaluatePropEnsemble(features);
 
-          // Prop 1: Shots on Target (Over 0.5) -> High probability (68% - 82%), great for SAFE mode
-          const sotOdds = Math.round((1 / (pred.over05SotProb * 0.91)) * 100) / 100;
-          const sotEv = Math.round((pred.over05SotProb * sotOdds - 1.0) * 1000) / 10;
+          // Prop 1: Shots on Target (Over 0.5)
+          const domainSot = domainPred.over05SotProb;
+          const mlSot = computeTrainedMlPropProbability(
+            'SOT',
+            features.xG90,
+            features.xA90,
+            features.xMins,
+            1.35
+          );
+          const consensusSot = evaluateConsensus(domainSot, mlSot);
+          const sotOdds = Math.round((1 / (consensusSot.consensusProb * 0.91)) * 100) / 100;
+          const sotEv = Math.round((consensusSot.consensusProb * sotOdds - 1.0) * 1000) / 10;
 
           playerProps.push({
             id: `live-prop-${fix.id}-${pIdx}-sot`,
@@ -346,17 +504,31 @@ export async function fetchLiveOddsFeed(
             xG90: features.xG90,
             xA90: features.xA90,
             xMins: features.xMins,
-            modelProb: pred.over05SotProb,
+            modelProb: consensusSot.consensusProb,
+            domainProb: domainSot,
+            trainedMlProb: Math.round(mlSot * 1000) / 1000,
+            consensusProb: consensusSot.consensusProb,
+            modelDelta: Math.round(consensusSot.delta * 1000) / 1000,
+            consensusLevel: consensusSot.level,
             sportyBetOdds: sotOdds,
-            pinnacleFairOdds: Math.round((1 / pred.over05SotProb) * 100) / 100,
+            pinnacleFairOdds: Math.round((1 / consensusSot.consensusProb) * 100) / 100,
             evPercent: Math.max(3.5, sotEv),
             recommendedStakePercent: 0.015,
           });
 
-          // Prop 2: Anytime Goalscorer -> 35% - 55% prob, great for VALUE / RISKY mode
-          if (pred.anytimeGoalProb >= 0.28) {
-            const goalOdds = Math.round((1 / (pred.anytimeGoalProb * 0.88)) * 100) / 100;
-            const goalEv = Math.round((pred.anytimeGoalProb * goalOdds - 1.0) * 1000) / 10;
+          // Prop 2: Anytime Goalscorer
+          if (domainPred.anytimeGoalProb >= 0.28) {
+            const domainGoal = domainPred.anytimeGoalProb;
+            const mlGoal = computeTrainedMlPropProbability(
+              'GOAL',
+              features.xG90,
+              features.xA90,
+              features.xMins,
+              1.35
+            );
+            const consensusGoal = evaluateConsensus(domainGoal, mlGoal);
+            const goalOdds = Math.round((1 / (consensusGoal.consensusProb * 0.88)) * 100) / 100;
+            const goalEv = Math.round((consensusGoal.consensusProb * goalOdds - 1.0) * 1000) / 10;
 
             playerProps.push({
               id: `live-prop-${fix.id}-${pIdx}-goal`,
@@ -368,9 +540,14 @@ export async function fetchLiveOddsFeed(
               xG90: features.xG90,
               xA90: features.xA90,
               xMins: features.xMins,
-              modelProb: pred.anytimeGoalProb,
+              modelProb: consensusGoal.consensusProb,
+              domainProb: domainGoal,
+              trainedMlProb: Math.round(mlGoal * 1000) / 1000,
+              consensusProb: consensusGoal.consensusProb,
+              modelDelta: Math.round(consensusGoal.delta * 1000) / 1000,
+              consensusLevel: consensusGoal.level,
               sportyBetOdds: goalOdds,
-              pinnacleFairOdds: Math.round((1 / pred.anytimeGoalProb) * 100) / 100,
+              pinnacleFairOdds: Math.round((1 / consensusGoal.consensusProb) * 100) / 100,
               evPercent: Math.max(8.5, goalEv),
               recommendedStakePercent: 0.02,
             });
@@ -378,9 +555,22 @@ export async function fetchLiveOddsFeed(
         });
       }
 
-      // Fallback: If no FPL player matched (e.g. newly promoted / non-FPL), use baseline props if index matches
+      // Fallback: If no FPL player matched, use enriched baseline props if available
       if (playerProps.length === 0 && BASE_MATCHES[idx]?.playerProps) {
-        playerProps.push(...BASE_MATCHES[idx].playerProps);
+        const enriched = BASE_MATCHES[idx].playerProps.map((p) => {
+          const mlProb = computeTrainedMlPropProbability(p.propType, p.xG90, p.xA90, p.xMins, 1.35);
+          const consensus = evaluateConsensus(p.modelProb, mlProb);
+          return {
+            ...p,
+            modelProb: consensus.consensusProb,
+            domainProb: p.modelProb,
+            trainedMlProb: Math.round(mlProb * 1000) / 1000,
+            consensusProb: consensus.consensusProb,
+            modelDelta: Math.round(consensus.delta * 1000) / 1000,
+            consensusLevel: consensus.level,
+          };
+        });
+        playerProps.push(...enriched);
       }
 
       const kickoffFormatted = new Date(fix.commence_time).toLocaleDateString('en-GB', {
@@ -391,7 +581,7 @@ export async function fetchLiveOddsFeed(
 
       return {
         id: fix.id,
-        league: 'Premier League',
+        league: selectedLeague.name,
         homeTeam: fix.home_team,
         awayTeam: fix.away_team,
         kickoff: kickoffFormatted,
@@ -403,21 +593,22 @@ export async function fetchLiveOddsFeed(
       };
     });
 
-    // Cache the successfully ingested live matches
+    // Cache the successfully ingested live matches for this league
     try {
-      localStorage.setItem(CACHE_MATCHES_KEY, JSON.stringify(matches));
-      localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+      localStorage.setItem(cacheMatchesKey, JSON.stringify(matches));
+      localStorage.setItem(cacheTimeKey, Date.now().toString());
     } catch {}
 
-    console.log(`[bet-admin] Successfully ingested ${matches.length} live matches with full markets & FPL props.`);
+    console.log(`[bet-admin] Successfully ingested ${matches.length} live matches for ${selectedLeague.name}.`);
     return {
       matches,
       isLive: true,
-      source: 'The Odds API (Live Pinnacle / Bet365 Feed)',
+      source: `${selectedLeague.flag} The Odds API (Live ${selectedLeague.name} Feed)`,
       count: matches.length,
+      selectedLeague,
     };
   } catch (err: any) {
-    console.warn('[bet-admin] Live odds fetch error, checking cache before baseline fallback:', err.message);
+    console.warn(`[bet-admin] Live odds fetch error for ${selectedLeague.name}:`, err.message);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -425,17 +616,20 @@ export async function fetchLiveOddsFeed(
           return {
             matches: parsed,
             isLive: true,
-            source: 'The Odds API (Cached Feed)',
+            source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} Cached Feed)`,
             count: parsed.length,
+            selectedLeague,
           };
         }
       } catch {}
     }
+    const baseEnriched = enrichBaselineMatches(selectedLeague);
     return {
-      matches: BASE_MATCHES,
+      matches: baseEnriched,
       isLive: false,
-      source: `Offline Fallback (${err.message})`,
-      count: BASE_MATCHES.length,
+      source: `${selectedLeague.flag} Offline Fallback (${err.message})`,
+      count: baseEnriched.length,
+      selectedLeague,
     };
   }
 }
