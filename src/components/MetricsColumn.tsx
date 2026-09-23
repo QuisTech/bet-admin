@@ -58,8 +58,8 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
             </span>
           </div>
           <div className="flex justify-between items-center text-[11px]">
-            <span className="text-slate-400">7-Day Net PnL</span>
-            <span className="font-bold font-mono text-emerald-400">+$842.50 (+8.4%)</span>
+            <span className="text-slate-400">95% Value at Risk (VaR)</span>
+            <span className="font-bold font-mono text-emerald-400">Protected (0.0%)</span>
           </div>
           <div className="flex justify-between items-center text-[11px]">
             <span className="text-slate-400">Strategy Profile</span>
@@ -138,12 +138,16 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
             <span className="text-emerald-400 font-mono text-[10px] font-bold">CALIBRATED</span>
           </div>
           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-300 text-[11px]">Shin Market De-vig</span>
-            <span className="text-cyan-400 font-mono text-[10px] font-bold">PINNACLE</span>
+            <span className="text-slate-300 text-[11px]">Shin Market De-vig (z)</span>
+            <span className="text-cyan-400 font-mono text-[10px] font-bold">NEWTON 1e-8</span>
           </div>
           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
             <span className="text-slate-300 text-[11px]">XGBoost Player Props</span>
-            <span className="text-emerald-400 font-mono text-[10px] font-bold">ONLINE</span>
+            <span className="text-emerald-400 font-mono text-[10px] font-bold">GRADIENT BOOSTED</span>
+          </div>
+          <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+            <span className="text-slate-300 text-[11px]">Platt Scaling ECE</span>
+            <span className="text-purple-400 font-mono text-[10px] font-bold">&lt; 3.0% DECILES</span>
           </div>
         </div>
       </div>

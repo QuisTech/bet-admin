@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { DollarSign, ShieldAlert, Award, ArrowUpRight } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ShieldAlert } from 'lucide-react';
 import type { BankrollConfig } from '../types';
+import { runMonteCarloSimulation } from '../models/monteCarloEngine';
+import { getStandardHistoricalBacktest } from '../models/backtestEngine';
 
 interface BankrollManagerProps {
   config: BankrollConfig;
@@ -8,172 +10,244 @@ interface BankrollManagerProps {
 }
 
 export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConfigChange }) => {
-  const [strategy, setStrategy] = useState<'COMPOUND' | 'HYBRID' | 'INCOME'>('HYBRID');
+  const [activeSubTab, setActiveSubTab] = useState<'monte-carlo' | 'backtest'>('monte-carlo');
 
   const presetPools = [200000, 1000000, 10000000];
 
-  // Generate 9-month compounding timeline projection
-  const timeline = Array.from({ length: 9 }).map((_, i) => {
-    const month = i + 1;
-    // Assuming 12% monthly compounding rate from +EV edge
-    const pool = Math.round(config.totalBankrollNGN * Math.pow(1.12, i));
-    const stake = Math.round(pool * config.maxStakePercent);
-    const estMonthlyProfit = Math.round(pool * 0.12);
-    return { month, pool, stake, estMonthlyProfit };
-  });
+  // 1. Run 10,000-path Monte Carlo Stochastic Simulation
+  const mcResult = useMemo(() => {
+    return runMonteCarloSimulation({
+      initialBankroll: config.totalBankrollNGN,
+      numBets: 250,
+      winProbability: 0.54,
+      averageDecimalOdds: 1.95,
+      kellyFraction: config.kellyFraction,
+      maxStakePercent: config.maxStakePercent,
+      simulations: 10000,
+    });
+  }, [config.totalBankrollNGN, config.kellyFraction, config.maxStakePercent]);
+
+  // 2. Run Historical Walk-Forward Temporal Backtest
+  const backtestResult = useMemo(() => {
+    return getStandardHistoricalBacktest(config);
+  }, [config]);
 
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="glass-card p-6 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <ShieldAlert className="w-5 h-5 text-sky-400" />
-              <h2 className="text-lg font-bold text-slate-100">Fractional Kelly Bankroll Manager & Capital Allocator</h2>
+      <div className="p-5 rounded-3xl bg-slate-950/80 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <ShieldAlert className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-base font-bold text-white">
+              Monte Carlo Risk Engine & Walk-Forward Backtester
+            </h2>
+          </div>
+          <p className="text-xs text-slate-400">
+            Simulates 10,000 stochastic portfolio paths, calculates 95% Value-at-Risk (VaR), and verifies out-of-sample historical execution.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <span className="text-[11px] font-bold text-slate-400 px-2">Pool:</span>
+            {presetPools.map((pool) => (
+              <button
+                key={pool}
+                onClick={() => onConfigChange({ ...config, totalBankrollNGN: pool, totalBankroll: pool / 1000 })}
+                className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                  config.totalBankrollNGN === pool
+                    ? 'bg-emerald-500 text-slate-950 shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                ₦{(pool / 1000).toFixed(0)}k
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Sub-tab Switcher: Monte Carlo vs Walk-Forward Backtest */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+        <button
+          onClick={() => setActiveSubTab('monte-carlo')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'monte-carlo'
+              ? 'bg-emerald-500 text-slate-950 shadow'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          10,000-Path Monte Carlo Simulation
+        </button>
+        <button
+          onClick={() => setActiveSubTab('backtest')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'backtest'
+              ? 'bg-emerald-500 text-slate-950 shadow'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          Walk-Forward Historical Backtest (GW 1-6)
+        </button>
+      </div>
+
+      {activeSubTab === 'monte-carlo' && (
+        <div className="space-y-4">
+          {/* 4 Risk Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">95% Value at Risk (VaR)</div>
+              <div className="text-lg font-mono font-bold text-emerald-400 mt-1">
+                {mcResult.var95Percent > 0 ? `-${mcResult.var95Percent}%` : '0.0% (Protected)'}
+              </div>
+              <div className="text-[9px] text-slate-500">Max loss at 95% confidence</div>
             </div>
-            <p className="text-xs text-slate-400">
-              Enforces strict 1%–2% risk limits to protect your pool from cold streaks while compounding profits.
-            </p>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl">
-              <span className="text-[11px] font-bold text-slate-400 px-2">Quick Pools:</span>
-              {presetPools.map(pool => (
-                <button
-                  key={pool}
-                  onClick={() => onConfigChange({ ...config, totalBankrollNGN: pool })}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    config.totalBankrollNGN === pool
-                      ? 'bg-fpl-green text-slate-950'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-                >
-                  ₦{(pool / 1000).toFixed(0)}k
-                </button>
-              ))}
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Max Expected Drawdown</div>
+              <div className="text-lg font-mono font-bold text-amber-400 mt-1">
+                {mcResult.maxExpectedDrawdown}%
+              </div>
+              <div className="text-[9px] text-slate-500">Median peak-to-trough decline</div>
             </div>
 
-            <button
-              onClick={() => setStrategy('COMPOUND')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                strategy === 'COMPOUND' ? 'bg-sky-400 text-slate-950 shadow-md' : 'text-slate-400 bg-slate-950'
-              }`}
-              style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-            >
-              100% Compounding
-            </button>
-            <button
-              onClick={() => setStrategy('HYBRID')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                strategy === 'HYBRID' ? 'bg-sky-400 text-slate-950 shadow-md' : 'text-slate-400 bg-slate-950'
-              }`}
-              style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-            >
-              Hybrid Plan (Recommended)
-            </button>
-            <button
-              onClick={() => setStrategy('INCOME')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                strategy === 'INCOME' ? 'bg-sky-400 text-slate-950 shadow-md' : 'text-slate-400 bg-slate-950'
-              }`}
-              style={{ border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-            >
-              Monthly Salary
-            </button>
-          </div>
-        </div>
-      </div>
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Ruin Risk (&gt;50% DD)</div>
+              <div className="text-lg font-mono font-bold text-emerald-400 mt-1">
+                {mcResult.probDrawdownOver50Pct}%
+              </div>
+              <div className="text-[9px] text-slate-500">Fractional Kelly capital safety</div>
+            </div>
 
-      {/* 3 Metric Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="glass-card p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Bankroll Pool</span>
-            <DollarSign className="w-4 h-4 text-fpl-green" />
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Median Ending Bankroll</div>
+              <div className="text-lg font-mono font-bold text-cyan-400 mt-1">
+                ₦{mcResult.medianEndingBankroll.toLocaleString()}
+              </div>
+              <div className="text-[9px] text-slate-500">250-bet compounding (9 mos)</div>
+            </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-100 font-mono">
-            ₦{config.totalBankrollNGN.toLocaleString()} <span className="text-sm text-slate-400">NGN</span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">100% Capital Pool Allocation</p>
-        </div>
 
-        <div className="glass-card p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Per-Bet Safe Stake (2% Max)</span>
-            <ShieldAlert className="w-4 h-4 text-sky-400" />
-          </div>
-          <div className="text-2xl font-extrabold text-sky-400 font-mono">
-            ₦{Math.round(config.totalBankrollNGN * config.maxStakePercent).toLocaleString()} <span className="text-sm text-slate-400">NGN</span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">Fractional Kelly (0.25x) Enforced</p>
-        </div>
+          {/* 9-Month Trajectory Fan Table */}
+          <div className="p-5 rounded-3xl bg-slate-950/60 border border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                  9-Month Compounding Trajectory (Percentile Fan Bands)
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Computed from 10,000 independent stochastic paths in {mcResult.executionTimeMs}ms.
+                </p>
+              </div>
+              <span className="text-[10px] font-mono text-emerald-400">10,000 RUNS</span>
+            </div>
 
-        <div className="glass-card p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Est. Month 1 Net Profit</span>
-            <Award className="w-4 h-4 text-amber-400" />
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[10px] text-slate-500 font-mono">
+                    <th className="p-2">Month</th>
+                    <th className="p-2 text-rose-400">5th %ile (Bear)</th>
+                    <th className="p-2 text-cyan-400">50th %ile (Median Expected)</th>
+                    <th className="p-2 text-emerald-400">95th %ile (Bull Growth)</th>
+                    <th className="p-2">Kelly Stake Cap</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-900/60 font-mono text-xs">
+                  {mcResult.monthlyTrajectories.map((m) => {
+                    const stake = Math.round(m.p50 * config.maxStakePercent);
+                    return (
+                      <tr key={m.month} className="hover:bg-slate-900/40 transition">
+                        <td className="p-2 font-bold text-slate-300">Month {m.month}</td>
+                        <td className="p-2 text-rose-300">₦{m.p5.toLocaleString()}</td>
+                        <td className="p-2 text-cyan-300 font-bold">₦{m.p50.toLocaleString()}</td>
+                        <td className="p-2 text-emerald-300 font-bold">₦{m.p95.toLocaleString()}</td>
+                        <td className="p-2 text-slate-400">₦{stake.toLocaleString()} ({(config.maxStakePercent * 100).toFixed(0)}%)</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="text-2xl font-extrabold text-amber-400 font-mono">
-            +₦{Math.round(config.totalBankrollNGN * 0.12).toLocaleString()} <span className="text-sm text-slate-400">NGN</span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">Based on +EV Edge across ~30 bets</p>
         </div>
-      </div>
+      )}
 
-      {/* 9-Month Projection Table */}
-      <div className="glass-card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-100">9-Month Compounding Growth Timeline</h3>
-            <p className="text-xs text-slate-400">Projected bankroll growth assuming 0.25x Fractional Kelly execution.</p>
-          </div>
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-fpl-green/10 text-fpl-green flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            +12% Monthly Target
-          </span>
-        </div>
+      {activeSubTab === 'backtest' && (
+        <div className="space-y-4">
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Overall Realized ROI</div>
+              <div className="text-lg font-mono font-bold text-emerald-400 mt-1">
+                +{backtestResult.roiPercent}%
+              </div>
+              <div className="text-[9px] text-slate-500">Out-of-sample yield</div>
+            </div>
 
-        <div className="overflow-x-auto">
-          <table className="quant-table">
-            <thead>
-              <tr>
-                <th>Timeline</th>
-                <th style={{ textAlign: 'right' }}>Bankroll Pool</th>
-                <th style={{ textAlign: 'right' }}>Safe 2% Stake</th>
-                <th style={{ textAlign: 'right' }}>Est. Monthly Profit</th>
-                <th>Milestone</th>
-              </tr>
-            </thead>
-            <tbody>
-              {timeline.map(t => (
-                <tr key={t.month}>
-                  <td style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                    Month {t.month}
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    ₦{t.pool.toLocaleString()}
-                  </td>
-                  <td className="col-prob" style={{ textAlign: 'right' }}>
-                    ₦{t.stake.toLocaleString()}
-                  </td>
-                  <td className="col-ev" style={{ textAlign: 'right' }}>
-                    +₦{t.estMonthlyProfit.toLocaleString()}
-                  </td>
-                  <td style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-muted)' }}>
-                    {t.month === 1 && '🚀 Starter Launch'}
-                    {t.month === 3 && '📈 Pool Doubled (+100%)'}
-                    {t.month === 6 && '🎯 High-Roller Scale Threshold'}
-                    {t.month === 9 && '🏆 Passive Income Mode Unlocked'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Win Rate</div>
+              <div className="text-lg font-mono font-bold text-cyan-400 mt-1">
+                {backtestResult.winRate}%
+              </div>
+              <div className="text-[9px] text-slate-500">{backtestResult.winCount} of {backtestResult.totalBets} bets</div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Sharpe Ratio</div>
+              <div className="text-lg font-mono font-bold text-purple-400 mt-1">
+                {backtestResult.sharpeRatio}
+              </div>
+              <div className="text-[9px] text-slate-500">Risk-adjusted return</div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Net Realized Profit</div>
+              <div className="text-lg font-mono font-bold text-emerald-400 mt-1">
+                +₦{backtestResult.netProfit.toLocaleString()}
+              </div>
+              <div className="text-[9px] text-slate-500">From ₦{backtestResult.startingBankroll.toLocaleString()} pool</div>
+            </div>
+          </div>
+
+          {/* Gameweek by Gameweek Walk-Forward Ledger */}
+          <div className="p-5 rounded-3xl bg-slate-950/60 border border-slate-800">
+            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-4">
+              Gameweek-by-Gameweek Walk-Forward Validation Table
+            </h3>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[10px] text-slate-500 font-mono">
+                    <th className="p-2">Gameweek</th>
+                    <th className="p-2">Bets</th>
+                    <th className="p-2">Win Rate</th>
+                    <th className="p-2">GW ROI</th>
+                    <th className="p-2">Avg CLV</th>
+                    <th className="p-2">Brier</th>
+                    <th className="p-2">End Bankroll</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-900/60 font-mono text-xs">
+                  {backtestResult.gameweekMetrics.map((gw) => (
+                    <tr key={gw.gameweek} className="hover:bg-slate-900/40 transition">
+                      <td className="p-2 font-bold text-slate-300">GW {gw.gameweek}</td>
+                      <td className="p-2 text-slate-400">{gw.totalBets} bets</td>
+                      <td className="p-2 text-cyan-300 font-bold">{gw.winRate}%</td>
+                      <td className="p-2 text-emerald-400 font-bold">+{gw.roiPercent}%</td>
+                      <td className="p-2 text-amber-300 font-bold">+{gw.clvPercent}%</td>
+                      <td className="p-2 text-slate-400">{gw.brierScore}</td>
+                      <td className="p-2 text-white font-bold">₦{gw.bankrollNGN.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
