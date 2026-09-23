@@ -331,10 +331,14 @@ export async function fetchLiveOddsFeed(
       const evDraw = Math.round((consensusDraw.consensusProb * bestRetailDraw - 1.0) * 1000) / 10;
       const evAway = Math.round((consensusAway.consensusProb * bestRetailAway - 1.0) * 1000) / 10;
 
-      // 9. Double Chance (1X: Home or Draw) -> Derived from retail 1X2 lines and Shin de-vigged fair lines
-      const domain1X = Math.round((dc.homeWinProb + dc.drawProb) * 1000) / 1000;
-      const ml1X = Math.round((mlProbs.pHome + mlProbs.pDraw) * 1000) / 1000;
-      const consensus1X = evaluateConsensus(domain1X, ml1X);
+      // 9. Double Chance (1X: Home or Draw) -> Canonical mathematical sum of Home Win and Draw
+      const domain1X = Math.min(0.99, Math.round((domainHome + domainDraw) * 1000) / 1000);
+      const ml1X = Math.min(0.99, Math.round((mlProbs.pHome + mlProbs.pDraw) * 1000) / 1000);
+      const consensus1XProb = Math.min(0.99, Math.round((consensusHome.consensusProb + consensusDraw.consensusProb) * 1000) / 1000);
+      const consensus1X = {
+        ...evaluateConsensus(domain1X, ml1X),
+        consensusProb: consensus1XProb,
+      };
       // Synthetic retail double chance from combined retail lines
       const retail1X = Math.round((1 / ((1 / bestRetailHome) + (1 / bestRetailDraw))) * 100) / 100;
       const pinnacle1X = Math.round((1 / Math.max(0.01, fairHomeProb + fairDrawProb)) * 100) / 100;

@@ -55,12 +55,32 @@ export function evaluateOpportunities(
   const matchMarkets: OpportunityItem[] = matches.flatMap((m) =>
     m.markets.map((mk) => {
       const stakePct = strategy.maxStakePercent;
-      const domainProb = mk.domainProb ?? mk.ensembleProb;
-      const trainedMlProb = mk.trainedMlProb ?? mk.ensembleProb;
+      // 1X2 canonical decomposition coherence check
+      const hMk = m.markets.find((x) => x.selection.includes('Win') && !x.selection.includes(m.awayTeam));
+      const dMk = m.markets.find((x) => x.selection === 'Draw');
+
+      let domainProb = mk.domainProb ?? mk.ensembleProb;
+      let trainedMlProb = mk.trainedMlProb ?? mk.ensembleProb;
+
+      // If this is a 1X market and both Home and Draw markets exist, enforce exact canonical sum
+      let canonicalConsensusProb: number | null = null;
+      if (mk.selection.includes('(1X)') && hMk && dMk) {
+        const hDomain = hMk.domainProb ?? hMk.ensembleProb;
+        const dDomain = dMk.domainProb ?? dMk.ensembleProb;
+        const hMl = hMk.trainedMlProb ?? hMk.ensembleProb;
+        const dMl = dMk.trainedMlProb ?? dMk.ensembleProb;
+
+        domainProb = Math.min(0.99, Math.round((hDomain + dDomain) * 1000) / 1000);
+        trainedMlProb = Math.min(0.99, Math.round((hMl + dMl) * 1000) / 1000);
+
+        const hEvolved = calculateEvolvedConsensus(hDomain, hMl, m.league || 'soccer_epl');
+        const dEvolved = calculateEvolvedConsensus(dDomain, dMl, m.league || 'soccer_epl');
+        canonicalConsensusProb = Math.min(0.99, Math.round((hEvolved.consensusProb + dEvolved.consensusProb) * 1000) / 1000);
+      }
 
       // Evolved meta-learning consensus
       const evolved = calculateEvolvedConsensus(domainProb, trainedMlProb, m.league || 'soccer_epl');
-      const consensusProb = evolved.consensusProb;
+      const consensusProb = canonicalConsensusProb !== null ? canonicalConsensusProb : evolved.consensusProb;
       const modelDelta = evolved.delta;
       const consensusLevel = evolved.level;
 

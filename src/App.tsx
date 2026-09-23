@@ -106,6 +106,10 @@ export default function App() {
     return evaluateOpportunities(matches, config, pipelineFilter, currentMode);
   }, [matches, config, pipelineFilter, currentMode]);
 
+  const liveFeedExposure = useMemo(() => {
+    return slateStats.qualifyingOpportunities.reduce((sum, o) => sum + o.stakeAmount, 0);
+  }, [slateStats]);
+
   return (
     <div className="min-h-screen bg-[#020617] text-[#f8fafc] p-4 sm:p-6 font-sans">
       {/* 12-Column Grid matching fpl-admin and uefa-admin exact structure */}
@@ -130,6 +134,7 @@ export default function App() {
           onConfigChange={handleConfigChange}
           activeSignalCount={slateStats.activeSignalCount}
           brierScore={slateStats.brierScore}
+          liveFeedExposure={liveFeedExposure}
         />
 
         {/* Center Primary Stage (Col 4-9 -> col-span-12 lg:col-span-6) */}

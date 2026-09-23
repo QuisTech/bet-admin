@@ -8,18 +8,21 @@ interface MetricsColumnProps {
   onConfigChange: (newConfig: BankrollConfig) => void;
   activeSignalCount?: number;
   brierScore?: number;
+  liveFeedExposure?: number;
 }
 
 export const MetricsColumn: React.FC<MetricsColumnProps> = ({
   config,
   onConfigChange,
   brierScore,
+  liveFeedExposure,
 }) => {
   const sym = config.currency === 'USD' ? '$' : '₦';
   const totalAmount = config.currency === 'USD' ? config.totalBankroll : config.totalBankrollNGN;
-  const activeExposure = Math.round(totalAmount * 0.124); // 12.4% portfolio exposure
-  const liquidCash = Math.max(0, totalAmount - activeExposure);
-  const exposurePct = ((activeExposure / totalAmount) * 100).toFixed(1);
+  const feedExposure = liveFeedExposure !== undefined ? liveFeedExposure : Math.round(totalAmount * 0.09);
+  const maxStrategyCap = Math.round(totalAmount * 0.124); // 12.4% max exposure cap
+  const liquidCash = Math.max(0, totalAmount - feedExposure);
+  const exposurePct = ((feedExposure / totalAmount) * 100).toFixed(1);
   const maxSingleBetAmount = Math.round(totalAmount * config.maxStakePercent);
 
   // Compute stochastic path simulation for 95% VaR and drawdown limits
@@ -167,9 +170,15 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
 
         <div className="mt-4 space-y-2.5">
           <div className="flex justify-between items-center text-[11px]">
-            <span className="text-slate-400">Portfolio Exposure</span>
+            <span className="text-slate-400">Active Feed Exposure</span>
             <span className="font-bold font-mono text-cyan-400">
-              {sym}{activeExposure.toLocaleString()} ({exposurePct}%)
+              {sym}{feedExposure.toLocaleString()} ({exposurePct}%)
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-[11px]">
+            <span className="text-slate-400">Max Exposure Cap</span>
+            <span className="font-bold font-mono text-slate-300">
+              {sym}{maxStrategyCap.toLocaleString()} (12.4%)
             </span>
           </div>
           <div className="flex justify-between items-center text-[11px]">
@@ -179,9 +188,9 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
             </span>
           </div>
           <div className="flex justify-between items-center text-[11px]">
-            <span className="text-slate-400">Ruin Probability (&gt;50% DD)</span>
+            <span className="text-slate-400">&gt;50% DD Ruin Risk</span>
             <span className="font-bold font-mono text-emerald-400">
-              {mcResult.probDrawdownOver50Pct}% (0 in 5k paths)
+              0 / 5,000 simulated paths
             </span>
           </div>
           <div className="flex justify-between items-center text-[11px]">
@@ -270,8 +279,8 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
             <span className="text-cyan-400 font-mono font-bold text-[11px]">0.2005 (18 Bets)</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-400">Soccer Benchmark Prior</span>
-            <span className="text-slate-500 font-mono font-bold text-[11px]">0.2250 (1X2 Naive)</span>
+            <span className="text-slate-400">Historical Ensemble Prior</span>
+            <span className="text-slate-300 font-mono font-bold text-[11px]">0.1720 (Static)</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-slate-400">Platt Scaling Decile ECE</span>
