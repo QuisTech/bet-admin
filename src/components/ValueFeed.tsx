@@ -480,36 +480,36 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({ matches, config, onSelectM
                 </div>
 
                 {/* Quantitative Odds & Fair Pricing Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5 mb-4 bg-slate-950/70 p-3.5 sm:p-4 rounded-2xl border border-slate-800/80">
+                  <div className="flex flex-col justify-between pr-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                       SportyBet Odds
                     </span>
-                    <span className="text-sm font-mono font-black text-slate-200">
+                    <span className="text-base font-mono font-black text-slate-200">
                       {opt.sportyBetOdds.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <div className="flex flex-col justify-between px-2 sm:border-l sm:border-slate-800/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                       Pinnacle Fair
                     </span>
-                    <span className="text-sm font-mono font-black text-slate-400">
+                    <span className="text-base font-mono font-black text-slate-400">
                       {opt.pinnacleOdds.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <div className="flex flex-col justify-between px-2 sm:border-l sm:border-slate-800/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                       Active Model
                     </span>
-                    <span className="text-sm font-mono font-black text-fpl-green">
+                    <span className="text-base font-mono font-black text-fpl-green">
                       {(opt.modelProb * 100).toFixed(1)}%
                     </span>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <div className="flex flex-col justify-between pl-2 sm:border-l sm:border-slate-800/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                       Fair Odds
                     </span>
-                    <span className="text-sm font-mono font-black text-cyan-400">
+                    <span className="text-base font-mono font-black text-cyan-400">
                       {(1 / Math.max(0.01, opt.modelProb)).toFixed(2)}
                     </span>
                   </div>
