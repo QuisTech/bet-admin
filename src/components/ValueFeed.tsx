@@ -11,6 +11,7 @@ import {
   Filter,
   GitCompare,
   ArrowUpDown,
+  Calculator,
 } from 'lucide-react';
 import type { MatchData, BankrollConfig, ModelPipelineMode } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
@@ -47,6 +48,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
   const [sortBy, setSortBy] = useState<
     'evDesc' | 'probDesc' | 'agreementAsc' | 'returnDesc' | 'oddsAsc' | 'oddsDesc'
   >('evDesc');
+  const [liveOddsInput, setLiveOddsInput] = useState<Record<string, string>>({});
 
   const strategy = STRATEGY_MODES[riskMode];
   const currSym = config.currency === 'USD' ? '$' : '₦';
@@ -89,17 +91,27 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     });
   }, [allOpportunities, qualifyingOpportunities, showAllMarkets, filter, sortBy]);
 
-  const handleCopySignal = (opt: OpportunityItem) => {
-    if (opt.evPercent <= 0) return;
+  const handleCopySignal = (
+    opt: OpportunityItem,
+    customOddsVal?: number,
+    customEV?: number,
+    customStake?: number
+  ) => {
+    const odds = customOddsVal ?? opt.sportyBetOdds;
+    const ev = customEV ?? opt.evPercent;
+    const stake = customStake ?? opt.stakeAmount;
+    if (ev <= 0) return;
     const text = `🎯 BET HORIZON +EV SIGNAL\nMatch: ${opt.title}\nSelection: ${
       opt.selection
-    }\nSportyBet Odds: ${opt.sportyBetOdds.toFixed(2)}\nPipeline 1 (Domain): ${(
-      opt.domainProb * 100
-    ).toFixed(1)}%\nPipeline 2 (Trained ML): ${(opt.trainedMlProb * 100).toFixed(
-      1
-    )}%\nDual Consensus: ${(opt.consensusProb * 100).toFixed(1)}%\nEdge: ${
-      opt.evPercent > 0 ? '+' : ''
-    }${opt.evPercent}%\nStrategy: ${strategy.name}\nRecommended Stake: ${currSym}${opt.stakeAmount.toLocaleString()} ${
+    }\nLive Odds: ${odds.toFixed(2)}${
+      customOddsVal && customOddsVal !== opt.sportyBetOdds
+        ? ` (Adjusted from feed ${opt.sportyBetOdds.toFixed(2)})`
+        : ''
+    }\nPipeline 1 (Domain): ${(opt.domainProb * 100).toFixed(1)}%\nPipeline 2 (Trained ML): ${(
+      opt.trainedMlProb * 100
+    ).toFixed(1)}%\nDual Consensus: ${(opt.consensusProb * 100).toFixed(1)}%\nEdge: ${
+      ev > 0 ? '+' : ''
+    }${ev}%\nStrategy: ${strategy.name}\nRecommended Stake: ${currSym}${stake.toLocaleString()} ${
       config.currency
     }`;
     navigator.clipboard.writeText(text);
@@ -389,31 +401,51 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {displayedOpportunities.map((opt) => (
-            <div
-              key={opt.id}
-              className={`glass-card p-5 relative overflow-hidden transition-all duration-200 ${
-                !opt.qualifies
-                  ? 'opacity-60 border-slate-800/40 bg-slate-950/40 hover:opacity-100'
-                  : 'hover:border-slate-700/80 hover:shadow-lg'
-              }`}
-            >
-              {/* Card Header */}
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-semibold text-slate-400">
-                      {opt.match.league} • {opt.match.kickoff}
-                    </span>
-                    <div
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black ${
-                        opt.evPercent > 0 ? 'badge-ev' : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {opt.evPercent > 0 ? `+${opt.evPercent}%` : `${opt.evPercent}%`} EV Edge
+          {displayedOpportunities.map((opt) => {
+            const enteredVal = liveOddsInput[opt.id];
+            const customOddsNum =
+              enteredVal !== undefined && enteredVal !== '' ? parseFloat(enteredVal) : null;
+            const effectiveOdds =
+              customOddsNum && !isNaN(customOddsNum) && customOddsNum > 1.0
+                ? customOddsNum
+                : opt.sportyBetOdds;
+            const isCustom =
+              customOddsNum !== null && !isNaN(customOddsNum) && customOddsNum !== opt.sportyBetOdds;
+
+            const effectiveEV = Math.round((opt.modelProb * effectiveOdds - 1.0) * 1000) / 10;
+            const fullKelly = ((opt.modelProb * effectiveOdds) - 1.0) / (effectiveOdds - 1.0);
+            const rawStakePct = Math.max(
+              0,
+              Math.min(strategy.maxStakePercent, fullKelly * strategy.kellyMultiplier)
+            );
+            const effectiveStakeAmount = Math.round(config.totalBankrollNGN * rawStakePct);
+
+            return (
+              <div
+                key={opt.id}
+                className={`glass-card p-5 relative overflow-hidden transition-all duration-200 ${
+                  !opt.qualifies
+                    ? 'opacity-60 border-slate-800/40 bg-slate-950/40 hover:opacity-100'
+                    : 'hover:border-slate-700/80 hover:shadow-lg'
+                }`}
+              >
+                {/* Card Header */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-semibold text-slate-400">
+                        {opt.match.league} • {opt.match.kickoff}
+                      </span>
+                      <div
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black ${
+                          effectiveEV > 0 ? 'badge-ev' : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {effectiveEV > 0 ? `+${effectiveEV}%` : `${effectiveEV}%`} EV{' '}
+                        {isCustom ? '(Adjusted)' : 'Edge'}
+                      </div>
                     </div>
-                  </div>
 
                   {/* Sub-qualification banner if showing all */}
                   {!opt.qualifies && (
@@ -551,15 +583,32 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                 })()}
 
                 {/* Quantitative Odds & Fair Pricing Grid */}
-                <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-4 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
-                  <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                      SportyBet Odds
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-3 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
+                  <div
+                    className={`flex flex-col justify-between p-2.5 rounded-xl border transition-all ${
+                      isCustom
+                        ? 'bg-emerald-950/40 border-emerald-500/50 shadow-inner'
+                        : 'bg-slate-900/60 border-slate-800/60'
+                    }`}
+                  >
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 flex items-center justify-between">
+                      <span>Retail Odds</span>
+                      {isCustom && (
+                        <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-mono font-bold">
+                          TESTED
+                        </span>
+                      )}
                     </span>
-                    <span className="text-base font-mono font-black text-slate-100">
-                      {opt.sportyBetOdds.toFixed(2)}
+                    <span
+                      className={`text-base font-mono font-black ${
+                        isCustom ? 'text-emerald-400' : 'text-slate-100'
+                      }`}
+                    >
+                      {effectiveOdds.toFixed(2)}
                     </span>
-                    <span className="text-[9px] text-slate-500 font-mono">Retail Available</span>
+                    <span className="text-[9px] text-slate-500 font-mono">
+                      {isCustom ? `Feed: ${opt.sportyBetOdds.toFixed(2)}` : 'Retail Available'}
+                    </span>
                   </div>
                   <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
@@ -595,7 +644,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                   const pinnacleImplied = (1 / opt.pinnacleOdds) * 100;
                   const alphaEdge = (opt.modelProb * 100) - pinnacleImplied;
                   return (
-                    <div className="flex items-center justify-between text-[11px] font-mono bg-slate-950/70 px-3.5 py-2.5 rounded-xl border border-slate-800/80 mb-4">
+                    <div className="flex items-center justify-between text-[11px] font-mono bg-slate-950/70 px-3.5 py-2.5 rounded-xl border border-slate-800/80 mb-3">
                       <span className="text-slate-400">Edge vs. Pinnacle Sharp Line:</span>
                       <span className={`font-bold ${alphaEdge > 0 ? 'text-cyan-400' : 'text-slate-400'}`}>
                         {alphaEdge > 0 ? `+${alphaEdge.toFixed(1)}pp` : `${alphaEdge.toFixed(1)}pp`} Alpha Claim
@@ -607,6 +656,116 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                   );
                 })()}
 
+                {/* Interactive Live Odds Recalculator */}
+                <div
+                  className={`p-3 rounded-2xl border transition-all mb-4 space-y-2 ${
+                    isCustom
+                      ? 'bg-slate-950/90 border-emerald-500/40 shadow-lg shadow-emerald-950/20'
+                      : 'bg-slate-950/60 border-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-300 font-medium">
+                      <Calculator className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-[11px] font-bold text-slate-200">
+                        Test Current Bookmaker Odds:
+                      </span>
+                    </div>
+                    {isCustom && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = { ...liveOddsInput };
+                          delete next[opt.id];
+                          setLiveOddsInput(next);
+                        }}
+                        className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer"
+                      >
+                        Reset to {opt.sportyBetOdds.toFixed(2)}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="1.01"
+                        max="100"
+                        value={liveOddsInput[opt.id] ?? ''}
+                        placeholder={`Enter odds on your book (feed: ${opt.sportyBetOdds.toFixed(2)})`}
+                        onChange={(e) => {
+                          setLiveOddsInput({
+                            ...liveOddsInput,
+                            [opt.id]: e.target.value,
+                          });
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full bg-slate-900/90 border border-slate-700/80 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-white placeholder:text-slate-500 outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-500 pointer-events-none">
+                        ODDS
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col text-right shrink-0">
+                      <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">
+                        {isCustom ? 'Adjusted EV' : 'Live EV'}
+                      </span>
+                      <span
+                        className={`text-sm font-mono font-black ${
+                          effectiveEV > 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {effectiveEV > 0 ? `+${effectiveEV.toFixed(1)}%` : `${effectiveEV.toFixed(1)}%`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Sharp Line Comparison & EV Verdict */}
+                  {opt.pinnacleOdds > 1.0 && (
+                    <div className="pt-2 border-t border-slate-900/90 flex flex-col gap-1 text-[10px] font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">vs Pinnacle Fair ({opt.pinnacleOdds.toFixed(2)}):</span>
+                        {effectiveOdds > opt.pinnacleOdds ? (
+                          <span className="text-emerald-400 font-bold">
+                            🟢 Beats Sharp Benchmark (+{(effectiveOdds - opt.pinnacleOdds).toFixed(2)}) • Pure Price Edge!
+                          </span>
+                        ) : effectiveOdds === opt.pinnacleOdds ? (
+                          <span className="text-cyan-400 font-semibold">
+                            ⚪ Equal to Sharp Fair Line
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 font-semibold">
+                            ⚠️ Below Sharp Fair Line (Alpha Claim Only)
+                          </span>
+                        )}
+                      </div>
+                      {isCustom && (
+                        <div className="flex items-center justify-between text-slate-400 pt-0.5">
+                          <span>Verdict at {effectiveOdds.toFixed(2)}:</span>
+                          <span
+                            className={
+                              effectiveEV >= strategy.minEV
+                                ? 'text-emerald-400 font-bold'
+                                : effectiveEV > 0
+                                ? 'text-amber-400 font-semibold'
+                                : 'text-rose-400 font-bold'
+                            }
+                          >
+                            {effectiveEV >= strategy.minEV
+                              ? `✓ Qualifies for ${strategy.name}`
+                              : effectiveEV > 0
+                              ? `Edge narrowed below +${strategy.minEV}% SAFE threshold`
+                              : 'Negative Expected Value (Pass)'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Staking Recommendation */}
                 <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 px-3.5 py-2.5 rounded-xl">
                   <div className="flex items-center gap-2">
@@ -616,10 +775,10 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         Recommended Stake ({strategy.name}):
                       </div>
                       <div className="text-xs font-mono font-black text-slate-100">
-                        {currSym}{opt.stakeAmount.toLocaleString()} {config.currency}
+                        {currSym}{effectiveStakeAmount.toLocaleString()} {config.currency}
                         <span className="text-[10px] text-slate-400 font-normal ml-1">
                           (Returns {currSym}
-                          {Math.round(opt.stakeAmount * opt.sportyBetOdds).toLocaleString()})
+                          {Math.round(effectiveStakeAmount * effectiveOdds).toLocaleString()})
                         </span>
                       </div>
                     </div>
@@ -646,10 +805,12 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleCopySignal(opt)}
-                  disabled={opt.evPercent <= 0}
+                  onClick={() =>
+                    handleCopySignal(opt, effectiveOdds, effectiveEV, effectiveStakeAmount)
+                  }
+                  disabled={effectiveEV <= 0}
                   className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${
-                    opt.evPercent <= 0
+                    effectiveEV <= 0
                       ? 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
                       : copiedId === opt.id
                       ? 'bg-fpl-green text-slate-950 shadow-[0_0_15px_rgba(0,255,135,0.4)] cursor-pointer'
@@ -670,7 +831,8 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                 </button>
               </div>
             </div>
-          ))}
+          );
+        })}
           </div>
         </div>
       )}
