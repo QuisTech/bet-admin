@@ -173,7 +173,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center justify-between xl:justify-end gap-4 xl:gap-6 w-full xl:w-auto">
           <div className="flex flex-col text-left xl:text-right">
             <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">
-              Projected Edge (Model-Implied EV)
+              Projected Edge
             </span>
             <div className="flex items-baseline gap-1.5 xl:justify-end">
               <span
@@ -190,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
             <span className="text-[9px] font-mono text-slate-500 hidden sm:inline">
-              {activeSignalCount} Active Opportunities • Brier {brierScore.toFixed(3)} • Model EV, not realized ROI
+              {activeSignalCount} Active Opportunities • Brier {brierScore.toFixed(3)}
             </span>
           </div>
         </div>
