@@ -48,7 +48,18 @@ export const MatchModal: React.FC<MatchModalProps> = ({ match, config, onClose }
               <div key={idx} className="p-4 rounded-xl bg-slate-950/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-bold text-slate-400">{mk.marketType}</div>
-                  <div className="text-sm font-bold text-slate-100">{mk.selection}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-bold text-slate-100">{mk.selection}</div>
+                    {mk.evPercent >= 8 && mk.ensembleProb >= 0.20 ? (
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/50">
+                        ✓ Value Qualified
+                      </span>
+                    ) : mk.ensembleProb < 0.20 ? (
+                      <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/50">
+                        ⚠ Extreme Longshot ({(mk.ensembleProb * 100).toFixed(1)}% Prob)
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="text-xs text-slate-400 mt-1">
                     SportyBet Odds: <strong className="text-amber-400">{mk.sportyBetOdds.toFixed(2)}</strong> | Model Prob: <strong className="text-sky-400">{(mk.ensembleProb * 100).toFixed(1)}%</strong>
                   </div>
