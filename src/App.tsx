@@ -63,7 +63,7 @@ export default function App() {
   const [oddsSource, setOddsSource] = useState('Pinnacle Benchmark');
 
   const syncDataFeeds = useCallback(
-    async (customOddsKey?: string, leagueId?: string) => {
+    async (customOddsKey?: string, leagueId?: string, forceRefresh: boolean = false) => {
       const targetLeague = leagueId || selectedLeagueId;
 
       // 1. Fetch live FPL stats via proxy
@@ -77,7 +77,7 @@ export default function App() {
 
       // 2. Fetch live odds feed with FPL player props fusion & dual-model evaluation
       try {
-        const oddsResult = await fetchLiveOddsFeed(customOddsKey, fplData, targetLeague);
+        const oddsResult = await fetchLiveOddsFeed(customOddsKey, fplData, targetLeague, forceRefresh);
         setIsOddsLive(oddsResult.isLive);
         setOddsSource(oddsResult.source);
         if (oddsResult.matches && oddsResult.matches.length > 0) {
@@ -96,7 +96,6 @@ export default function App() {
 
   const handleLeagueChange = (newLeagueId: string) => {
     setSelectedLeagueId(newLeagueId);
-    syncDataFeeds(undefined, newLeagueId);
   };
 
   const currentMode = config.strategyMode || 'safe';

@@ -55,7 +55,7 @@ export interface OddsApiFixture {
 const STORAGE_KEY = 'bet_admin_odds_api_key';
 const CACHE_MATCHES_BASE = 'bet_admin_cached_matches';
 const CACHE_TIME_BASE = 'bet_admin_cached_matches_time';
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15-minute cache to preserve monthly credits
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30-minute cache to preserve monthly credits
 
 export function getSavedOddsApiKey(): string {
   try {
@@ -276,7 +276,8 @@ function enrichBaselineMatches(selectedLeague: SupportedLeague): MatchData[] {
 export async function fetchLiveOddsFeed(
   customKey?: string,
   fplData?: FPLBootstrapData | null,
-  leagueId: string = 'soccer_epl'
+  leagueId: string = 'soccer_epl',
+  forceRefresh: boolean = false
 ): Promise<{
   matches: MatchData[];
   isLive: boolean;
@@ -295,7 +296,7 @@ export async function fetchLiveOddsFeed(
   const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheMatchesKey) : null;
   const cachedTime = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheTimeKey) : null;
 
-  if (!customKey && apiKey && cached && cachedTime) {
+  if (!forceRefresh && apiKey && cached && cachedTime) {
     const age = Date.now() - parseInt(cachedTime, 10);
     if (age < CACHE_TTL_MS) {
       try {
@@ -327,7 +328,8 @@ export async function fetchLiveOddsFeed(
 
   try {
     // The Odds API endpoint proxied via Vite (/api/odds/sports/{leagueId}/odds/)
-    const url = `/api/odds/sports/${leagueId}/odds/?apiKey=${apiKey}&regions=eu,uk&markets=h2h,totals&oddsFormat=decimal`;
+    // Using regions=eu includes Pinnacle, Betfair, Unibet, 1xBet while keeping cost at 2 requests per call (markets * regions = 2 * 1 = 2) instead of 4
+    const url = `/api/odds/sports/${leagueId}/odds/?apiKey=${apiKey}&regions=eu&markets=h2h,totals&oddsFormat=decimal`;
     const res = await fetch(url);
 
     // Capture telemetry headers to keep live usage meter fresh
