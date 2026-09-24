@@ -74,6 +74,92 @@ export function saveOddsApiKey(key: string): void {
   }
 }
 
+export interface OddsApiUsage {
+  requestsRemaining: number | null;
+  requestsUsed: number | null;
+  requestsLast: number | null;
+  status: 'valid' | 'invalid' | 'error';
+  message?: string;
+  lastChecked?: string;
+}
+
+const USAGE_STORAGE_KEY = 'bet_admin_odds_usage';
+
+export function getSavedOddsApiUsage(): OddsApiUsage | null {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(USAGE_STORAGE_KEY) : null;
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function checkOddsApiUsage(key?: string): Promise<OddsApiUsage> {
+  const apiKey = (key !== undefined ? key : getSavedOddsApiKey()).trim();
+  if (!apiKey) {
+    return {
+      requestsRemaining: null,
+      requestsUsed: null,
+      requestsLast: null,
+      status: 'invalid',
+      message: 'No API key provided',
+    };
+  }
+
+  try {
+    // /sports endpoint does not consume quota credits on The Odds API
+    const url = `/api/odds/sports/?apiKey=${apiKey}`;
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        return {
+          requestsRemaining: null,
+          requestsUsed: null,
+          requestsLast: null,
+          status: 'invalid',
+          message: 'Invalid API Key (401 Unauthorized)',
+        };
+      }
+      return {
+        requestsRemaining: null,
+        requestsUsed: null,
+        requestsLast: null,
+        status: 'error',
+        message: `API returned status ${res.status}: ${res.statusText}`,
+      };
+    }
+
+    const remaining = res.headers.get('x-requests-remaining');
+    const used = res.headers.get('x-requests-used');
+    const last = res.headers.get('x-requests-last');
+
+    const usage: OddsApiUsage = {
+      requestsRemaining: remaining ? parseInt(remaining, 10) : null,
+      requestsUsed: used ? parseInt(used, 10) : null,
+      requestsLast: last ? parseInt(last, 10) : null,
+      status: 'valid',
+      lastChecked: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(usage));
+      } catch {}
+    }
+
+    return usage;
+  } catch (err: any) {
+    return {
+      requestsRemaining: null,
+      requestsUsed: null,
+      requestsLast: null,
+      status: 'error',
+      message: err?.message || 'Network connection failed',
+    };
+  }
+}
+
 /**
  * Normalizes team name to match FPL team names.
  */
@@ -243,6 +329,25 @@ export async function fetchLiveOddsFeed(
     // The Odds API endpoint proxied via Vite (/api/odds/sports/{leagueId}/odds/)
     const url = `/api/odds/sports/${leagueId}/odds/?apiKey=${apiKey}&regions=eu,uk&markets=h2h,totals&oddsFormat=decimal`;
     const res = await fetch(url);
+
+    // Capture telemetry headers to keep live usage meter fresh
+    const remaining = res.headers.get('x-requests-remaining');
+    const used = res.headers.get('x-requests-used');
+    const last = res.headers.get('x-requests-last');
+    if (remaining || used) {
+      try {
+        localStorage.setItem(
+          USAGE_STORAGE_KEY,
+          JSON.stringify({
+            requestsRemaining: remaining ? parseInt(remaining, 10) : null,
+            requestsUsed: used ? parseInt(used, 10) : null,
+            requestsLast: last ? parseInt(last, 10) : null,
+            status: 'valid',
+            lastChecked: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          })
+        );
+      } catch {}
+    }
 
     if (!res.ok) {
       throw new Error(`The Odds API returned status ${res.status}: ${res.statusText}`);

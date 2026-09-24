@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
-import { X, Key, RefreshCw, Check, Globe, Cpu } from 'lucide-react';
-import { getSavedOddsApiKey, saveOddsApiKey } from '../services/oddsService';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Key, RefreshCw, Check, Globe, Cpu, Activity, AlertCircle } from 'lucide-react';
+import {
+  getSavedOddsApiKey,
+  saveOddsApiKey,
+  checkOddsApiUsage,
+  getSavedOddsApiUsage,
+  type OddsApiUsage,
+} from '../services/oddsService';
 
 interface ApiSettingsModalProps {
   isOpen: boolean;
@@ -21,6 +27,33 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
 }) => {
   const [apiKey, setApiKey] = useState(getSavedOddsApiKey());
   const [saved, setSaved] = useState(false);
+  const [usage, setUsage] = useState<OddsApiUsage | null>(() => getSavedOddsApiUsage());
+  const [isCheckingUsage, setIsCheckingUsage] = useState(false);
+
+  const handleTestQuota = useCallback(
+    async (customKey?: string) => {
+      const keyToTest = (customKey || apiKey).trim();
+      if (!keyToTest) return;
+      setIsCheckingUsage(true);
+      try {
+        const result = await checkOddsApiUsage(keyToTest);
+        setUsage(result);
+      } finally {
+        setIsCheckingUsage(false);
+      }
+    },
+    [apiKey]
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      const savedUsage = getSavedOddsApiUsage();
+      if (savedUsage) setUsage(savedUsage);
+      if (apiKey && (!savedUsage || savedUsage.requestsRemaining === null)) {
+        handleTestQuota(apiKey);
+      }
+    }
+  }, [isOpen, apiKey, handleTestQuota]);
 
   if (!isOpen) return null;
 
@@ -29,7 +62,14 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     onRefresh(apiKey);
+    handleTestQuota(apiKey);
   };
+
+  const totalQuota = (usage?.requestsRemaining ?? 0) + (usage?.requestsUsed ?? 0) || 500;
+  const remainingPct =
+    usage?.requestsRemaining !== null && usage?.requestsRemaining !== undefined
+      ? Math.max(0, Math.min(100, Math.round((usage.requestsRemaining / totalQuota) * 100)))
+      : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
@@ -136,6 +176,94 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               </button>
             )}
           </div>
+        </div>
+
+        {/* Live API Quota & Usage Meter */}
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                Monthly API Quota & Usage
+              </span>
+            </div>
+            <button
+              onClick={() => handleTestQuota()}
+              disabled={isCheckingUsage || !apiKey}
+              className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 disabled:opacity-40 flex items-center gap-1 cursor-pointer hover:underline"
+            >
+              <RefreshCw className={`w-3 h-3 ${isCheckingUsage ? 'animate-spin' : ''}`} />
+              <span>{isCheckingUsage ? 'Testing...' : 'Test Key / Refresh Quota'}</span>
+            </button>
+          </div>
+
+          {apiKey ? (
+            <div className="space-y-2.5">
+              {usage?.status === 'invalid' ? (
+                <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-900/50 text-xs text-rose-300 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{usage.message || 'Invalid API Key. Please verify your 32-character key.'}</span>
+                </div>
+              ) : usage?.status === 'valid' && usage.requestsRemaining !== null ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 block uppercase">Requests Remaining</span>
+                      <span className="text-base font-black text-emerald-400">
+                        {usage.requestsRemaining}
+                        <span className="text-xs text-slate-500 font-normal"> / {totalQuota}</span>
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 block uppercase">Requests Used</span>
+                      <span className="text-base font-black text-slate-200">
+                        {usage.requestsUsed ?? 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Quota Progress Bar */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+                      <span>Quota Available</span>
+                      <span className="font-bold text-emerald-400">{remainingPct}% remaining</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          (remainingPct ?? 100) > 30
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                            : (remainingPct ?? 100) > 10
+                            ? 'bg-amber-400'
+                            : 'bg-rose-500'
+                        }`}
+                        style={{ width: `${remainingPct ?? 100}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1">
+                    <span>Reset cycle: Monthly on registration date</span>
+                    {usage.lastChecked && <span>Checked: {usage.lastChecked}</span>}
+                  </div>
+                </>
+              ) : (
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-400 flex items-center justify-between font-mono">
+                  <span>Click "Test Key / Refresh Quota" to inspect usage</span>
+                  <button
+                    onClick={() => handleTestQuota()}
+                    className="text-cyan-400 hover:underline font-bold"
+                  >
+                    Check Now →
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 font-mono">
+              Paste your API key above to monitor live usage and remaining monthly requests.
+            </p>
+          )}
         </div>
 
         {/* Action Buttons */}
