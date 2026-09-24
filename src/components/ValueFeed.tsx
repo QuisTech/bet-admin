@@ -757,7 +757,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                             {effectiveEV >= strategy.minEV
                               ? `✓ Qualifies for ${strategy.name}`
                               : effectiveEV > 0
-                              ? `Edge narrowed below +${strategy.minEV}% SAFE threshold`
+                              ? `Edge narrowed below +${strategy.minEV}% ${strategy.name} threshold`
                               : 'Negative Expected Value (Pass)'}
                           </span>
                         </div>

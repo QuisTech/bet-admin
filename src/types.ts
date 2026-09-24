@@ -12,12 +12,15 @@ export interface SupportedLeague {
 }
 
 export const SUPPORTED_LEAGUES: SupportedLeague[] = [
+  { id: 'soccer_uefa_nations_league', name: 'UEFA Nations League', flag: '🇪🇺', country: 'Europe', tempo: 2.65 },
   { id: 'soccer_epl', name: 'Premier League', flag: '🇬🇧', country: 'England', tempo: 2.78 },
   { id: 'soccer_spain_la_liga', name: 'La Liga', flag: '🇪🇸', country: 'Spain', tempo: 2.52 },
   { id: 'soccer_italy_serie_a', name: 'Serie A', flag: '🇮🇹', country: 'Italy', tempo: 2.64 },
   { id: 'soccer_germany_bundesliga', name: 'Bundesliga', flag: '🇩🇪', country: 'Germany', tempo: 3.16 },
   { id: 'soccer_france_ligue_one', name: 'Ligue 1', flag: '🇫🇷', country: 'France', tempo: 2.60 },
   { id: 'soccer_uefa_champs_league', name: 'Champions League', flag: '🏆', country: 'Europe', tempo: 2.95 },
+  { id: 'soccer_usa_mls', name: 'Major League Soccer (MLS)', flag: '🇺🇸', country: 'USA', tempo: 3.05 },
+  { id: 'soccer_england_league1', name: 'EFL League One', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', country: 'England', tempo: 2.70 },
 ];
 
 export interface BookmakerOdds {
