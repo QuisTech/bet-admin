@@ -302,11 +302,18 @@ export async function fetchLiveOddsFeed(
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          // Sanitize: strictly strip out any mismatched player props from older caches
+          const sanitized = parsed.map((m: MatchData) => ({
+            ...m,
+            playerProps: (m.playerProps || []).filter(
+              (p) => p.team === m.homeTeam || p.team === m.awayTeam
+            ),
+          }));
           return {
-            matches: parsed,
+            matches: sanitized,
             isLive: true,
             source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} - Cached)`,
-            count: parsed.length,
+            count: sanitized.length,
             selectedLeague,
           };
         }
@@ -368,7 +375,7 @@ export async function fetchLiveOddsFeed(
     }
 
     // Process and enrich fixtures with Shin's De-Vigging, Pipeline 2 XGBoost ML, and props
-    const matches: MatchData[] = rawFixtures.slice(0, 10).map((fix, idx) => {
+    const matches: MatchData[] = rawFixtures.slice(0, 10).map((fix) => {
       // 1. Identify Sharp (Pinnacle/Betfair) vs Retail Bookmakers
       const sharpBook =
         fix.bookmakers.find((b) => b.key === 'pinnacle') ||
@@ -668,23 +675,8 @@ export async function fetchLiveOddsFeed(
         });
       }
 
-      // Fallback: If no FPL player matched, use enriched baseline props if available
-      if (playerProps.length === 0 && BASE_MATCHES[idx]?.playerProps) {
-        const enriched = BASE_MATCHES[idx].playerProps.map((p) => {
-          const mlProb = computeTrainedMlPropProbability(p.propType, p.xG90, p.xA90, p.xMins, 1.35);
-          const consensus = evaluateConsensus(p.modelProb, mlProb);
-          return {
-            ...p,
-            modelProb: consensus.consensusProb,
-            domainProb: p.modelProb,
-            trainedMlProb: Math.round(mlProb * 1000) / 1000,
-            consensusProb: consensus.consensusProb,
-            modelDelta: Math.round(consensus.delta * 1000) / 1000,
-            consensusLevel: consensus.level,
-          };
-        });
-        playerProps.push(...enriched);
-      }
+      // Note: Only real squad players matched from FPL belong in playerProps.
+      // We strictly do NOT attach dummy baseline props to live international or non-EPL fixtures.
 
       const kickoffDate = new Date(fix.commence_time);
       const dayMonth = kickoffDate.toLocaleDateString('en-GB', {
