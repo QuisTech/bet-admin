@@ -1,32 +1,56 @@
 import React from 'react';
 import { Flame, Clock, ArrowUpRight } from 'lucide-react';
 import type { MatchData } from '../types';
+import type { OpportunityItem } from '../models/opportunityEngine';
 
 interface TopPicksColumnProps {
   matches: MatchData[];
-  onSelectMatch: (match: MatchData) => void;
+  opportunities?: OpportunityItem[];
+  onSelectMatch: (match: MatchData, marketIndex?: number) => void;
   isLive?: boolean;
   oddsSource?: string;
 }
 
 export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
   matches,
+  opportunities,
   onSelectMatch,
   isLive = false,
   oddsSource = 'Pinnacle Benchmark',
 }) => {
   // Extract all value bets across all matches and sort by highest EV edge
-  const allBargains = matches
-    .flatMap((m) =>
-      m.markets
-        .filter((market) => market.evPercent > 0)
-        .map((market) => ({
-          match: m,
-          market,
-        }))
-    )
-    .sort((a, b) => b.market.evPercent - a.market.evPercent)
-    .slice(0, 5);
+  const allBargains = (opportunities && opportunities.length > 0)
+    ? opportunities
+        .filter((o) => o.type === 'MATCH' && o.evPercent > 0)
+        .slice(0, 5)
+        .map((o) => {
+          const rawSel = o.selection.split(' (')[0];
+          const market = o.match.markets.find(
+            (m) => m.selection === o.selection || m.selection === rawSel || o.selection.startsWith(m.selection)
+          ) || o.match.markets[0];
+          return {
+            match: o.match,
+            market: {
+              ...market,
+              selection: o.selection,
+              sportyBetOdds: o.sportyBetOdds,
+              consensusProb: o.consensusProb,
+              ensembleProb: o.modelProb,
+              evPercent: o.evPercent,
+            },
+          };
+        })
+    : matches
+        .flatMap((m) =>
+          m.markets
+            .filter((market) => market.evPercent > 0)
+            .map((market) => ({
+              match: m,
+              market,
+            }))
+        )
+        .sort((a, b) => b.market.evPercent - a.market.evPercent)
+        .slice(0, 5);
 
   return (
     <div className="col-span-12 lg:col-span-3 grid grid-cols-1 gap-4 auto-rows-min">
@@ -67,7 +91,10 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
             return (
               <div
                 key={`${item.match.id}-${item.market.selection}-${idx}`}
-                onClick={() => onSelectMatch(item.match)}
+                onClick={() => {
+                  const mIdx = item.match.markets.findIndex((m) => m.selection === item.market.selection);
+                  onSelectMatch(item.match, mIdx >= 0 ? mIdx : 0);
+                }}
                 className="flex items-center justify-between border-b border-slate-800 pb-2.5 last:border-0 last:pb-0 hover:bg-slate-800/40 p-2 rounded-xl cursor-pointer transition-colors"
               >
                 <div className="flex flex-col min-w-0 pr-2">

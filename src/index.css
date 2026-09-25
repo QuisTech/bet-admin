@@ -68,3 +68,47 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
+
+/* Quant Terminal Table System */
+.quant-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+.quant-table th {
+  padding: 0.85rem 1rem;
+  background-color: rgba(2, 6, 23, 0.95);
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #1e293b;
+  white-space: nowrap;
+}
+
+.quant-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.45);
+  vertical-align: middle;
+}
+
+.quant-table tr {
+  transition: background-color 0.15s ease;
+}
+
+.quant-table tbody tr:hover {
+  background-color: rgba(30, 41, 59, 0.45) !important;
+}
+
+.quant-table tbody tr:nth-child(even) {
+  background-color: rgba(15, 23, 42, 0.3);
+}
+
+.quant-table tbody tr:nth-child(odd) {
+  background-color: rgba(2, 6, 23, 0.15);
+}

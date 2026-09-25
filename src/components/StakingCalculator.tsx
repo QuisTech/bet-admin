@@ -16,14 +16,19 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
   config,
   onClose,
 }) => {
+  const [activeMarketIndex, setActiveMarketIndex] = useState(marketIndex);
   const [kellyFraction, setKellyFraction] = useState(config.kellyFraction);
   const [copied, setCopied] = useState(false);
+
+  React.useEffect(() => {
+    setActiveMarketIndex(marketIndex);
+  }, [marketIndex]);
 
   const sym = config.currency === 'USD' ? '$' : '₦';
 
   if (!match) return null;
 
-  const market = match.markets[marketIndex] || match.markets[0];
+  const market = match.markets[activeMarketIndex] || match.markets[0];
   if (!market) return null;
 
   const impliedProb = 1 / market.sportyBetOdds;
@@ -66,6 +71,37 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
           <h2 className="text-xl font-bold text-white mt-1">
             {match.homeTeam} vs {match.awayTeam}
           </h2>
+
+          {/* Market Switcher Tabs */}
+          {match.markets && match.markets.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 mt-3 mb-2">
+              {match.markets.map((m, idx) => {
+                const mEv = m.evPercent ?? calculateEV(m.ensembleProb, m.sportyBetOdds);
+                const isAct = idx === activeMarketIndex;
+                return (
+                  <button
+                    key={`${m.selection}-${idx}`}
+                    onClick={() => setActiveMarketIndex(idx)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      isAct
+                        ? 'bg-slate-800 text-white border-slate-600 shadow-md'
+                        : 'bg-slate-950/60 text-slate-400 hover:text-slate-200 border-slate-800/80 hover:bg-slate-900'
+                    }`}
+                  >
+                    <span>{m.selection}</span>
+                    <span
+                      className={`text-[10px] font-mono font-black ${
+                        mEv > 0 ? 'text-emerald-400' : 'text-slate-500'
+                      }`}
+                    >
+                      {mEv > 0 ? `+${mEv.toFixed(1)}%` : `${mEv.toFixed(1)}%`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 mt-2">
             <span className="text-xs font-bold text-slate-200 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
               {market.selection} ({market.marketType})

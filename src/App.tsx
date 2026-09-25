@@ -48,8 +48,14 @@ export default function App() {
   const [tuningLeague, setTuningLeague] = useState<string | undefined>(undefined);
   const [matches, setMatches] = useState<MatchData[]>(BASE_MATCHES);
   const [selectedMatch, setSelectedMatch] = useState<MatchData | null>(null);
+  const [selectedMarketIndex, setSelectedMarketIndex] = useState<number>(0);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>('soccer_epl');
   const [pipelineFilter, setPipelineFilter] = useState<ModelPipelineMode>('ALL_CONSENSUS');
+
+  const handleSelectMatch = (m: MatchData, marketIndex: number = 0) => {
+    setSelectedMatch(m);
+    setSelectedMarketIndex(marketIndex);
+  };
 
   const handleOpenEvolution = (league: string) => {
     setTuningLeague(league);
@@ -197,7 +203,7 @@ export default function App() {
                 <ValueFeed
                   matches={matches}
                   config={config}
-                  onSelectMatch={(m) => setSelectedMatch(m)}
+                  onSelectMatch={handleSelectMatch}
                   riskMode={currentMode}
                   pipelineFilter={pipelineFilter}
                   onPipelineFilterChange={setPipelineFilter}
@@ -230,7 +236,8 @@ export default function App() {
 
         <TopPicksColumn
           matches={matches}
-          onSelectMatch={(m) => setSelectedMatch(m)}
+          opportunities={slateStats.qualifyingOpportunities.length > 0 ? slateStats.qualifyingOpportunities : slateStats.allOpportunities}
+          onSelectMatch={handleSelectMatch}
           isLive={isOddsLive}
           oddsSource={oddsSource}
         />
@@ -263,6 +270,7 @@ export default function App() {
       {selectedMatch && (
         <StakingCalculator
           match={selectedMatch}
+          marketIndex={selectedMarketIndex}
           config={config}
           onClose={() => setSelectedMatch(null)}
         />

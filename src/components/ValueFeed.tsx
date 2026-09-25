@@ -23,7 +23,7 @@ import { addLoggedBet } from '../services/ledgerService';
 interface ValueFeedProps {
   matches: MatchData[];
   config: BankrollConfig;
-  onSelectMatch: (match: MatchData) => void;
+  onSelectMatch: (match: MatchData, marketIndex?: number) => void;
   riskMode: 'safe' | 'risky' | 'value';
   pipelineFilter?: ModelPipelineMode;
   onPipelineFilterChange?: (mode: ModelPipelineMode) => void;
@@ -39,6 +39,18 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
   onPipelineFilterChange,
   onOpenEvolution,
 }) => {
+  const getMarketIndexForOpt = (opt: OpportunityItem): number => {
+    const rawSel = opt.selection.split(' (')[0];
+    const idx = opt.match.markets.findIndex(
+      (m) =>
+        m.selection === opt.selection ||
+        m.selection === rawSel ||
+        opt.selection.startsWith(m.selection) ||
+        m.selection.startsWith(rawSel)
+    );
+    return idx >= 0 ? idx : 0;
+  };
+
   const [filter, setFilter] = useState<'ALL' | 'PROPS' | 'MATCH'>('ALL');
   const [internalPipelineFilter, setInternalPipelineFilter] =
     useState<ModelPipelineMode>('ALL_CONSENSUS');
@@ -331,108 +343,178 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
 
       {/* ===== QUANT TERMINAL TABLE VIEW ===== */}
       {viewMode === 'terminal' && (
-        <div className="glass-card overflow-hidden" style={{ padding: 0 }}>
-          <div style={{ overflowX: 'auto' }}>
+        <div className="glass-card rounded-2xl border border-slate-800/80 overflow-hidden shadow-2xl">
+          <div className="overflow-x-auto max-w-full">
             <table className="quant-table">
               <thead>
                 <tr>
-                  <th>Match</th>
-                  <th>Selection</th>
-                  <th style={{ textAlign: 'right' }}>SportyBet</th>
-                  <th style={{ textAlign: 'right' }}>Domain P1</th>
-                  <th style={{ textAlign: 'right' }}>XGBoost P2</th>
-                  <th style={{ textAlign: 'right' }}>Consensus</th>
-                  <th style={{ textAlign: 'right' }}>Consensus Spread</th>
-                  <th style={{ textAlign: 'right' }}>+EV%</th>
-                  <th style={{ textAlign: 'right' }}>Kelly Stake</th>
-                  <th style={{ textAlign: 'center' }}>Action</th>
+                  <th style={{ width: '23%' }}>Match & League</th>
+                  <th style={{ width: '22%' }}>Selection</th>
+                  <th style={{ textAlign: 'right', width: '10%' }}>Live Odds</th>
+                  <th style={{ textAlign: 'right', width: '15%' }}>Consensus Prob</th>
+                  <th style={{ textAlign: 'center', width: '13%' }}>Consensus Spread</th>
+                  <th style={{ textAlign: 'right', width: '12%' }}>+EV% & Stake</th>
+                  <th style={{ textAlign: 'center', width: '120px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {displayedOpportunities.map((opt) => (
-                  <tr
-                    key={opt.id}
-                    onClick={() => onSelectMatch(opt.match)}
-                    className={!opt.qualifies ? 'opacity-60 bg-slate-950/40' : ''}
-                  >
-                    <td className="col-match">{opt.title}</td>
-                    <td className="col-selection">{opt.selection}</td>
-                    <td className="col-odds" style={{ textAlign: 'right' }}>
-                      {opt.sportyBetOdds.toFixed(2)}
-                    </td>
-                    <td style={{ textAlign: 'right', color: '#38bdf8', fontFamily: 'monospace' }}>
-                      {(opt.domainProb * 100).toFixed(1)}%
-                    </td>
-                    <td style={{ textAlign: 'right', color: '#c084fc', fontFamily: 'monospace' }}>
-                      {(opt.trainedMlProb * 100).toFixed(1)}%
-                    </td>
-                    <td className="col-prob" style={{ textAlign: 'right' }}>
-                      <div className="font-bold text-emerald-400">
-                        {(opt.consensusProb * 100).toFixed(1)}%
-                      </div>
-                      <div className="text-[9px] text-slate-500 font-mono">
-                        🧬 {Math.round((opt.domainWeight ?? 0.5) * 100)}/{Math.round((opt.mlWeight ?? 0.5) * 100)}
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'right', fontSize: 10, fontFamily: 'monospace' }}>
-                      {opt.consensusLevel === 'STRONG_AGREEMENT' ? (
-                        <span className="text-emerald-400 font-bold">
-                          ✓ Strong (Δ{(opt.modelDelta * 100).toFixed(1)}%)
-                        </span>
-                      ) : opt.consensusLevel === 'MODERATE' ? (
-                        <span className="text-amber-400">
-                          Moderate (Δ{(opt.modelDelta * 100).toFixed(1)}%)
-                        </span>
-                      ) : (
-                        <span className="text-red-400 font-bold">
-                          Divergence (Δ{(opt.modelDelta * 100).toFixed(1)}%)
-                        </span>
-                      )}
-                    </td>
-                    <td className="col-ev" style={{ textAlign: 'right' }}>
-                      {opt.evPercent > 0
-                        ? `+${opt.evPercent.toFixed(1)}%`
-                        : `${opt.evPercent.toFixed(1)}%`}
-                    </td>
-                    <td className="col-stake" style={{ textAlign: 'right' }}>
-                      {currSym}
-                      {opt.stakeAmount.toLocaleString()}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleLogPosition(opt);
-                          }}
-                          className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer ${
-                            loggedIds[opt.id]
-                              ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
-                              : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30'
-                          }`}
-                          title="Log position directly to CLV tracker & ledger"
-                        >
-                          {loggedIds[opt.id] ? '✓ Logged' : '+ Log'}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopySignal(opt);
-                          }}
-                          disabled={opt.evPercent <= 0}
-                          className="btn-primary"
-                          style={{
-                            padding: '4px 10px',
-                            fontSize: 11,
-                            opacity: opt.evPercent <= 0 ? 0.3 : 1,
-                          }}
-                        >
-                          {copiedId === opt.id ? 'Copied!' : 'Copy'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {displayedOpportunities.map((opt) => {
+                  const rawSel = opt.selection.split(' (')[0];
+                  const fairOdds =
+                    opt.pinnacleOdds > 1.0
+                      ? opt.pinnacleOdds
+                      : Math.round((1 / opt.consensusProb) * 100) / 100;
+                  const deltaPct = (opt.modelDelta * 100).toFixed(1);
+
+                  return (
+                    <tr
+                      key={opt.id}
+                      onClick={() => onSelectMatch(opt.match, getMarketIndexForOpt(opt))}
+                      className={`cursor-pointer transition-colors ${
+                        !opt.qualifies ? 'opacity-65 hover:opacity-90' : ''
+                      }`}
+                      title={
+                        opt.filterReason
+                          ? `Filtered: ${opt.filterReason}`
+                          : 'Click to inspect detailed model breakdown'
+                      }
+                    >
+                      {/* Match & League */}
+                      <td>
+                        <div className="font-bold text-slate-100 text-xs flex items-center gap-1.5">
+                          <span className="truncate max-w-[200px]">{opt.title}</span>
+                          {opt.type === 'PROPS' && (
+                            <span className="text-[9px] px-1.5 py-0.2 bg-purple-950/80 text-purple-300 rounded border border-purple-800/50 uppercase font-mono font-bold shrink-0">
+                              Prop
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5 font-mono">
+                          <span className="truncate max-w-[150px]">{opt.match.league}</span>
+                          <span className="text-slate-600">•</span>
+                          <span className="text-slate-500">{opt.match.kickoff}</span>
+                        </div>
+                      </td>
+
+                      {/* Selection */}
+                      <td>
+                        <div className="font-bold text-slate-200 text-xs truncate max-w-[220px]">
+                          {rawSel}
+                        </div>
+                        <div className="text-[10px] mt-1 flex items-center gap-1 font-mono">
+                          <span className="text-cyan-400 font-semibold">
+                            {opt.selection.includes('(1X)')
+                              ? '1X Double Chance'
+                              : opt.type === 'PROPS'
+                              ? 'Goalscorer Prop'
+                              : '1X2 Match Line'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Live Odds & Fair Price */}
+                      <td style={{ textAlign: 'right' }}>
+                        <div className="font-mono font-bold text-amber-400 text-sm">
+                          @{opt.sportyBetOdds.toFixed(2)}
+                        </div>
+                        <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                          Fair: {fairOdds.toFixed(2)}
+                        </div>
+                      </td>
+
+                      {/* Consensus Prob & Pipelines */}
+                      <td style={{ textAlign: 'right' }}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-mono font-bold text-emerald-400 text-sm">
+                            {(opt.consensusProb * 100).toFixed(1)}%
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            🧬{Math.round((opt.domainWeight ?? 0.56) * 100)}/
+                            {Math.round((opt.mlWeight ?? 0.44) * 100)}
+                          </span>
+                        </div>
+                        <div className="text-[9px] font-mono text-slate-400 mt-0.5 flex items-center justify-end gap-1.5">
+                          <span className="text-cyan-400 font-medium" title="Pipeline 1 (Domain Poisson)">
+                            P1: {(opt.domainProb * 100).toFixed(0)}%
+                          </span>
+                          <span className="text-slate-600">•</span>
+                          <span className="text-purple-400 font-medium" title="Pipeline 2 (Offline Trained XGBoost)">
+                            P2: {(opt.trainedMlProb * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Model Agreement */}
+                      <td style={{ textAlign: 'center' }}>
+                        {opt.consensusLevel === 'STRONG_AGREEMENT' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            Strong (Δ{deltaPct}%)
+                          </span>
+                        ) : opt.consensusLevel === 'MODERATE' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                            Moderate (Δ{deltaPct}%)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                            Divergence (Δ{deltaPct}%)
+                          </span>
+                        )}
+                      </td>
+
+                      {/* +EV% & Kelly Stake */}
+                      <td style={{ textAlign: 'right' }}>
+                        <div className="font-mono font-black text-emerald-400 text-sm">
+                          {opt.evPercent > 0
+                            ? `+${opt.evPercent.toFixed(1)}%`
+                            : `${opt.evPercent.toFixed(1)}%`}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-300 mt-0.5">
+                          {currSym}
+                          {opt.stakeAmount.toLocaleString()}
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleLogPosition(opt)}
+                            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer ${
+                              loggedIds[opt.id]
+                                ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                                : 'bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 hover:border-emerald-500'
+                            }`}
+                            title="Log position directly to CLV tracker & ledger"
+                          >
+                            {loggedIds[opt.id] ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                Logged
+                              </>
+                            ) : (
+                              '+ Log'
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleCopySignal(opt)}
+                            disabled={opt.evPercent <= 0}
+                            className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                              copiedId === opt.id
+                                ? 'bg-fpl-green text-slate-950 font-black shadow-[0_0_10px_rgba(0,255,135,0.4)]'
+                                : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            }`}
+                            title="Copy signal to clipboard"
+                          >
+                            {copiedId === opt.id ? 'Copied' : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -907,7 +989,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
               {/* Bottom Action Footer */}
               <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
                 <button
-                  onClick={() => onSelectMatch(opt.match)}
+                  onClick={() => onSelectMatch(opt.match, getMarketIndexForOpt(opt))}
                   className="text-xs font-bold text-slate-400 hover:text-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <Info className="w-3.5 h-3.5" />
