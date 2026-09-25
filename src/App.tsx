@@ -4,6 +4,7 @@ import { MetricsColumn } from './components/MetricsColumn';
 import { TopPicksColumn } from './components/TopPicksColumn';
 import { ValueFeed } from './components/ValueFeed';
 import { BankrollManager } from './components/BankrollManager';
+import { BetLedger } from './components/BetLedger';
 import { ModelDiagnostics } from './components/ModelDiagnostics';
 import { StakingCalculator } from './components/StakingCalculator';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
@@ -42,7 +43,7 @@ export default function App() {
     } catch {}
   };
 
-  const [tab, setTab] = useState<'feed' | 'bankroll' | 'diagnostics'>('feed');
+  const [tab, setTab] = useState<'feed' | 'ledger' | 'bankroll' | 'diagnostics'>('feed');
   const [diagnosticsSubTab, setDiagnosticsSubTab] = useState<'diagnostics' | 'evolution'>('diagnostics');
   const [tuningLeague, setTuningLeague] = useState<string | undefined>(undefined);
   const [matches, setMatches] = useState<MatchData[]>(BASE_MATCHES);
@@ -153,6 +154,16 @@ export default function App() {
                   +EV Feed
                 </button>
                 <button
+                  onClick={() => setTab('ledger')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    tab === 'ledger'
+                      ? 'bg-emerald-500 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  }`}
+                >
+                  <span>📓 Position Ledger</span>
+                </button>
+                <button
                   onClick={() => setTab('bankroll')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                     tab === 'bankroll'
@@ -192,6 +203,10 @@ export default function App() {
                   onPipelineFilterChange={setPipelineFilter}
                   onOpenEvolution={handleOpenEvolution}
                 />
+              )}
+
+              {tab === 'ledger' && (
+                <BetLedger config={config} />
               )}
 
               {tab === 'bankroll' && (

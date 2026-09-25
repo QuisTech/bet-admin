@@ -13,10 +13,12 @@ import {
   ArrowUpDown,
   Calculator,
   Target,
+  BookmarkPlus,
 } from 'lucide-react';
 import type { MatchData, BankrollConfig, ModelPipelineMode } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
 import { evaluateOpportunities, type OpportunityItem } from '../models/opportunityEngine';
+import { addLoggedBet } from '../services/ledgerService';
 
 interface ValueFeedProps {
   matches: MatchData[];
@@ -118,6 +120,42 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     navigator.clipboard.writeText(text);
     setCopiedId(opt.id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const [loggedIds, setLoggedIds] = useState<Record<string, boolean>>({});
+
+  const handleLogPosition = (
+    opt: OpportunityItem,
+    customOddsVal?: number,
+    customEV?: number,
+    customStake?: number
+  ) => {
+    const odds = customOddsVal ?? opt.sportyBetOdds;
+    const ev = customEV ?? opt.evPercent;
+    const stake = customStake ?? opt.stakeAmount;
+    const pin = opt.pinnacleOdds > 1.0 ? opt.pinnacleOdds : odds;
+
+    addLoggedBet({
+      league: opt.match.league,
+      match: `${opt.match.homeTeam} vs ${opt.match.awayTeam}`,
+      selection: opt.selection,
+      marketType: opt.type === 'PROPS' ? 'PLAYER_PROP' : '1X2',
+      bookmaker: '1xBet',
+      priceTaken: odds,
+      pinnacleLineAtBet: pin,
+      pinnacleClosingLine: pin,
+      modelProb: opt.modelProb,
+      modelEV: ev,
+      stake: stake,
+      payout: 0,
+      outcome: 'OPEN',
+      notes: `Logged from +EV Feed (${strategy.name} mode, EV ${ev > 0 ? '+' : ''}${ev.toFixed(1)}%)`,
+    });
+
+    setLoggedIds((prev) => ({ ...prev, [opt.id]: true }));
+    setTimeout(() => {
+      setLoggedIds((prev) => ({ ...prev, [opt.id]: false }));
+    }, 2500);
   };
 
   return (
@@ -361,21 +399,37 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       {opt.stakeAmount.toLocaleString()}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopySignal(opt);
-                        }}
-                        disabled={opt.evPercent <= 0}
-                        className="btn-primary"
-                        style={{
-                          padding: '4px 10px',
-                          fontSize: 11,
-                          opacity: opt.evPercent <= 0 ? 0.3 : 1,
-                        }}
-                      >
-                        {copiedId === opt.id ? 'Copied!' : 'Copy'}
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLogPosition(opt);
+                          }}
+                          className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer ${
+                            loggedIds[opt.id]
+                              ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                              : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30'
+                          }`}
+                          title="Log position directly to CLV tracker & ledger"
+                        >
+                          {loggedIds[opt.id] ? '✓ Logged' : '+ Log'}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopySignal(opt);
+                          }}
+                          disabled={opt.evPercent <= 0}
+                          className="btn-primary"
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: 11,
+                            opacity: opt.evPercent <= 0 ? 0.3 : 1,
+                          }}
+                        >
+                          {copiedId === opt.id ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -851,7 +905,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
               </div>
 
               {/* Bottom Action Footer */}
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+              <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
                 <button
                   onClick={() => onSelectMatch(opt.match)}
                   className="text-xs font-bold text-slate-400 hover:text-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
@@ -860,31 +914,57 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                   Detailed Model Breakdown
                 </button>
 
-                <button
-                  onClick={() =>
-                    handleCopySignal(opt, effectiveOdds, effectiveEV, effectiveStakeAmount)
-                  }
-                  disabled={effectiveEV <= 0}
-                  className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${
-                    effectiveEV <= 0
-                      ? 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
-                      : copiedId === opt.id
-                      ? 'bg-fpl-green text-slate-950 shadow-[0_0_15px_rgba(0,255,135,0.4)] cursor-pointer'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer'
-                  }`}
-                >
-                  {copiedId === opt.id ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      Copy Signal
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      handleLogPosition(opt, effectiveOdds, effectiveEV, effectiveStakeAmount)
+                    }
+                    className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                      loggedIds[opt.id]
+                        ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_12px_rgba(16,185,129,0.4)]'
+                        : 'bg-slate-950/80 hover:bg-slate-900 text-emerald-400 border border-emerald-500/40 hover:border-emerald-500'
+                    }`}
+                    title="Log this position directly into the institutional CLV tracker & position ledger"
+                  >
+                    {loggedIds[opt.id] ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        Logged to Ledger!
+                      </>
+                    ) : (
+                      <>
+                        <BookmarkPlus className="w-3.5 h-3.5" />
+                        + Log Position
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleCopySignal(opt, effectiveOdds, effectiveEV, effectiveStakeAmount)
+                    }
+                    disabled={effectiveEV <= 0}
+                    className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${
+                      effectiveEV <= 0
+                        ? 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
+                        : copiedId === opt.id
+                        ? 'bg-fpl-green text-slate-950 shadow-[0_0_15px_rgba(0,255,135,0.4)] cursor-pointer'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer'
+                    }`}
+                  >
+                    {copiedId === opt.id ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy Signal
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           );

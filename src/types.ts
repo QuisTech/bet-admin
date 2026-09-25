@@ -105,3 +105,27 @@ export interface BacktestMetric {
   bankrollNGN: number;
   brierScore: number;
 }
+
+export type BetOutcome = 'WON' | 'LOST' | 'PUSH' | 'OPEN';
+
+export interface LoggedBet {
+  id: string;
+  timestamp: string; // ISO date string
+  dateDisplay: string; // e.g. "24/09/2026 16:27"
+  league: string; // e.g. "UEFA Nations League"
+  match: string; // e.g. "Netherlands vs Germany"
+  selection: string; // e.g. "Draw (1X2)"
+  marketType: MarketType | string;
+  bookmaker: string; // e.g. "1xBet", "SportyBet"
+  priceTaken: number; // e.g. 3.88
+  pinnacleLineAtBet: number; // e.g. 3.71
+  pinnacleClosingLine?: number; // e.g. 3.71
+  modelProb: number; // e.g. 0.302 (30.2%)
+  modelEV: number; // e.g. 17.2 (%)
+  stake: number; // e.g. 400
+  payout: number; // e.g. 1552 if won, 0 if lost
+  outcome: BetOutcome;
+  notes?: string;
+  clvPercent?: number; // ((priceTaken / closingLine) - 1) * 100
+}
+
