@@ -147,208 +147,138 @@ const INITIAL_SEED_BETS: LoggedBet[] = [
     notes: 'Active early CLV position for Oct 12',
   },
   {
-    id: '87841078193',
-    timestamp: '2026-09-25T16:01:00Z',
-    dateDisplay: '25/09/2026 17:01',
-    league: 'UEFA Nations League',
-    match: 'Italy vs Belgium',
-    selection: 'Italy Win (1X2)',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 2.642,
-    pinnacleLineAtBet: 2.35,
-    pinnacleClosingLine: 2.35,
-    modelProb: 0.435,
-    modelEV: 14.9,
-    stake: 400,
-    payout: 0,
-    outcome: 'LOST',
-    clvPercent: 12.4,
-    notes: 'Bet slip № 87841078193 • Finished 0:2',
-  },
-  {
     id: '87840835081',
     timestamp: '2026-09-25T15:57:00Z',
     dateDisplay: '25/09/2026 16:57',
     league: 'UEFA Nations League',
-    match: 'Bulgaria vs Luxembourg',
-    selection: 'Bulgaria Win (1X2)',
+    match: 'Italy vs Belgium',
+    selection: 'Italy Win (1X2)',
     marketType: '1X2',
     bookmaker: '1xBet',
     priceTaken: 2.22,
     pinnacleLineAtBet: 1.99,
     pinnacleClosingLine: 1.99,
     modelProb: 0.504,
-    modelEV: 11.9,
-    stake: 400,
-    payout: 0,
-    outcome: 'OPEN',
-    clvPercent: 11.56,
-    notes: 'Bet slip № 87840835081 • Potential return: ₦888',
-  },
-  {
-    id: '87840715819',
-    timestamp: '2026-09-25T15:56:00Z',
-    dateDisplay: '25/09/2026 16:56',
-    league: 'UEFA Nations League',
-    match: 'Sweden vs Romania',
-    selection: 'Sweden Win (1X2)',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 2.327,
-    pinnacleLineAtBet: 2.08,
-    pinnacleClosingLine: 2.08,
-    modelProb: 0.485,
     modelEV: 12.8,
     stake: 400,
     payout: 0,
     outcome: 'LOST',
-    clvPercent: 11.88,
-    notes: 'Bet slip № 87840715819 • Finished Loss',
-  },
-  {
-    id: '87840609879',
-    timestamp: '2026-09-25T15:54:00Z',
-    dateDisplay: '25/09/2026 16:54',
-    league: 'UEFA Nations League',
-    match: 'Turkey vs France',
-    selection: 'Turkey / Draw Value Line',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 4.805,
-    pinnacleLineAtBet: 4.25,
-    pinnacleClosingLine: 4.25,
-    modelProb: 0.238,
-    modelEV: 14.3,
-    stake: 132,
-    payout: 0,
-    outcome: 'LOST',
-    clvPercent: 13.06,
-    notes: 'Bet slip № 87840609879 • Fractional Kelly stake',
-  },
-  {
-    id: '87840453447',
-    timestamp: '2026-09-25T15:52:00Z',
-    dateDisplay: '25/09/2026 16:52',
-    league: 'UEFA Nations League',
-    match: 'UEFA Nations League Value Pick',
-    selection: 'Value Underdog Line',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 5.55,
-    pinnacleLineAtBet: 4.80,
-    pinnacleClosingLine: 4.80,
-    modelProb: 0.212,
-    modelEV: 17.6,
-    stake: 146,
-    payout: 0,
-    outcome: 'OPEN',
-    clvPercent: 15.63,
-    notes: 'Bet slip № 87840453447 • Potential return: ₦810.30',
-  },
-  {
-    id: '87849986979',
-    timestamp: '2026-09-25T18:31:00Z',
-    dateDisplay: '25/09/2026 19:31',
-    league: 'UEFA Nations League',
-    match: 'Slovenia vs Scotland',
-    selection: 'Value Selection (1X2)',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 5.92,
-    pinnacleLineAtBet: 5.10,
-    pinnacleClosingLine: 5.10,
-    modelProb: 0.201,
-    modelEV: 18.9,
-    stake: 202,
-    payout: 0,
-    outcome: 'OPEN',
-    clvPercent: 16.08,
-    notes: 'Bet slip № 87849986979 • Potential return: ₦1,195.84',
-  },
-  {
-    id: '87850707633',
-    timestamp: '2026-09-25T18:41:00Z',
-    dateDisplay: '25/09/2026 19:41',
-    league: 'UEFA Nations League',
-    match: 'Iceland vs Estonia',
-    selection: 'Value Selection (1X2)',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 3.91,
-    pinnacleLineAtBet: 3.45,
-    pinnacleClosingLine: 3.45,
-    modelProb: 0.295,
-    modelEV: 15.3,
-    stake: 212,
-    payout: 0,
-    outcome: 'OPEN',
-    clvPercent: 13.33,
-    notes: 'Bet slip № 87850707633 • Potential return: ₦828.92',
-  },
-  {
-    id: 'mls-montreal-cincinnati',
-    timestamp: '2026-09-25T23:30:00Z',
-    dateDisplay: '25/09/2026 23:30',
-    league: 'USA MLS',
-    match: 'CF Montreal vs Cincinnati',
-    selection: 'Montreal or Draw (1X)',
-    marketType: '1X',
-    bookmaker: '1xBet',
-    priceTaken: 1.85,
-    pinnacleLineAtBet: 1.76,
-    pinnacleClosingLine: 1.76,
-    modelProb: 0.612,
-    modelEV: 13.2,
-    stake: 400,
-    payout: 0,
-    outcome: 'OPEN',
-    clvPercent: 5.11,
-    notes: 'MLS active ticket • Unsettled',
+    clvPercent: 11.56,
+    notes: 'Bet slip № 87840835081 • Finished 0:2',
   },
 ];
 
+/**
+ * Deduplicates bets across IDs, normalized match names, selections, stakes, and timestamps.
+ */
+export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
+  const seenIds = new Set<string>();
+  const seenSignatures = new Set<string>();
+  const result: LoggedBet[] = [];
+
+  for (const b of bets) {
+    if (!b || !b.match) continue;
+
+    // 1. Direct ID check
+    if (b.id && seenIds.has(b.id)) {
+      continue;
+    }
+
+    // 2. Canonical normalization
+    const normMatch = b.match
+      .toLowerCase()
+      .replace(/\s*-\s*/g, ' vs ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const normSel = b.selection.toLowerCase().replace(/\s+/g, ' ').trim();
+    const datePart = b.dateDisplay
+      ? b.dateDisplay.split(' ')[0]
+      : b.timestamp
+      ? b.timestamp.substring(0, 10)
+      : '';
+
+    // Primary signature: match + selection + stake + priceTaken + datePart
+    const primarySig = `${normMatch}|${normSel}|${b.stake}|${b.priceTaken.toFixed(2)}|${datePart}`;
+    // Match signature: match + stake + priceTaken on same date
+    const matchSig = `${normMatch}|${b.stake}|${b.priceTaken.toFixed(2)}|${datePart}`;
+
+    if (seenSignatures.has(primarySig) || seenSignatures.has(matchSig)) {
+      continue;
+    }
+
+    if (b.id) seenIds.add(b.id);
+    seenSignatures.add(primarySig);
+    seenSignatures.add(matchSig);
+    result.push(b);
+  }
+
+  return result;
+}
+
+export function removeDuplicateBets(): { cleaned: LoggedBet[]; removedCount: number } {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LEDGER_STORAGE_KEY) : null;
+    const current: LoggedBet[] = raw ? JSON.parse(raw) : INITIAL_SEED_BETS;
+    const clean = deduplicateBets(current);
+    const removedCount = current.length - clean.length;
+    if (removedCount > 0 && typeof localStorage !== 'undefined') {
+      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(clean));
+    }
+    return { cleaned: clean, removedCount };
+  } catch {
+    const clean = deduplicateBets(INITIAL_SEED_BETS);
+    return { cleaned: clean, removedCount: 0 };
+  }
+}
+
 export function getLoggedBets(): LoggedBet[] {
   try {
-    if (typeof localStorage === 'undefined') return INITIAL_SEED_BETS;
+    if (typeof localStorage === 'undefined') return deduplicateBets(INITIAL_SEED_BETS);
     const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(INITIAL_SEED_BETS));
-      return INITIAL_SEED_BETS;
+      const cleanSeeds = deduplicateBets(INITIAL_SEED_BETS);
+      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(cleanSeeds));
+      return cleanSeeds;
     }
     const parsed: LoggedBet[] = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return INITIAL_SEED_BETS;
+    if (!Array.isArray(parsed)) return deduplicateBets(INITIAL_SEED_BETS);
 
-    // Ensure official bet slips are properly synced and updated
-    let modified = false;
+    // Ensure official bet slips (such as 87840835081) are merged if missing
+    const merged = [...parsed];
     for (const seed of INITIAL_SEED_BETS) {
-      const idx = parsed.findIndex((b) => b.id === seed.id);
-      if (idx >= 0) {
-        if (parsed[idx].match !== seed.match || parsed[idx].selection !== seed.selection) {
-          parsed[idx] = { ...parsed[idx], ...seed };
-          modified = true;
-        }
-      } else {
-        parsed.push(seed);
-        modified = true;
+      const exists = merged.some((b) => 
+        b.id === seed.id || 
+        (b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() === seed.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() &&
+         Math.abs(b.priceTaken - seed.priceTaken) < 0.02 &&
+         b.stake === seed.stake)
+      );
+      if (!exists) {
+        merged.push(seed);
       }
     }
-    if (modified) {
-      parsed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(parsed));
+
+    // Deduplicate entire list
+    const deduplicated = deduplicateBets(merged);
+    deduplicated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Update storage if duplicates were removed or seed was merged
+    if (deduplicated.length !== parsed.length || merged.length !== parsed.length) {
+      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(deduplicated));
     }
 
-    return parsed;
+    return deduplicated;
   } catch (e) {
     console.error('Failed to read ledger from localStorage:', e);
-    return INITIAL_SEED_BETS;
+    return deduplicateBets(INITIAL_SEED_BETS);
   }
 }
 
 export function saveLoggedBets(bets: LoggedBet[]): void {
   try {
+    const clean = deduplicateBets(bets);
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(bets));
+      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(clean));
     }
   } catch (e) {
     console.error('Failed to write ledger to localStorage:', e);

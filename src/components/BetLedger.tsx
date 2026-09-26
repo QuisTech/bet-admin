@@ -21,6 +21,7 @@ import {
   resetLedgerToSeed,
   addLoggedBet,
   calculateLedgerStats,
+  removeDuplicateBets,
 } from '../services/ledgerService';
 import { EquityCurveChart } from './EquityCurveChart';
 
@@ -70,6 +71,16 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config }) => {
     if (window.confirm('Reset ledger to the verified 24/09/2026 execution positions?')) {
       const reset = resetLedgerToSeed();
       setBets(reset);
+    }
+  };
+
+  const handleDeduplicate = () => {
+    const { cleaned, removedCount } = removeDuplicateBets();
+    setBets(cleaned);
+    if (removedCount > 0) {
+      alert(`Pruned ${removedCount} duplicate position${removedCount > 1 ? 's' : ''}. Your ledger is now completely clean.`);
+    } else {
+      alert('No duplicate positions found. Your ledger is already 100% unique.');
     }
   };
 
@@ -128,6 +139,14 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config }) => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleDeduplicate}
+              title="Remove any duplicate positions from ledger"
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-700/60"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Deduplicate</span>
+            </button>
             <button
               onClick={() => setIsAddModalOpen(true)}
               className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
