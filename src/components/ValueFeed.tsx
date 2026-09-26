@@ -64,6 +64,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     'evDesc' | 'probDesc' | 'fastGreen' | 'agreementAsc' | 'returnDesc' | 'oddsAsc' | 'oddsDesc'
   >('evDesc');
   const [liveOddsInput, setLiveOddsInput] = useState<Record<string, string>>({});
+  const [cardMarketIndex, setCardMarketIndex] = useState<Record<string, number>>({});
 
   const strategy = STRATEGY_MODES[riskMode];
   const currSym = config.currency === 'USD' ? '$' : '₦';
@@ -125,21 +126,29 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     opt: OpportunityItem,
     customOddsVal?: number,
     customEV?: number,
-    customStake?: number
+    customStake?: number,
+    customSelection?: string,
+    customDomainProb?: number,
+    customMlProb?: number,
+    customConsensusProb?: number
   ) => {
     const odds = customOddsVal ?? opt.sportyBetOdds;
     const ev = customEV ?? opt.evPercent;
     const stake = customStake ?? opt.stakeAmount;
+    const selection = customSelection ?? opt.selection;
+    const dProb = customDomainProb ?? opt.domainProb;
+    const mlProb = customMlProb ?? opt.trainedMlProb;
+    const cProb = customConsensusProb ?? opt.consensusProb;
     if (ev <= 0) return;
     const text = `🎯 BET HORIZON +EV SIGNAL\nMatch: ${opt.title}\nSelection: ${
-      opt.selection
+      selection
     }\nLive Odds: ${odds.toFixed(2)}${
       customOddsVal && customOddsVal !== opt.sportyBetOdds
         ? ` (Adjusted from feed ${opt.sportyBetOdds.toFixed(2)})`
         : ''
-    }\nPipeline 1 (Domain): ${(opt.domainProb * 100).toFixed(1)}%\nPipeline 2 (Trained ML): ${(
-      opt.trainedMlProb * 100
-    ).toFixed(1)}%\nDual Consensus: ${(opt.consensusProb * 100).toFixed(1)}%\nEdge: ${
+    }\nPipeline 1 (Domain): ${(dProb * 100).toFixed(1)}%\nPipeline 2 (Trained ML): ${(
+      mlProb * 100
+    ).toFixed(1)}%\nDual Consensus: ${(cProb * 100).toFixed(1)}%\nEdge: ${
       ev > 0 ? '+' : ''
     }${ev}%\nStrategy: ${strategy.name}\nRecommended Stake: ${currSym}${stake.toLocaleString()} ${
       config.currency
@@ -155,23 +164,32 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     opt: OpportunityItem,
     customOddsVal?: number,
     customEV?: number,
-    customStake?: number
+    customStake?: number,
+    customSelection?: string,
+    customMarketType?: string,
+    customModelProb?: number,
+    customPinnacleOdds?: number
   ) => {
     const odds = customOddsVal ?? opt.sportyBetOdds;
     const ev = customEV ?? opt.evPercent;
     const stake = customStake ?? opt.stakeAmount;
-    const pin = opt.pinnacleOdds > 1.0 ? opt.pinnacleOdds : odds;
+    const selection = customSelection ?? opt.selection;
+    const marketType = customMarketType ?? (opt.type === 'PROPS' ? 'PLAYER_PROP' : '1X2');
+    const modelProb = customModelProb ?? opt.modelProb;
+    const pin = (customPinnacleOdds !== undefined && customPinnacleOdds > 1.0)
+      ? customPinnacleOdds
+      : (opt.pinnacleOdds > 1.0 ? opt.pinnacleOdds : odds);
 
     addLoggedBet({
       league: opt.match.league,
       match: `${opt.match.homeTeam} vs ${opt.match.awayTeam}`,
-      selection: opt.selection,
-      marketType: opt.type === 'PROPS' ? 'PLAYER_PROP' : '1X2',
+      selection: selection,
+      marketType: marketType,
       bookmaker: '1xBet',
       priceTaken: odds,
       pinnacleLineAtBet: pin,
       pinnacleClosingLine: pin,
-      modelProb: opt.modelProb,
+      modelProb: modelProb,
       modelEV: ev,
       stake: stake,
       payout: 0,
@@ -179,9 +197,10 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
       notes: `Logged from +EV Feed (${strategy.name} mode, EV ${ev > 0 ? '+' : ''}${ev.toFixed(1)}%)`,
     });
 
-    setLoggedIds((prev) => ({ ...prev, [opt.id]: true }));
+    const activeKey = `${opt.id}_${selection}`;
+    setLoggedIds((prev) => ({ ...prev, [opt.id]: true, [activeKey]: true }));
     setTimeout(() => {
-      setLoggedIds((prev) => ({ ...prev, [opt.id]: false }));
+      setLoggedIds((prev) => ({ ...prev, [opt.id]: false, [activeKey]: false }));
     }, 2500);
   };
 
@@ -571,19 +590,71 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {displayedOpportunities.map((opt) => {
-            const enteredVal = liveOddsInput[opt.id];
+            {displayedOpportunities.map((opt) => {
+            const defaultMarketIdx = getMarketIndexForOpt(opt);
+            const activeMarketIdx = cardMarketIndex[opt.id] ?? defaultMarketIdx;
+            const isAlternativeMarket =
+              opt.type === 'MATCH' &&
+              !!opt.match.markets &&
+              opt.match.markets.length > 1 &&
+              activeMarketIdx !== defaultMarketIdx;
+
+            const activeMarket =
+              opt.type === 'MATCH' && opt.match.markets && opt.match.markets[activeMarketIdx]
+                ? opt.match.markets[activeMarketIdx]
+                : null;
+
+            const activeSelection = activeMarket
+              ? `${activeMarket.selection} (${activeMarket.marketType})`
+              : opt.selection;
+
+            const activeBaseOdds = activeMarket ? activeMarket.sportyBetOdds : opt.sportyBetOdds;
+            const activePinnacleOdds = activeMarket ? activeMarket.pinnacleOdds : opt.pinnacleOdds;
+
+            const activeDomainProb = activeMarket
+              ? (activeMarket.domainProb ?? activeMarket.ensembleProb)
+              : opt.domainProb;
+            const activeTrainedMlProb = activeMarket
+              ? (activeMarket.trainedMlProb ?? activeMarket.ensembleProb)
+              : opt.trainedMlProb;
+            const activeConsensusProb = activeMarket
+              ? (activeMarket.consensusProb ?? activeMarket.ensembleProb)
+              : opt.consensusProb;
+
+            let activeModelProb = activeConsensusProb;
+            if (pipelineFilter === 'DOMAIN_ONLY') activeModelProb = activeDomainProb;
+            if (pipelineFilter === 'TRAINED_ML_ONLY') activeModelProb = activeTrainedMlProb;
+
+            const activeModelDelta = activeMarket
+              ? (activeMarket.modelDelta ?? Math.abs(activeTrainedMlProb - activeDomainProb))
+              : opt.modelDelta;
+
+            const activeConsensusLevel = activeMarket
+              ? (activeMarket.consensusLevel ??
+                 (activeModelDelta < 0.04
+                   ? 'STRONG_AGREEMENT'
+                   : activeModelDelta < 0.08
+                   ? 'MODERATE'
+                   : 'DIVERGENCE'))
+              : opt.consensusLevel;
+
+            // Dedicated storage key per market selection so testing odds on one doesn't clobber another
+            const oddsKey = `${opt.id}_m_${activeMarketIdx}`;
+            const enteredVal =
+              liveOddsInput[oddsKey] ??
+              (activeMarketIdx === defaultMarketIdx ? liveOddsInput[opt.id] : undefined);
+
             const customOddsNum =
               enteredVal !== undefined && enteredVal !== '' ? parseFloat(enteredVal) : null;
             const effectiveOdds =
               customOddsNum && !isNaN(customOddsNum) && customOddsNum > 1.0
                 ? customOddsNum
-                : opt.sportyBetOdds;
+                : activeBaseOdds;
             const isCustom =
-              customOddsNum !== null && !isNaN(customOddsNum) && customOddsNum !== opt.sportyBetOdds;
+              customOddsNum !== null && !isNaN(customOddsNum) && customOddsNum !== activeBaseOdds;
 
-            const effectiveEV = Math.round((opt.modelProb * effectiveOdds - 1.0) * 1000) / 10;
-            const fullKelly = ((opt.modelProb * effectiveOdds) - 1.0) / (effectiveOdds - 1.0);
+            const effectiveEV = Math.round((activeModelProb * effectiveOdds - 1.0) * 1000) / 10;
+            const fullKelly = ((activeModelProb * effectiveOdds) - 1.0) / (effectiveOdds - 1.0);
             const rawStakePct = Math.max(
               0,
               Math.min(strategy.maxStakePercent, fullKelly * strategy.kellyMultiplier)
@@ -615,10 +686,10 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         {effectiveEV > 0 ? `+${effectiveEV}%` : `${effectiveEV}%`} EV{' '}
                         {isCustom ? '(Adjusted)' : 'Edge'}
                       </div>
-                      {opt.modelProb >= 0.50 && (
+                      {activeModelProb >= 0.50 && (
                         <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                           <span>🟢 Fast Green</span>
-                          <span className="font-mono">({Math.round(opt.modelProb * 100)}%)</span>
+                          <span className="font-mono">({Math.round(activeModelProb * 100)}%)</span>
                         </div>
                       )}
                     </div>
@@ -646,26 +717,115 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                     </span>
                   </div>
 
-                  {/* High-Visibility Recommended Bet Selection Banner */}
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-950 border border-emerald-500/50 mb-3.5 flex items-center justify-between shadow-[0_0_15px_rgba(0,255,135,0.08)]">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                        <Target className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-extrabold uppercase tracking-widest text-emerald-400 block">
-                          🎯 Play This Selection:
+                  {/* Possibility Switcher Tabs (If MATCH with multiple markets) */}
+                  {opt.type === 'MATCH' && opt.match.markets && opt.match.markets.length > 1 && (
+                    <div className="mb-3 bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/80">
+                      <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 font-bold mb-2">
+                        <span className="flex items-center gap-1.5 text-slate-300">
+                          <GitCompare className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>COMPARE MATCH POSSIBILITIES:</span>
                         </span>
-                        <span className="text-base font-black text-slate-100">{opt.selection}</span>
+                        <span className="text-[9px] text-slate-500 font-normal">Click to test odds & EV</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {opt.match.markets.map((m, mIdx) => {
+                          const isAct = mIdx === activeMarketIdx;
+                          const isPick = mIdx === defaultMarketIdx;
+                          const mProb = m.consensusProb ?? m.ensembleProb;
+                          const mEv = m.evPercent ?? Math.round((mProb * m.sportyBetOdds - 1.0) * 1000) / 10;
+
+                          return (
+                            <button
+                              key={`${m.selection}-${mIdx}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCardMarketIndex((prev) => ({ ...prev, [opt.id]: mIdx }));
+                              }}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                isAct
+                                  ? 'bg-slate-800 text-white border-emerald-500 shadow-md shadow-emerald-950/40 ring-1 ring-emerald-500/50'
+                                  : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800 hover:bg-slate-850'
+                              }`}
+                            >
+                              <span>{m.selection}</span>
+                              {isPick && (
+                                <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded font-mono font-black">
+                                  PICK
+                                </span>
+                              )}
+                              <span
+                                className={`text-[10px] font-mono font-black ${
+                                  mEv > 0 ? 'text-emerald-400' : 'text-slate-500'
+                                }`}
+                              >
+                                {mEv > 0 ? `+${mEv.toFixed(1)}%` : `${mEv.toFixed(1)}%`}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                    <div className="text-right pl-3 border-l border-slate-800/80">
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase">Retail Odds</span>
-                      <span className="text-base font-black text-amber-400 font-mono">
-                        {effectiveOdds.toFixed(2)}
-                      </span>
+                  )}
+
+                  {/* High-Visibility Recommended / Switched Bet Selection Banner */}
+                  {isAlternativeMarket ? (
+                    <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-700/80 mb-3.5 flex items-center justify-between shadow">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={`p-2 rounded-lg ${
+                            effectiveEV > 0
+                              ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-400'
+                              : 'bg-slate-800 border border-slate-700 text-slate-400'
+                          }`}
+                        >
+                          <GitCompare className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-extrabold uppercase tracking-widest text-cyan-400">
+                              Switched Possibility:
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCardMarketIndex((prev) => ({ ...prev, [opt.id]: defaultMarketIdx }));
+                              }}
+                              className="text-[9px] text-emerald-400 hover:text-emerald-300 underline font-mono cursor-pointer"
+                            >
+                              Reset to Model Pick
+                            </button>
+                          </div>
+                          <span className="text-base font-black text-slate-100">{activeSelection}</span>
+                        </div>
+                      </div>
+                      <div className="text-right pl-3 border-l border-slate-800/80">
+                        <span className="text-[9px] font-bold text-slate-400 block uppercase">Retail Odds</span>
+                        <span className="text-base font-black text-amber-400 font-mono">
+                          {effectiveOdds.toFixed(2)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-950 border border-emerald-500/50 mb-3.5 flex items-center justify-between shadow-[0_0_15px_rgba(0,255,135,0.08)]">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                          <Target className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-extrabold uppercase tracking-widest text-emerald-400 block">
+                            🎯 Play This Selection:
+                          </span>
+                          <span className="text-base font-black text-slate-100">{opt.selection}</span>
+                        </div>
+                      </div>
+                      <div className="text-right pl-3 border-l border-slate-800/80">
+                        <span className="text-[9px] font-bold text-slate-400 block uppercase">Retail Odds</span>
+                        <span className="text-base font-black text-amber-400 font-mono">
+                          {effectiveOdds.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -676,13 +836,13 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                   <div className="flex items-center justify-between text-[11px] font-mono">
                     <span className="text-slate-400">Domain Ensemble (P1):</span>
                     <span className="font-bold text-cyan-400">
-                      {(opt.domainProb * 100).toFixed(1)}%
+                      {(activeDomainProb * 100).toFixed(1)}%
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] font-mono">
                     <span className="text-slate-400">Trained XGBoost (P2):</span>
                     <span className="font-bold text-purple-400">
-                      {(opt.trainedMlProb * 100).toFixed(1)}%
+                      {(activeTrainedMlProb * 100).toFixed(1)}%
                     </span>
                   </div>
                   <div className="pt-1 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
@@ -693,27 +853,27 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       </span>
                     </div>
                     <span className="font-black text-fpl-green">
-                      {(opt.consensusProb * 100).toFixed(1)}%
+                      {(activeConsensusProb * 100).toFixed(1)}%
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between text-[10px] pt-1">
                     <span className="text-slate-500">Pipeline Spread:</span>
-                    {opt.consensusLevel === 'STRONG_AGREEMENT' ? (
+                    {activeConsensusLevel === 'STRONG_AGREEMENT' ? (
                       <span className="text-emerald-400 font-bold">
-                        ✓ Strong Consensus (Δ{(opt.modelDelta * 100).toFixed(1)}%)
+                        ✓ Strong Consensus (Δ{(activeModelDelta * 100).toFixed(1)}%)
                       </span>
-                    ) : opt.consensusLevel === 'MODERATE' ? (
+                    ) : activeConsensusLevel === 'MODERATE' ? (
                       <span className="text-amber-400 font-semibold">
-                        Moderate Spread (Δ{(opt.modelDelta * 100).toFixed(1)}%)
+                        Moderate Spread (Δ{(activeModelDelta * 100).toFixed(1)}%)
                       </span>
                     ) : (
                       <span className="text-rose-400 font-bold">
-                        ⚠ High Divergence Alert (Δ{(opt.modelDelta * 100).toFixed(1)}%)
+                        ⚠ High Divergence Alert (Δ{(activeModelDelta * 100).toFixed(1)}%)
                       </span>
                     )}
                   </div>
-                  {opt.consensusLevel === 'DIVERGENCE' && (
+                  {activeConsensusLevel === 'DIVERGENCE' && (
                     <div className="text-[10px] text-rose-300 bg-rose-950/40 border border-rose-900/50 p-1.5 rounded font-mono">
                       ⚠️ Pipeline Divergence (&gt;7pp): Domain Ensemble and Trained ML disagree on probability. Proceed with caution.
                     </div>
@@ -747,10 +907,10 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                   const pA = aMarket ? Math.round((aMarket.consensusProb ?? aMarket.ensembleProb) * 1000) / 10 : null;
 
                   if (pH !== null && pD !== null && pA !== null) {
-                    const isHomePick = opt.selection.includes('Win') && !opt.selection.includes('Draw') && opt.selection.includes(opt.match.homeTeam);
-                    const isDrawPick = opt.selection.includes('Draw') && !opt.selection.includes('or Draw');
-                    const isAwayPick = opt.selection.includes('Win') && !opt.selection.includes('Draw') && opt.selection.includes(opt.match.awayTeam);
-                    const is1XPick = opt.selection.includes('(1X)');
+                    const isHomePick = activeSelection.includes('Win') && !activeSelection.includes('Draw') && activeSelection.includes(opt.match.homeTeam);
+                    const isDrawPick = activeSelection.includes('Draw') && !activeSelection.includes('or Draw');
+                    const isAwayPick = activeSelection.includes('Win') && !activeSelection.includes('Draw') && activeSelection.includes(opt.match.awayTeam);
+                    const is1XPick = activeSelection.includes('(1X)');
 
                     return (
                       <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-xs font-mono">
@@ -838,7 +998,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       {effectiveOdds.toFixed(2)}
                     </span>
                     <span className="text-[9px] text-slate-500 font-mono">
-                      {isCustom ? `Feed: ${opt.sportyBetOdds.toFixed(2)}` : 'Retail Available'}
+                      {isCustom ? `Feed: ${activeBaseOdds.toFixed(2)}` : 'Retail Available'}
                     </span>
                   </div>
                   <div className="flex flex-col justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
@@ -846,7 +1006,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       Pinnacle Fair
                     </span>
                     <span className="text-base font-mono font-black text-slate-300">
-                      {opt.pinnacleOdds.toFixed(2)}
+                      {activePinnacleOdds.toFixed(2)}
                     </span>
                     <span className="text-[9px] text-slate-500 font-mono">Shin De-vigged Ref</span>
                   </div>
@@ -855,7 +1015,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       Active Model
                     </span>
                     <span className="text-base font-mono font-black text-fpl-green">
-                      {(opt.modelProb * 100).toFixed(1)}%
+                      {(activeModelProb * 100).toFixed(1)}%
                     </span>
                     <span className="text-[9px] text-slate-500 font-mono">Consensus Probability</span>
                   </div>
@@ -864,23 +1024,23 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       Model Fair Odds
                     </span>
                     <span className="text-base font-mono font-black text-cyan-400">
-                      {(1 / Math.max(0.01, opt.modelProb)).toFixed(2)}
+                      {(1 / Math.max(0.01, activeModelProb)).toFixed(2)}
                     </span>
                     <span className="text-[9px] text-slate-500 font-mono">1 / P(Model)</span>
                   </div>
                 </div>
 
                 {/* Edge vs Pinnacle Sharp Line */}
-                {opt.pinnacleOdds > 1.0 && (() => {
-                  const pinnacleImplied = (1 / opt.pinnacleOdds) * 100;
-                  const alphaEdge = (opt.modelProb * 100) - pinnacleImplied;
+                {activePinnacleOdds > 1.0 && (() => {
+                  const pinnacleImplied = (1 / activePinnacleOdds) * 100;
+                  const alphaEdge = (activeModelProb * 100) - pinnacleImplied;
                   return (
                     <div className="flex items-center justify-between text-[11px] font-mono bg-slate-950/70 px-3.5 py-2.5 rounded-xl border border-slate-800/80 mb-3">
                       <span className="text-slate-400">Edge vs. Pinnacle Sharp Line:</span>
                       <span className={`font-bold ${alphaEdge > 0 ? 'text-cyan-400' : 'text-slate-400'}`}>
                         {alphaEdge > 0 ? `+${alphaEdge.toFixed(1)}pp` : `${alphaEdge.toFixed(1)}pp`} Alpha Claim
                         <span className="text-[9px] text-slate-500 font-normal ml-1.5">
-                          (Model {(opt.modelProb * 100).toFixed(1)}% vs Pin {pinnacleImplied.toFixed(1)}%)
+                          (Model {(activeModelProb * 100).toFixed(1)}% vs Pin {pinnacleImplied.toFixed(1)}%)
                         </span>
                       </span>
                     </div>
@@ -907,12 +1067,13 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           const next = { ...liveOddsInput };
+                          delete next[oddsKey];
                           delete next[opt.id];
                           setLiveOddsInput(next);
                         }}
                         className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer"
                       >
-                        Reset to {opt.sportyBetOdds.toFixed(2)}
+                        Reset to {activeBaseOdds.toFixed(2)}
                       </button>
                     )}
                   </div>
@@ -924,12 +1085,15 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         step="0.01"
                         min="1.01"
                         max="100"
-                        value={liveOddsInput[opt.id] ?? ''}
-                        placeholder={`Enter odds on your book (feed: ${opt.sportyBetOdds.toFixed(2)})`}
+                        value={
+                          liveOddsInput[oddsKey] ??
+                          (activeMarketIdx === defaultMarketIdx ? (liveOddsInput[opt.id] ?? '') : '')
+                        }
+                        placeholder={`Enter odds on your book (feed: ${activeBaseOdds.toFixed(2)})`}
                         onChange={(e) => {
                           setLiveOddsInput({
                             ...liveOddsInput,
-                            [opt.id]: e.target.value,
+                            [oddsKey]: e.target.value,
                           });
                         }}
                         onClick={(e) => e.stopPropagation()}
@@ -955,15 +1119,15 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                   </div>
 
                   {/* Sharp Line Comparison & EV Verdict */}
-                  {opt.pinnacleOdds > 1.0 && (
+                  {activePinnacleOdds > 1.0 && (
                     <div className="pt-2 border-t border-slate-900/90 flex flex-col gap-1 text-[10px] font-mono">
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400">vs Pinnacle Fair ({opt.pinnacleOdds.toFixed(2)}):</span>
-                        {effectiveOdds > opt.pinnacleOdds ? (
+                        <span className="text-slate-400">vs Pinnacle Fair ({activePinnacleOdds.toFixed(2)}):</span>
+                        {effectiveOdds > activePinnacleOdds ? (
                           <span className="text-emerald-400 font-bold">
-                            🟢 Beats Sharp Benchmark (+{(effectiveOdds - opt.pinnacleOdds).toFixed(2)}) • Pure Price Edge!
+                            🟢 Beats Sharp Benchmark (+{(effectiveOdds - activePinnacleOdds).toFixed(2)}) • Pure Price Edge!
                           </span>
-                        ) : effectiveOdds === opt.pinnacleOdds ? (
+                        ) : effectiveOdds === activePinnacleOdds ? (
                           <span className="text-cyan-400 font-semibold">
                             ⚪ Equal to Sharp Fair Line
                           </span>
@@ -1028,7 +1192,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
               {/* Bottom Action Footer */}
               <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
                 <button
-                  onClick={() => onSelectMatch(opt.match, getMarketIndexForOpt(opt))}
+                  onClick={() => onSelectMatch(opt.match, activeMarketIdx)}
                   className="text-xs font-bold text-slate-400 hover:text-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <Info className="w-3.5 h-3.5" />
@@ -1038,16 +1202,25 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() =>
-                      handleLogPosition(opt, effectiveOdds, effectiveEV, effectiveStakeAmount)
+                      handleLogPosition(
+                        opt,
+                        effectiveOdds,
+                        effectiveEV,
+                        effectiveStakeAmount,
+                        activeSelection,
+                        activeMarket?.marketType,
+                        activeModelProb,
+                        activePinnacleOdds
+                      )
                     }
                     className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                      loggedIds[opt.id]
+                      loggedIds[opt.id] || loggedIds[`${opt.id}_${activeSelection}`]
                         ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_12px_rgba(16,185,129,0.4)]'
                         : 'bg-slate-950/80 hover:bg-slate-900 text-emerald-400 border border-emerald-500/40 hover:border-emerald-500'
                     }`}
                     title="Log this position directly into the institutional CLV tracker & position ledger"
                   >
-                    {loggedIds[opt.id] ? (
+                    {loggedIds[opt.id] || loggedIds[`${opt.id}_${activeSelection}`] ? (
                       <>
                         <Check className="w-3.5 h-3.5" />
                         Logged to Ledger!
@@ -1062,7 +1235,16 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
 
                   <button
                     onClick={() =>
-                      handleCopySignal(opt, effectiveOdds, effectiveEV, effectiveStakeAmount)
+                      handleCopySignal(
+                        opt,
+                        effectiveOdds,
+                        effectiveEV,
+                        effectiveStakeAmount,
+                        activeSelection,
+                        activeDomainProb,
+                        activeTrainedMlProb,
+                        activeConsensusProb
+                      )
                     }
                     disabled={effectiveEV <= 0}
                     className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${

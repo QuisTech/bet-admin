@@ -19,6 +19,7 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
   const [activeMarketIndex, setActiveMarketIndex] = useState(marketIndex);
   const [kellyFraction, setKellyFraction] = useState(config.kellyFraction);
   const [copied, setCopied] = useState(false);
+  const [liveOddsInput, setLiveOddsInput] = useState<Record<number, string>>({});
 
   React.useEffect(() => {
     setActiveMarketIndex(marketIndex);
@@ -31,22 +32,27 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
   const market = match.markets[activeMarketIndex] || match.markets[0];
   if (!market) return null;
 
-  const impliedProb = 1 / market.sportyBetOdds;
-  const modelProb = market.ensembleProb;
+  const enteredOddsStr = liveOddsInput[activeMarketIndex];
+  const customOdds = enteredOddsStr && parseFloat(enteredOddsStr) > 1.0 ? parseFloat(enteredOddsStr) : null;
+  const currentOdds = customOdds ?? market.sportyBetOdds;
+  const isCustomOdds = customOdds !== null && customOdds !== market.sportyBetOdds;
+
+  const impliedProb = 1 / currentOdds;
+  const modelProb = market.consensusProb ?? market.ensembleProb;
   const edge = modelProb - impliedProb;
 
   const customConfig = { ...config, kellyFraction };
-  const kelly = calculateKellyStake(modelProb, market.sportyBetOdds, customConfig);
-  const evPct = calculateEV(modelProb, market.sportyBetOdds);
+  const kelly = calculateKellyStake(modelProb, currentOdds, customConfig);
+  const evPct = calculateEV(modelProb, currentOdds);
   const isPositiveEV = evPct > 0;
-  const projectedReturn = Math.round(kelly.stakeNGN * market.sportyBetOdds);
+  const projectedReturn = Math.round(kelly.stakeNGN * currentOdds);
   const netProfit = projectedReturn - kelly.stakeNGN;
 
   const formattedEv = evPct >= 0 ? `+${evPct.toFixed(1)}%` : `${evPct.toFixed(1)}%`;
   const formattedEdge = edge >= 0 ? `+${(edge * 100).toFixed(1)}%` : `${(edge * 100).toFixed(1)}%`;
 
   const handleCopy = () => {
-    const text = `🎯 BET HORIZON QUANT EVALUATION\nMatch: ${match.homeTeam} vs ${match.awayTeam}\nLeague: ${match.league}\nSelection: ${market.selection} (${market.marketType})\nOdds: ${market.sportyBetOdds.toFixed(2)}\nModel Fair Prob: ${(modelProb * 100).toFixed(1)}%\nEdge: ${formattedEv}\nKelly Recommendation: ${isPositiveEV ? `${sym}${kelly.stakeNGN.toLocaleString()} ${config.currency}` : `${sym}0 (Pass / Negative EV)`}`;
+    const text = `🎯 BET HORIZON QUANT EVALUATION\nMatch: ${match.homeTeam} vs ${match.awayTeam}\nLeague: ${match.league}\nSelection: ${market.selection} (${market.marketType})\nOdds: ${currentOdds.toFixed(2)}${isCustomOdds ? ` (Adjusted from feed ${market.sportyBetOdds.toFixed(2)})` : ''}\nModel Fair Prob: ${(modelProb * 100).toFixed(1)}%\nEdge: ${formattedEv}\nKelly Recommendation: ${isPositiveEV ? `${sym}${kelly.stakeNGN.toLocaleString()} ${config.currency}` : `${sym}0 (Pass / Negative EV)`}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -130,15 +136,83 @@ export const StakingCalculator: React.FC<StakingCalcProps> = ({
           </div>
         )}
 
+        {/* Interactive Live Odds Recalculator */}
+        <div
+          className={`p-3.5 rounded-2xl border transition-all space-y-2 ${
+            isCustomOdds
+              ? 'bg-slate-950/90 border-emerald-500/50 shadow-lg shadow-emerald-950/20'
+              : 'bg-slate-900/60 border-slate-800'
+          }`}
+        >
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[11px] font-bold text-slate-200">
+              Test Current Bookmaker Odds:
+            </span>
+            {isCustomOdds && (
+              <button
+                onClick={() => {
+                  const next = { ...liveOddsInput };
+                  delete next[activeMarketIndex];
+                  setLiveOddsInput(next);
+                }}
+                className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer"
+              >
+                Reset to {market.sportyBetOdds.toFixed(2)}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <input
+                type="number"
+                step="0.01"
+                min="1.01"
+                max="100"
+                value={liveOddsInput[activeMarketIndex] ?? ''}
+                placeholder={`Enter odds on your book (feed: ${market.sportyBetOdds.toFixed(2)})`}
+                onChange={(e) => {
+                  setLiveOddsInput({
+                    ...liveOddsInput,
+                    [activeMarketIndex]: e.target.value,
+                  });
+                }}
+                className="w-full bg-slate-950/90 border border-slate-700/80 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-white placeholder:text-slate-500 outline-none"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-500 pointer-events-none">
+                ODDS
+              </span>
+            </div>
+            <div className="flex flex-col text-right shrink-0">
+              <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">
+                {isCustomOdds ? 'Adjusted EV' : 'Live EV'}
+              </span>
+              <span
+                className={`text-sm font-mono font-black ${
+                  isPositiveEV ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+              >
+                {formattedEv}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Odds & Model Comparison Cards */}
         <div className="grid grid-cols-3 gap-3 p-4 bg-slate-900/80 rounded-2xl border border-slate-800 text-center">
           <div>
-            <div className="text-[10px] text-slate-400 uppercase font-bold">Bookmaker Odds</div>
-            <div className="text-lg font-mono font-bold text-white mt-0.5">
-              {market.sportyBetOdds.toFixed(2)}
+            <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center justify-center gap-1">
+              <span>Bookmaker Odds</span>
+              {isCustomOdds && (
+                <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-mono font-bold">
+                  TESTED
+                </span>
+              )}
+            </div>
+            <div className={`text-lg font-mono font-bold mt-0.5 ${isCustomOdds ? 'text-emerald-400' : 'text-white'}`}>
+              {currentOdds.toFixed(2)}
             </div>
             <div className="text-[9px] text-slate-500 font-mono">
-              Implied: {(impliedProb * 100).toFixed(1)}%
+              {isCustomOdds ? `Feed: ${market.sportyBetOdds.toFixed(2)}` : `Implied: ${(impliedProb * 100).toFixed(1)}%`}
             </div>
           </div>
           <div>
