@@ -51,7 +51,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     return idx >= 0 ? idx : 0;
   };
 
-  const [filter, setFilter] = useState<'ALL' | 'PROPS' | 'MATCH'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'PROPS' | 'MATCH' | 'FAST_GREEN'>('ALL');
   const [internalPipelineFilter, setInternalPipelineFilter] =
     useState<ModelPipelineMode>('ALL_CONSENSUS');
   const pipelineFilter = propsPipelineFilter ?? internalPipelineFilter;
@@ -61,7 +61,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
   const [viewMode, setViewMode] = useState<'cards' | 'terminal'>('cards');
   const [showAllMarkets, setShowAllMarkets] = useState(false);
   const [sortBy, setSortBy] = useState<
-    'evDesc' | 'probDesc' | 'agreementAsc' | 'returnDesc' | 'oddsAsc' | 'oddsDesc'
+    'evDesc' | 'probDesc' | 'fastGreen' | 'agreementAsc' | 'returnDesc' | 'oddsAsc' | 'oddsDesc'
   >('evDesc');
   const [liveOddsInput, setLiveOddsInput] = useState<Record<string, string>>({});
 
@@ -83,15 +83,30 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     () => allOpportunities.filter((o) => o.type === 'PROPS'),
     [allOpportunities]
   );
+  const fastGreenMarkets = useMemo(
+    () => allOpportunities.filter((o) => o.modelProb >= 0.50),
+    [allOpportunities]
+  );
+  const qualifyingFastGreen = useMemo(
+    () => qualifyingOpportunities.filter((o) => o.modelProb >= 0.50),
+    [qualifyingOpportunities]
+  );
 
   const displayedOpportunities = useMemo(() => {
     const list = (showAllMarkets ? allOpportunities : qualifyingOpportunities).filter((o) => {
+      if (filter === 'FAST_GREEN') return o.modelProb >= 0.50;
       if (filter === 'PROPS') return o.type === 'PROPS';
       if (filter === 'MATCH') return o.type === 'MATCH';
       return true;
     });
 
     return list.slice().sort((a, b) => {
+      if (sortBy === 'fastGreen') {
+        const isAHigh = a.modelProb >= 0.50 ? 1 : 0;
+        const isBHigh = b.modelProb >= 0.50 ? 1 : 0;
+        if (isAHigh !== isBHigh) return isBHigh - isAHigh;
+        return b.evPercent - a.evPercent;
+      }
       if (sortBy === 'evDesc') return b.evPercent - a.evPercent;
       if (sortBy === 'probDesc') return b.modelProb - a.modelProb;
       if (sortBy === 'agreementAsc') return a.modelDelta - b.modelDelta;
@@ -246,6 +261,21 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
               >
                 Props ({showAllMarkets ? playerPropMarkets.length : qualifyingProps.length})
               </button>
+              <button
+                onClick={() => setFilter('FAST_GREEN')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  filter === 'FAST_GREEN'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-900'
+                }`}
+                style={{ border: 'none', fontFamily: 'Inter, sans-serif' }}
+                title="Only show high-floor plays with Model Probability >= 50% (Double Chance & Top Strikers)"
+              >
+                <span>🟢 Fast Green</span>
+                <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-black/25">
+                  {showAllMarkets ? fastGreenMarkets.length : qualifyingFastGreen.length}
+                </span>
+              </button>
             </div>
 
             {/* Sort Selector Dropdown */}
@@ -259,11 +289,14 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                 onChange={(e) => setSortBy(e.target.value as any)}
                 className="bg-transparent text-xs font-bold text-slate-200 focus:outline-none cursor-pointer pr-1"
               >
-                <option value="evDesc" className="bg-slate-900 text-slate-200">
-                  🚀 Highest +EV Edge (%)
+                <option value="fastGreen" className="bg-slate-900 text-emerald-400 font-bold">
+                  🟢 Fast Green Core (Prob ≥ 50% First)
                 </option>
                 <option value="probDesc" className="bg-slate-900 text-slate-200">
                   🛡️ Highest Win Probability (%)
+                </option>
+                <option value="evDesc" className="bg-slate-900 text-slate-200">
+                  🚀 Highest +EV Edge (%)
                 </option>
                 <option value="agreementAsc" className="bg-slate-900 text-slate-200">
                   🎯 Strongest Consensus (Lowest Spread)
@@ -582,6 +615,12 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         {effectiveEV > 0 ? `+${effectiveEV}%` : `${effectiveEV}%`} EV{' '}
                         {isCustom ? '(Adjusted)' : 'Edge'}
                       </div>
+                      {opt.modelProb >= 0.50 && (
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                          <span>🟢 Fast Green</span>
+                          <span className="font-mono">({Math.round(opt.modelProb * 100)}%)</span>
+                        </div>
+                      )}
                     </div>
 
                   {/* Sub-qualification banner if showing all */}
