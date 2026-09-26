@@ -146,6 +146,26 @@ const INITIAL_SEED_BETS: LoggedBet[] = [
     clvPercent: 2.81,
     notes: 'Active early CLV position for Oct 12',
   },
+  {
+    id: '87840835081',
+    timestamp: '2026-09-25T15:57:00Z',
+    dateDisplay: '25/09/2026 16:57',
+    league: 'UEFA Nations League',
+    match: 'Italy vs Belgium',
+    selection: 'Italy Win (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 2.22,
+    pinnacleLineAtBet: 1.99,
+    pinnacleClosingLine: 1.99,
+    modelProb: 0.504,
+    modelEV: 12.8,
+    stake: 400,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 11.56,
+    notes: 'Bet slip № 87840835081 • Finished 0:2',
+  },
 ];
 
 export function getLoggedBets(): LoggedBet[] {
@@ -156,8 +176,23 @@ export function getLoggedBets(): LoggedBet[] {
       localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(INITIAL_SEED_BETS));
       return INITIAL_SEED_BETS;
     }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : INITIAL_SEED_BETS;
+    const parsed: LoggedBet[] = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return INITIAL_SEED_BETS;
+
+    // Ensure official bet slips (such as 87840835081) are merged if missing
+    let modified = false;
+    for (const seed of INITIAL_SEED_BETS) {
+      if (!parsed.some((b) => b.id === seed.id || (b.match === seed.match && b.timestamp === seed.timestamp))) {
+        parsed.push(seed);
+        modified = true;
+      }
+    }
+    if (modified) {
+      parsed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(parsed));
+    }
+
+    return parsed;
   } catch (e) {
     console.error('Failed to read ledger from localStorage:', e);
     return INITIAL_SEED_BETS;
