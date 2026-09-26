@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Sliders, Cpu, Edit2, Check } from 'lucide-react';
+import { Sliders, Cpu, Edit2, Check, TrendingUp } from 'lucide-react';
 import type { BankrollConfig } from '../types';
 import { runMonteCarloSimulation } from '../models/monteCarloEngine';
 
@@ -9,6 +9,7 @@ interface MetricsColumnProps {
   activeSignalCount?: number;
   brierScore?: number;
   liveFeedExposure?: number;
+  onOpenBankrollTab?: () => void;
 }
 
 export const MetricsColumn: React.FC<MetricsColumnProps> = ({
@@ -16,6 +17,7 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
   onConfigChange,
   brierScore,
   liveFeedExposure,
+  onOpenBankrollTab,
 }) => {
   const sym = config.currency === 'USD' ? '$' : '₦';
   const totalAmount = config.currency === 'USD' ? config.totalBankroll : config.totalBankrollNGN;
@@ -207,6 +209,16 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
               {config.strategyMode === 'safe' ? 'Conservative' : config.strategyMode}
             </span>
           </div>
+
+          {onOpenBankrollTab && (
+            <button
+              onClick={onOpenBankrollTab}
+              className="mt-3 w-full py-2 px-3 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700/60 hover:border-emerald-500/40 text-slate-300 hover:text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer group shadow-sm"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition" />
+              <span>View Compounding Chart & Zones</span>
+            </button>
+          )}
         </div>
       </div>
 

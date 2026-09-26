@@ -141,6 +141,7 @@ export default function App() {
           activeSignalCount={slateStats.activeSignalCount}
           brierScore={slateStats.brierScore}
           liveFeedExposure={liveFeedExposure}
+          onOpenBankrollTab={() => setTab('bankroll')}
         />
 
         {/* Center Primary Stage (Col 4-9 -> col-span-12 lg:col-span-6) */}

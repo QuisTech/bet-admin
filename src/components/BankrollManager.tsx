@@ -3,6 +3,7 @@ import { ShieldAlert } from 'lucide-react';
 import type { BankrollConfig } from '../types';
 import { runMonteCarloSimulation } from '../models/monteCarloEngine';
 import { getStandardHistoricalBacktest } from '../models/backtestEngine';
+import { EquityCurveChart } from './EquityCurveChart';
 
 interface BankrollManagerProps {
   config: BankrollConfig;
@@ -115,7 +116,10 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
       </div>
 
       {activeSubTab === 'monte-carlo' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Interactive 3-Phase Equity Curve Chart */}
+          <EquityCurveChart config={config} />
+
           {/* 4 Risk Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
