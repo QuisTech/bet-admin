@@ -10,25 +10,63 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from 'recharts';
-import { TrendingUp, Sparkles, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
-import type { BankrollConfig } from '../types';
+import { TrendingUp, Sparkles, AlertTriangle, CheckCircle2, Info, BookOpen, Layers } from 'lucide-react';
+import type { BankrollConfig, LoggedBet, BetOutcome } from '../types';
 import { runMonteCarloSimulation } from '../models/monteCarloEngine';
+import { getActualBankrollTrajectory, getLoggedBets } from '../services/ledgerService';
+
+interface ChartPoint {
+  label: string;
+  actual?: number;
+  p5?: number;
+  p50?: number;
+  p95?: number;
+  pnl?: number;
+  match?: string;
+  selection?: string;
+  outcome?: BetOutcome;
+  dateDisplay?: string;
+  stake?: number;
+  payout?: number;
+  month?: number;
+  betNum?: number;
+}
 
 interface EquityCurveChartProps {
   config: BankrollConfig;
+  loggedBets?: LoggedBet[];
+  title?: string;
+  defaultMode?: 'actual' | 'overlay' | 'forecast';
 }
 
 type StrategyPreset = 'high-winrate' | 'balanced' | 'aggressive';
+type ChartMode = 'actual' | 'overlay' | 'forecast';
 
-export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ config }) => {
+export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
+  config,
+  loggedBets,
+  title,
+  defaultMode = 'actual',
+}) => {
+  const [chartMode, setChartMode] = useState<ChartMode>(defaultMode);
   const [strategyPreset, setStrategyPreset] = useState<StrategyPreset>('high-winrate');
-  const [timelineView, setTimelineView] = useState<'months' | 'bets'>('months');
+  const [timelineView, setTimelineView] = useState<'months' | 'bets'>('bets');
 
   const sym = config.currency === 'USD' ? '$' : '₦';
   const initialCapital = config.currency === 'USD' ? config.totalBankroll : config.totalBankrollNGN;
-  const cushionThreshold = Math.round(initialCapital * 1.20); // +20% profit threshold (₦240,000)
+  const cushionThreshold = Math.round(initialCapital * 1.20); // +20% profit threshold
 
-  // Configure parameters based on preset
+  // Get actual realized trajectory from ledger
+  const actualPoints = useMemo(() => {
+    return getActualBankrollTrajectory(initialCapital, loggedBets || getLoggedBets());
+  }, [initialCapital, loggedBets]);
+
+  const currentActualBankroll = actualPoints[actualPoints.length - 1]?.runningBankroll || initialCapital;
+  const totalSettledBets = Math.max(0, actualPoints.length - 1);
+  const netActualProfit = currentActualBankroll - initialCapital;
+  const actualROI = initialCapital > 0 ? (netActualProfit / initialCapital) * 100 : 0;
+
+  // Preset parameters for theoretical simulation
   const presetParams = useMemo(() => {
     switch (strategyPreset) {
       case 'high-winrate':
@@ -37,15 +75,13 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ config }) =>
           winProbability: 0.63,
           averageDecimalOdds: 1.82,
           description: 'High hit rate (~63%). Minimal early drawdowns; reaches the green cushion fastest.',
-          badgeColor: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
         };
       case 'aggressive':
         return {
           title: 'Alpha / Underdogs & Longshots',
           winProbability: 0.35,
           averageDecimalOdds: 3.10,
-          description: 'Lower hit rate (~35%), wilder swings. Higher potential upside but spends longer in the red.',
-          badgeColor: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
+          description: 'Lower hit rate (~35%), wilder swings. Higher upside but spends longer in the red.',
         };
       case 'balanced':
       default:
@@ -53,13 +89,12 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ config }) =>
           title: 'Balanced Optimal Consensus (+EV Mixed)',
           winProbability: 0.54,
           averageDecimalOdds: 1.95,
-          description: 'Balanced mix of match lines and props. Standard geometric Kelly compounding.',
-          badgeColor: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
+          description: 'Standard geometric Kelly compounding across all +EV opportunities.',
         };
     }
   }, [strategyPreset]);
 
-  // Run 10,000-path stochastic simulation for this bankroll & strategy
+  // Run 10,000-path stochastic simulation
   const simulation = useMemo(() => {
     return runMonteCarloSimulation({
       initialBankroll: initialCapital,
@@ -72,147 +107,296 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ config }) =>
     });
   }, [initialCapital, presetParams, config.kellyFraction, config.maxStakePercent]);
 
-  // Format chart data starting at Point 0 (Starting Bankroll)
-  const chartData = useMemo(() => {
-    const points = [
+  // Build chart dataset depending on active mode
+  const chartData: ChartPoint[] = useMemo(() => {
+    if (chartMode === 'actual') {
+      // 1. Pure Actual Realized Ledger Data
+      return actualPoints.map((pt) => ({
+        label: pt.index === 0 ? 'Start' : `Bet #${pt.index}`,
+        actual: pt.runningBankroll,
+        pnl: pt.pnl,
+        match: pt.match,
+        selection: pt.selection,
+        outcome: pt.outcome,
+        dateDisplay: pt.dateDisplay,
+        stake: pt.stake,
+        payout: pt.payout,
+      }));
+    }
+
+    if (chartMode === 'forecast') {
+      // 2. Pure Monte Carlo Simulation
+      const points: ChartPoint[] = [
+        {
+          label: timelineView === 'months' ? 'Start' : 'Bet 0',
+          p5: initialCapital,
+          p50: initialCapital,
+          p95: initialCapital,
+          month: 0,
+          betNum: 0,
+        },
+      ];
+
+      simulation.monthlyTrajectories.forEach((m) => {
+        const approxBets = Math.round(m.month * (250 / 9));
+        points.push({
+          label: timelineView === 'months' ? `Mo ${m.month}` : `Bet ${approxBets}`,
+          p5: m.p5,
+          p50: m.p50,
+          p95: m.p95,
+          month: m.month,
+          betNum: approxBets,
+        });
+      });
+
+      return points;
+    }
+
+    // 3. 'overlay' Mode: Combine Actual Realized Points with Simulated Envelope
+    // Maps actual bets into the timeline, with projected cone extending forward
+    const basePoints: ChartPoint[] = [
       {
-        label: timelineView === 'months' ? 'Start' : 'Bet 0',
+        label: 'Start',
+        actual: initialCapital,
         p5: initialCapital,
         p50: initialCapital,
         p95: initialCapital,
-        bandWidth: 0,
-        month: 0,
         betNum: 0,
       },
     ];
 
-    simulation.monthlyTrajectories.forEach((m) => {
-      const approxBets = Math.round(m.month * (250 / 9));
-      points.push({
-        label: timelineView === 'months' ? `Mo ${m.month}` : `Bet ${approxBets}`,
-        p5: m.p5,
-        p50: m.p50,
-        p95: m.p95,
-        bandWidth: m.p95 - m.p5,
-        month: m.month,
-        betNum: approxBets,
+    actualPoints.slice(1).forEach((pt) => {
+      // Approximate theoretical expectation at this bet step
+      const stepRatio = Math.min(1, pt.index / 250);
+      const estP50 = initialCapital + (simulation.medianEndingBankroll - initialCapital) * stepRatio;
+      const estP95 = initialCapital + (simulation.p95EndingBankroll - initialCapital) * stepRatio;
+      const estP5 = initialCapital + (simulation.p5EndingBankroll - initialCapital) * stepRatio;
+
+      basePoints.push({
+        label: `Bet ${pt.index}`,
+        actual: pt.runningBankroll,
+        pnl: pt.pnl,
+        match: pt.match,
+        selection: pt.selection,
+        outcome: pt.outcome,
+        p5: Math.round(estP5),
+        p50: Math.round(estP50),
+        p95: Math.round(estP95),
+        betNum: pt.index,
       });
     });
 
-    return points;
-  }, [simulation, initialCapital, timelineView]);
+    // Continue the projected fan if actual bets < 250
+    simulation.monthlyTrajectories.forEach((m) => {
+      const approxBets = Math.round(m.month * (250 / 9));
+      if (approxBets > totalSettledBets) {
+        basePoints.push({
+          label: `Bet ${approxBets}`,
+          p5: m.p5,
+          p50: m.p50,
+          p95: m.p95,
+          betNum: approxBets,
+        });
+      }
+    });
+
+    return basePoints;
+  }, [chartMode, actualPoints, simulation, initialCapital, timelineView, totalSettledBets]);
 
   return (
     <div className="bg-slate-950/80 border border-slate-800 rounded-3xl p-5 md:p-6 shadow-2xl backdrop-blur-md space-y-6">
-      {/* Header & Controls */}
+      {/* Top Header & Mode Switcher */}
       <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-400" />
             <h3 className="text-base font-bold text-white tracking-tight">
-              Bankroll Compounding Trajectory & Zone Transition
+              {title || 'Equity Curve & Realized Bankroll Tracking'}
             </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300">
-              10,000 Paths
+            <span
+              className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                netActualProfit >= 0
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+              }`}
+            >
+              {totalSettledBets} Logged Bets • {netActualProfit >= 0 ? '+' : ''}{sym}
+              {netActualProfit.toLocaleString()} ({actualROI >= 0 ? '+' : ''}{actualROI.toFixed(1)}%)
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Visualizes when your bankroll exits the early Danger Zone (Red) and transitions into the permanent Profit Cushion (Green).
+            {chartMode === 'actual'
+              ? 'Real-time equity curve computed directly from your Position Ledger bets.'
+              : chartMode === 'overlay'
+              ? 'Walk-forward execution: Overlays your real logged positions against the 10,000-path Monte Carlo corridor.'
+              : 'Theoretical stochastic compounding forecast over 250 bets.'}
           </p>
         </div>
 
-        {/* View & Preset Selectors */}
+        {/* View Mode Switcher */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Timeline Switcher */}
+          {/* Main Chart Mode Tabs */}
           <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
             <button
-              onClick={() => setTimelineView('months')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                timelineView === 'months' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+              onClick={() => setChartMode('actual')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                chartMode === 'actual'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
-              9-Month View
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Actual Ledger ({totalSettledBets})</span>
             </button>
             <button
-              onClick={() => setTimelineView('bets')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                timelineView === 'bets' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+              onClick={() => setChartMode('overlay')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                chartMode === 'overlay'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
-              250-Bet View
+              <Layers className="w-3.5 h-3.5" />
+              <span>Actual vs Model</span>
+            </button>
+            <button
+              onClick={() => setChartMode('forecast')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                chartMode === 'forecast'
+                  ? 'bg-purple-500 text-slate-950 shadow-md shadow-purple-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>10k-Path Forecast</span>
             </button>
           </div>
 
-          {/* Strategy Presets */}
-          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-            <button
-              onClick={() => setStrategyPreset('high-winrate')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                strategyPreset === 'high-winrate'
-                  ? 'bg-emerald-500 text-slate-950'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Focuses on Double Chance 1X & consistent strikers"
-            >
-              🛡️ High Win-Rate (Fast Green)
-            </button>
-            <button
-              onClick={() => setStrategyPreset('balanced')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                strategyPreset === 'balanced'
-                  ? 'bg-cyan-500 text-slate-950'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Standard balanced mix of +EV plays"
-            >
-              ⚖️ Balanced (+EV)
-            </button>
-            <button
-              onClick={() => setStrategyPreset('aggressive')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                strategyPreset === 'aggressive'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Underdogs & high odds props"
-            >
-              🚀 Aggressive
-            </button>
-          </div>
+          {/* Sub-controls when in Forecast / Overlay Mode */}
+          {chartMode !== 'actual' && (
+            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+              <button
+                onClick={() => setStrategyPreset('high-winrate')}
+                className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                  strategyPreset === 'high-winrate'
+                    ? 'bg-emerald-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Double Chance 1X & Strikers (~63% Win Rate)"
+              >
+                🛡️ High Win-Rate
+              </button>
+              <button
+                onClick={() => setStrategyPreset('balanced')}
+                className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                  strategyPreset === 'balanced'
+                    ? 'bg-cyan-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Balanced Consensus"
+              >
+                ⚖️ Balanced
+              </button>
+              <button
+                onClick={() => setStrategyPreset('aggressive')}
+                className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                  strategyPreset === 'aggressive'
+                    ? 'bg-amber-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Underdogs / Longshots"
+              >
+                🚀 Aggressive
+              </button>
+            </div>
+          )}
+
+          {/* Timeline switcher for Forecast mode */}
+          {chartMode === 'forecast' && (
+            <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-mono font-bold">
+              <button
+                onClick={() => setTimelineView('months')}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                  timelineView === 'months'
+                    ? 'bg-purple-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                9 Mos
+              </button>
+              <button
+                onClick={() => setTimelineView('bets')}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                  timelineView === 'bets'
+                    ? 'bg-purple-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                250 Bets
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Preset Info Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800 text-xs">
+      {/* Realized Ledger Snapshot Banner */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800 text-xs">
         <div>
-          <span className="font-bold text-slate-200">{presetParams.title}: </span>
-          <span className="text-slate-400">{presetParams.description}</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="font-mono text-slate-300">
-            Win Rate: <strong className="text-emerald-400">{(presetParams.winProbability * 100).toFixed(0)}%</strong>
+          <span className="text-[10px] text-slate-400 uppercase font-bold block">Current Bankroll</span>
+          <span className="text-base font-mono font-black text-white">
+            {sym}{currentActualBankroll.toLocaleString()}
           </span>
-          <span className="text-slate-600">•</span>
-          <span className="font-mono text-slate-300">
-            Avg Odds: <strong className="text-cyan-400">{presetParams.averageDecimalOdds.toFixed(2)}</strong>
+        </div>
+        <div>
+          <span className="text-[10px] text-slate-400 uppercase font-bold block">Realized Net P&L</span>
+          <span
+            className={`text-base font-mono font-black ${
+              netActualProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+            }`}
+          >
+            {netActualProfit >= 0 ? '+' : ''}{sym}{netActualProfit.toLocaleString()}
+          </span>
+        </div>
+        <div>
+          <span className="text-[10px] text-slate-400 uppercase font-bold block">Current Zone</span>
+          <span
+            className={`text-xs font-bold inline-flex items-center gap-1 mt-1 ${
+              currentActualBankroll >= cushionThreshold
+                ? 'text-emerald-400'
+                : currentActualBankroll >= initialCapital
+                ? 'text-amber-400'
+                : 'text-rose-400'
+            }`}
+          >
+            {currentActualBankroll >= cushionThreshold
+              ? '🟢 Profit Cushion Zone'
+              : currentActualBankroll >= initialCapital
+              ? '🟡 Lift-off Transition'
+              : '🔴 Early Danger Zone'}
+          </span>
+        </div>
+        <div>
+          <span className="text-[10px] text-slate-400 uppercase font-bold block">Green Buffer Remaining</span>
+          <span className="text-base font-mono font-bold text-slate-300">
+            {currentActualBankroll >= cushionThreshold
+              ? `+${sym}${(currentActualBankroll - cushionThreshold).toLocaleString()} (Safe)`
+              : `-${sym}${(cushionThreshold - currentActualBankroll).toLocaleString()} to Cushion`}
           </span>
         </div>
       </div>
 
-      {/* Interactive Recharts Chart Area */}
-      <div className="w-full h-80 relative">
+      {/* Interactive Recharts Canvas */}
+      <div className="w-full h-84 relative">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 10 }}>
             <defs>
-              {/* Bull Case Gradient */}
               <linearGradient id="bullGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
                 <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
               </linearGradient>
-              {/* Median Expected Gradient */}
-              <linearGradient id="medianGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.05} />
+              <linearGradient id="actualGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
               </linearGradient>
             </defs>
 
@@ -243,11 +427,12 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ config }) =>
               content={({ active, payload }) => {
                 if (!active || !payload || !payload.length) return null;
                 const d = payload[0].payload;
-                const isUnderStart = d.p50 < initialCapital;
-                const isAboveCushion = d.p50 >= cushionThreshold;
+                const bankrollVal = d.actual !== undefined ? d.actual : d.p50;
+                const isUnderStart = bankrollVal < initialCapital;
+                const isAboveCushion = bankrollVal >= cushionThreshold;
 
                 return (
-                  <div className="bg-slate-900 border border-slate-700 p-3.5 rounded-2xl shadow-2xl text-xs space-y-2">
+                  <div className="bg-slate-900 border border-slate-700 p-3.5 rounded-2xl shadow-2xl text-xs space-y-2 max-w-xs">
                     <div className="flex items-center justify-between gap-4 border-b border-slate-800 pb-1.5">
                       <span className="font-bold text-white">{d.label}</span>
                       <span
@@ -262,32 +447,74 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ config }) =>
                         {isAboveCushion
                           ? '🟢 Safe Cushion Zone'
                           : isUnderStart
-                          ? '🔴 Danger Zone (Below Start)'
-                          : '🟡 Lift-off Transition'}
+                          ? '🔴 Danger Zone (< Start)'
+                          : '🟡 Lift-off Zone'}
                       </span>
                     </div>
 
-                    <div className="space-y-1 font-mono">
-                      <div className="flex justify-between text-emerald-400">
-                        <span>95th %ile (Bull):</span>
-                        <span className="font-bold">{sym}{d.p95.toLocaleString()}</span>
+                    {/* Match & Bet Details if available */}
+                    {d.match && (
+                      <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800 space-y-0.5">
+                        <div className="font-bold text-slate-200 truncate">{d.match}</div>
+                        {d.selection && <div className="text-[11px] text-slate-400 truncate">{d.selection}</div>}
+                        {d.outcome && (
+                          <div className="flex items-center justify-between text-[10px] font-mono pt-1">
+                            <span
+                              className={`font-bold px-1.5 py-0.5 rounded ${
+                                d.outcome === 'WON'
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : d.outcome === 'LOST'
+                                  ? 'bg-rose-500/20 text-rose-400'
+                                  : 'bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              {d.outcome}
+                            </span>
+                            <span className={d.pnl >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                              {d.pnl >= 0 ? '+' : ''}{sym}{d.pnl.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex justify-between text-cyan-300">
-                        <span>50th %ile (Expected):</span>
-                        <span className="font-bold">{sym}{d.p50.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-rose-400">
-                        <span>5th %ile (Worst Case):</span>
-                        <span className="font-bold">{sym}{d.p5.toLocaleString()}</span>
-                      </div>
+                    )}
+
+                    <div className="space-y-1 font-mono pt-1">
+                      {d.actual !== undefined && (
+                        <div className="flex justify-between text-amber-400 font-bold text-sm">
+                          <span>Actual Bankroll:</span>
+                          <span>{sym}{d.actual.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {d.p50 !== undefined && (
+                        <div className="flex justify-between text-cyan-300">
+                          <span>Model Expected:</span>
+                          <span className="font-bold">{sym}{d.p50.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {d.p95 !== undefined && (
+                        <div className="flex justify-between text-emerald-400 text-[11px]">
+                          <span>95th %ile Bull:</span>
+                          <span>{sym}{d.p95.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {d.p5 !== undefined && (
+                        <div className="flex justify-between text-rose-400 text-[11px]">
+                          <span>5th %ile Bear:</span>
+                          <span>{sym}{d.p5.toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-1 text-[10px] text-slate-400 border-t border-slate-800/80">
-                      Net Gain (Median):{' '}
-                      <span className={d.p50 >= initialCapital ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                        {d.p50 >= initialCapital ? '+' : ''}
-                        {sym}{(d.p50 - initialCapital).toLocaleString()} (
-                        {(((d.p50 - initialCapital) / initialCapital) * 100).toFixed(1)}%)
+                      Net from Baseline:{' '}
+                      <span
+                        className={
+                          bankrollVal >= initialCapital ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'
+                        }
+                      >
+                        {bankrollVal >= initialCapital ? '+' : ''}
+                        {sym}{(bankrollVal - initialCapital).toLocaleString()} (
+                        {(((bankrollVal - initialCapital) / initialCapital) * 100).toFixed(1)}%)
                       </span>
                     </div>
                   </div>
@@ -316,105 +543,129 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ config }) =>
               strokeDasharray="4 4"
               strokeWidth={1.5}
               label={{
-                value: `Green Cushion (+20% Profit / ${sym}${(cushionThreshold / 1000).toFixed(0)}k)`,
+                value: `Green Cushion (+20% / ${sym}${(cushionThreshold / 1000).toFixed(0)}k)`,
                 fill: '#34d399',
                 position: 'insideTopLeft',
                 fontSize: 10,
               }}
             />
 
-            {/* Bull Band (95th %ile) */}
-            <Area
-              type="monotone"
-              dataKey="p95"
-              stroke="#10b981"
-              strokeWidth={1.5}
-              fill="url(#bullGradient)"
-              name="Bull Case (95th %ile)"
-            />
+            {/* Forecast Area Bands when in overlay or forecast mode */}
+            {chartMode !== 'actual' && (
+              <>
+                <Area
+                  type="monotone"
+                  dataKey="p95"
+                  stroke="#10b981"
+                  strokeWidth={1.5}
+                  fill="url(#bullGradient)"
+                  name="Bull Case (95th %ile)"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="p50"
+                  stroke="#06b6d4"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  name="Model Expected (50th %ile)"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="p5"
+                  stroke="#f43f5e"
+                  strokeWidth={1.5}
+                  strokeDasharray="3 3"
+                  dot={false}
+                  name="Bear Floor (5th %ile)"
+                />
+              </>
+            )}
 
-            {/* Median Expected Line (50th %ile) */}
-            <Line
-              type="monotone"
-              dataKey="p50"
-              stroke="#06b6d4"
-              strokeWidth={3}
-              dot={{ r: 3, fill: '#06b6d4', stroke: '#083344', strokeWidth: 2 }}
-              activeDot={{ r: 6, fill: '#22d3ee', stroke: '#fff', strokeWidth: 2 }}
-              name="Expected (50th %ile)"
-            />
-
-            {/* Bear Line (5th %ile) */}
-            <Line
-              type="monotone"
-              dataKey="p5"
-              stroke="#f43f5e"
-              strokeWidth={1.5}
-              strokeDasharray="3 3"
-              dot={false}
-              name="Bear Floor (5th %ile)"
-            />
+            {/* Actual Realized Curve */}
+            {chartMode !== 'forecast' && (
+              <Line
+                type="monotone"
+                dataKey="actual"
+                stroke="#f59e0b"
+                strokeWidth={3.5}
+                dot={{
+                  r: 4,
+                  fill: '#f59e0b',
+                  stroke: '#1e293b',
+                  strokeWidth: 2,
+                }}
+                activeDot={{
+                  r: 7,
+                  fill: '#fbbf24',
+                  stroke: '#fff',
+                  strokeWidth: 2,
+                }}
+                name="Actual Realized Bankroll"
+              />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      {/* The 3 Educational Explanatory Cards */}
+      {/* 3 Zone Informational Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-        {/* Phase 1: Danger Zone */}
         <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-900/40 space-y-1.5">
           <div className="flex items-center gap-2 text-rose-400 font-bold text-xs">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span>Phase 1: The Danger Zone</span>
           </div>
           <div className="text-[11px] font-mono text-rose-300">
-            Bets 1 to 30 • &lt; {sym}{initialCapital.toLocaleString()}
+            &lt; {sym}{initialCapital.toLocaleString()} (Below Baseline)
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Zero profit cushion. Early bad luck can push the chart into the red. You must strictly obey fractional Kelly and never chase losses here.
+            Zero profit cushion. If actual bets land here, keep bet stakes strictly to 2% Kelly to prevent capital decay.
           </p>
         </div>
 
-        {/* Phase 2: The Lift-Off */}
         <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-900/40 space-y-1.5">
           <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
             <Sparkles className="w-4 h-4 shrink-0" />
             <span>Phase 2: The Lift-Off</span>
           </div>
           <div className="text-[11px] font-mono text-amber-300">
-            Bets 30 to 80 • {sym}{initialCapital.toLocaleString()} to {sym}{cushionThreshold.toLocaleString()}
+            {sym}{initialCapital.toLocaleString()} to {sym}{cushionThreshold.toLocaleString()}
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            The +EV edge starts overpowering random noise. The chart oscillates upward, breaking away from the red starting baseline.
+            Your realized curve is building momentum. Accumulating profit to break out into the permanent green buffer.
           </p>
         </div>
 
-        {/* Phase 3: The Permanent Cushion */}
         <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-900/40 space-y-1.5">
           <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>Phase 3: The Profit Cushion</span>
           </div>
           <div className="text-[11px] font-mono text-emerald-300">
-            Bets 80+ • &gt; {sym}{cushionThreshold.toLocaleString()} (+20%+)
+            &gt; {sym}{cushionThreshold.toLocaleString()} (+20% Profit)
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            You hold an earned profit buffer. Even when normal 4-game losing streaks hit, the drawdown happens inside profit—you stay green!
+            Protected status. Even standard 4-game downswings happen entirely within earned profit without threatening your principal.
           </p>
         </div>
       </div>
 
-      {/* Summary KPI Badges */}
+      {/* Bottom KPI Indicators */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800 text-xs text-slate-400">
         <div className="flex items-center gap-2">
           <Info className="w-4 h-4 text-cyan-400 shrink-0" />
           <span>
-            Expected 9-Month Compounding:{' '}
+            Ledger Execution Status:{' '}
             <strong className="text-white font-mono">
-              {sym}{simulation.medianEndingBankroll.toLocaleString()}
+              {sym}{currentActualBankroll.toLocaleString()}
             </strong>{' '}
             (
-            <span className="text-emerald-400 font-bold">
-              +{(((simulation.medianEndingBankroll - initialCapital) / initialCapital) * 100).toFixed(0)}%
+            <span
+              className={
+                netActualProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'
+              }
+            >
+              {netActualProfit >= 0 ? '+' : ''}{sym}{netActualProfit.toLocaleString()}
             </span>
             )
           </span>
@@ -422,14 +673,24 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ config }) =>
 
         <div className="flex items-center gap-3 font-mono text-[11px]">
           <span>
-            95% VaR Floor: <strong className="text-rose-400">-{simulation.var95Percent}%</strong>
+            Settled Bets: <strong className="text-slate-200">{totalSettledBets}</strong>
           </span>
           <span>•</span>
           <span>
-            Median Max Drawdown: <strong className="text-amber-400">{simulation.maxExpectedDrawdown}%</strong>
+            Pinnacle CLV Edge:{' '}
+            <strong className="text-emerald-400">
+              +{calculateAverageCLV(loggedBets || getLoggedBets())}%
+            </strong>
           </span>
         </div>
       </div>
     </div>
   );
 };
+
+function calculateAverageCLV(bets: LoggedBet[]): string {
+  const withCLV = bets.filter((b) => b.clvPercent !== undefined && b.clvPercent !== null);
+  if (withCLV.length === 0) return '0.0';
+  const avg = withCLV.reduce((acc, b) => acc + (b.clvPercent || 0), 0) / withCLV.length;
+  return avg.toFixed(1);
+}

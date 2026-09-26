@@ -345,3 +345,60 @@ export function calculateLedgerStats(bets: LoggedBet[]): LedgerStatistics {
     maxDrawdownPercent,
   };
 }
+
+export interface ActualBankrollPoint {
+  index: number;
+  betId?: string;
+  match?: string;
+  selection?: string;
+  dateDisplay?: string;
+  outcome?: BetOutcome;
+  stake: number;
+  payout: number;
+  pnl: number;
+  runningBankroll: number;
+}
+
+export function getActualBankrollTrajectory(
+  initialBankroll: number,
+  bets?: LoggedBet[]
+): ActualBankrollPoint[] {
+  const allBets = bets || getLoggedBets();
+  const settled = allBets.filter((b) => b.outcome !== 'OPEN');
+  const chronological = [...settled].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  let current = initialBankroll;
+  const trajectory: ActualBankrollPoint[] = [
+    {
+      index: 0,
+      stake: 0,
+      payout: 0,
+      pnl: 0,
+      runningBankroll: current,
+      dateDisplay: 'Start Baseline',
+      match: 'Starting Capital',
+    },
+  ];
+
+  chronological.forEach((b, i) => {
+    const pnl = b.payout - b.stake;
+    current += pnl;
+    trajectory.push({
+      index: i + 1,
+      betId: b.id,
+      match: b.match,
+      selection: b.selection,
+      dateDisplay: b.dateDisplay,
+      outcome: b.outcome,
+      stake: b.stake,
+      payout: b.payout,
+      pnl,
+      runningBankroll: current,
+    });
+  });
+
+  return trajectory;
+}
+

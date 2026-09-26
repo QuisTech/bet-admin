@@ -22,6 +22,7 @@ import {
   addLoggedBet,
   calculateLedgerStats,
 } from '../services/ledgerService';
+import { EquityCurveChart } from './EquityCurveChart';
 
 interface BetLedgerProps {
   config: BankrollConfig;
@@ -227,6 +228,14 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config }) => {
           </div>
         </div>
       </div>
+
+      {/* Realized Bankroll Equity Curve & Zone Tracking */}
+      <EquityCurveChart
+        config={config}
+        loggedBets={bets}
+        title="Position Ledger Equity Curve & Bankroll Tracking"
+        defaultMode="actual"
+      />
 
       {/* Filter Tabs & Position Counts */}
       <div className="flex items-center justify-between gap-3 pt-2">
