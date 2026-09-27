@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles,
   Copy,
   Check,
+  CheckCircle2,
+  XCircle,
   Info,
   Flame,
   Shield,
@@ -15,10 +17,10 @@ import {
   Target,
   BookmarkPlus,
 } from 'lucide-react';
-import type { MatchData, BankrollConfig, ModelPipelineMode } from '../types';
+import type { MatchData, BankrollConfig, ModelPipelineMode, LoggedBet } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
 import { evaluateOpportunities, type OpportunityItem } from '../models/opportunityEngine';
-import { addLoggedBet } from '../services/ledgerService';
+import { addLoggedBet, initLedgerSync, getLoggedBets } from '../services/ledgerService';
 
 interface ValueFeedProps {
   matches: MatchData[];
@@ -65,6 +67,40 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
   >('evDesc');
   const [liveOddsInput, setLiveOddsInput] = useState<Record<string, string>>({});
   const [cardMarketIndex, setCardMarketIndex] = useState<Record<string, number>>({});
+  const [ledgerBets, setLedgerBets] = useState<LoggedBet[]>(() => getLoggedBets());
+
+  useEffect(() => {
+    const unsub = initLedgerSync((synced) => {
+      setLedgerBets(synced);
+    });
+    return unsub;
+  }, []);
+
+  const getMatchedPosition = (
+    opt: OpportunityItem,
+    currentSelection?: string
+  ): LoggedBet | undefined => {
+    const sel = (currentSelection || opt.selection).toLowerCase().trim();
+    const rawSel = sel.split(' (')[0].trim();
+    const home = opt.match.homeTeam.toLowerCase().trim();
+    const away = opt.match.awayTeam.toLowerCase().trim();
+
+    return ledgerBets.find((b) => {
+      const bMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
+      const isMatch = bMatch.includes(home) && bMatch.includes(away);
+      if (!isMatch) return false;
+
+      const bSel = b.selection.toLowerCase().trim();
+      const bRawSel = bSel.split(' (')[0].trim();
+
+      return (
+        bSel === sel ||
+        bRawSel === rawSel ||
+        bSel.includes(rawSel) ||
+        rawSel.includes(bRawSel)
+      );
+    });
+  };
 
   const strategy = STRATEGY_MODES[riskMode];
   const currSym = config.currency === 'USD' ? '$' : '₦';
@@ -532,24 +568,63 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                       {/* Actions */}
                       <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => handleLogPosition(opt)}
-                            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer ${
-                              loggedIds[opt.id]
-                                ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_10px_rgba(16,185,129,0.4)]'
-                                : 'bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 hover:border-emerald-500'
-                            }`}
-                            title="Log position directly to CLV tracker & ledger"
-                          >
-                            {loggedIds[opt.id] ? (
-                              <>
-                                <Check className="w-3 h-3" />
-                                Logged
-                              </>
-                            ) : (
-                              '+ Log'
-                            )}
-                          </button>
+                          {(() => {
+                            const tableMatched = getMatchedPosition(opt);
+                            if (tableMatched) {
+                              if (tableMatched.outcome === 'OPEN') {
+                                return (
+                                  <span
+                                    className="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-500 text-slate-950 flex items-center gap-1 shadow-[0_0_10px_rgba(16,185,129,0.35)] cursor-default"
+                                    title={`Active in Ledger: ${currSym}${tableMatched.stake.toLocaleString()} @ ${tableMatched.priceTaken.toFixed(2)}`}
+                                  >
+                                    <Check className="w-3 h-3 stroke-[3]" />
+                                    In Position
+                                  </span>
+                                );
+                              }
+                              if (tableMatched.outcome === 'WON') {
+                                return (
+                                  <span
+                                    className="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/40 flex items-center gap-1"
+                                    title={`Won: +${currSym}${(tableMatched.payout - tableMatched.stake).toLocaleString()}`}
+                                  >
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                    Won
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span
+                                  className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-800 flex items-center gap-1"
+                                  title={`Lost: -${currSym}${tableMatched.stake.toLocaleString()}`}
+                                >
+                                  <XCircle className="w-3 h-3 text-rose-400/80" />
+                                  Lost
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <button
+                                onClick={() => handleLogPosition(opt)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer ${
+                                  loggedIds[opt.id]
+                                    ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 hover:border-emerald-500'
+                                }`}
+                                title="Log position directly to CLV tracker & ledger"
+                              >
+                                {loggedIds[opt.id] ? (
+                                  <>
+                                    <Check className="w-3 h-3" />
+                                    Logged
+                                  </>
+                                ) : (
+                                  '+ Log'
+                                )}
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={() => handleCopySignal(opt)}
                             disabled={opt.evPercent <= 0}
@@ -660,12 +735,17 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
               Math.min(strategy.maxStakePercent, fullKelly * strategy.kellyMultiplier)
             );
             const effectiveStakeAmount = Math.round(config.totalBankrollNGN * rawStakePct);
+            const cardMatched = getMatchedPosition(opt, activeSelection);
 
             return (
               <div
                 key={opt.id}
                 className={`glass-card p-5 relative overflow-hidden transition-all duration-200 ${
-                  !opt.qualifies
+                  cardMatched && cardMatched.outcome === 'OPEN'
+                    ? 'border-emerald-500/50 bg-slate-900/90 shadow-[0_0_25px_rgba(16,185,129,0.08)] ring-1 ring-emerald-500/30'
+                    : cardMatched && cardMatched.outcome === 'WON'
+                    ? 'border-emerald-500/30 bg-slate-900/80'
+                    : !opt.qualifies
                     ? 'opacity-60 border-slate-800/40 bg-slate-950/40 hover:opacity-100'
                     : 'hover:border-slate-700/80 hover:shadow-lg'
                 }`}
@@ -673,7 +753,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                 {/* Card Header */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <span className="text-xs font-semibold text-slate-400">
                         {opt.match.league} • {opt.match.kickoff}
                       </span>
@@ -691,6 +771,25 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                           <span>🟢 Fast Green</span>
                           <span className="font-mono">({Math.round(activeModelProb * 100)}%)</span>
                         </div>
+                      )}
+                      {/* Real-time Position Status Badge */}
+                      {cardMatched && (
+                        cardMatched.outcome === 'OPEN' ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[10px] font-black shadow-[0_0_10px_rgba(16,185,129,0.15)] animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            <span>Active Position: {cardMatched.selection} ({currSym}{cardMatched.stake.toLocaleString()} @ {cardMatched.priceTaken.toFixed(2)})</span>
+                          </div>
+                        ) : cardMatched.outcome === 'WON' ? (
+                          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-black shadow-[0_0_12px_rgba(16,185,129,0.2)]">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>🏆 WON (+{currSym}{(cardMatched.payout - cardMatched.stake).toLocaleString()} Profit)</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 text-[10px] font-bold">
+                            <XCircle className="w-3 h-3 text-rose-400/80" />
+                            <span>Settled: Lost (-{currSym}{cardMatched.stake.toLocaleString()})</span>
+                          </div>
+                        )
                       )}
                     </div>
 
@@ -1200,38 +1299,67 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                 </button>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() =>
-                      handleLogPosition(
-                        opt,
-                        effectiveOdds,
-                        effectiveEV,
-                        effectiveStakeAmount,
-                        activeSelection,
-                        activeMarket?.marketType,
-                        activeModelProb,
-                        activePinnacleOdds
-                      )
-                    }
-                    className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                      loggedIds[opt.id] || loggedIds[`${opt.id}_${activeSelection}`]
-                        ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_12px_rgba(16,185,129,0.4)]'
-                        : 'bg-slate-950/80 hover:bg-slate-900 text-emerald-400 border border-emerald-500/40 hover:border-emerald-500'
-                    }`}
-                    title="Log this position directly into the institutional CLV tracker & position ledger"
-                  >
-                    {loggedIds[opt.id] || loggedIds[`${opt.id}_${activeSelection}`] ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        Logged to Ledger!
-                      </>
+                  {cardMatched ? (
+                    cardMatched.outcome === 'OPEN' ? (
+                      <button
+                        onClick={() => onSelectMatch(opt.match, activeMarketIdx)}
+                        className="px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_12px_rgba(16,185,129,0.35)] transition cursor-pointer"
+                        title="You are holding this position. Click to open staking calculator."
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>In Position ({currSym}{cardMatched.stake.toLocaleString()})</span>
+                      </button>
+                    ) : cardMatched.outcome === 'WON' ? (
+                      <div
+                        className="px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 bg-emerald-950 text-emerald-400 border border-emerald-500/40"
+                        title="Position settled as a WIN"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Settled: Won</span>
+                      </div>
                     ) : (
-                      <>
-                        <BookmarkPlus className="w-3.5 h-3.5" />
-                        + Log Position
-                      </>
-                    )}
-                  </button>
+                      <div
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-slate-900 text-slate-400 border border-slate-800"
+                        title="Position settled as a LOSS"
+                      >
+                        <XCircle className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Settled: Lost</span>
+                      </div>
+                    )
+                  ) : (
+                    <button
+                      onClick={() =>
+                        handleLogPosition(
+                          opt,
+                          effectiveOdds,
+                          effectiveEV,
+                          effectiveStakeAmount,
+                          activeSelection,
+                          activeMarket?.marketType,
+                          activeModelProb,
+                          activePinnacleOdds
+                        )
+                      }
+                      className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                        loggedIds[opt.id] || loggedIds[`${opt.id}_${activeSelection}`]
+                          ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_12px_rgba(16,185,129,0.4)]'
+                          : 'bg-slate-950/80 hover:bg-slate-900 text-emerald-400 border border-emerald-500/40 hover:border-emerald-500'
+                      }`}
+                      title="Log this position directly into the institutional CLV tracker & position ledger"
+                    >
+                      {loggedIds[opt.id] || loggedIds[`${opt.id}_${activeSelection}`] ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          Logged to Ledger!
+                        </>
+                      ) : (
+                        <>
+                          <BookmarkPlus className="w-3.5 h-3.5" />
+                          + Log Position
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   <button
                     onClick={() =>
