@@ -10,10 +10,11 @@ import {
   collection,
   doc,
   setDoc,
-  deleteDoc,
   onSnapshot,
   getDocs,
   writeBatch,
+  query,
+  where,
   type Firestore,
   type Unsubscribe,
 } from 'firebase/firestore';
@@ -226,15 +227,55 @@ export async function saveBetToFirestore(bet: LoggedBet): Promise<boolean> {
 }
 
 /**
- * Deletes a position document from Firestore.
+ * Deletes a position document from Firestore thoroughly across ID and match signatures.
  */
-export async function deleteBetFromFirestore(betId: string): Promise<boolean> {
+export async function deleteBetFromFirestore(
+  betId: string,
+  extraMatch?: { match?: string; selection?: string }
+): Promise<boolean> {
   const db = getFirebaseDb();
   if (!db || !betId) return false;
 
   try {
+    const batch = writeBatch(db);
+    let count = 0;
+
+    // 1. Direct doc deletion by betId
     const docRef = doc(db, POSITIONS_COLLECTION, betId);
-    await deleteDoc(docRef);
+    batch.delete(docRef);
+    count++;
+
+    // 2. Query any documents where field 'id' == betId
+    try {
+      const q = query(collection(db, POSITIONS_COLLECTION), where('id', '==', betId));
+      const snaps = await getDocs(q);
+      snaps.forEach((s) => {
+        batch.delete(s.ref);
+        count++;
+      });
+    } catch {}
+
+    // 3. Query any documents matching the exact match & selection if provided
+    if (extraMatch && extraMatch.match && extraMatch.selection) {
+      try {
+        const q2 = query(
+          collection(db, POSITIONS_COLLECTION),
+          where('match', '==', extraMatch.match)
+        );
+        const snaps2 = await getDocs(q2);
+        snaps2.forEach((s) => {
+          const data = s.data();
+          if (data && data.selection === extraMatch.selection) {
+            batch.delete(s.ref);
+            count++;
+          }
+        });
+      } catch {}
+    }
+
+    if (count > 0) {
+      await batch.commit();
+    }
     return true;
   } catch (e) {
     console.error(`Failed to delete bet ${betId} from Firestore:`, e);

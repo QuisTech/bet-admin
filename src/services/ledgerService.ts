@@ -8,6 +8,90 @@ import {
 } from './firebaseService';
 
 const LEDGER_STORAGE_KEY = 'bet_admin_logged_positions';
+const DELETED_BETS_STORAGE_KEY = 'bet_admin_deleted_bets';
+
+function getDeletedSignatures(): Set<string> {
+  try {
+    if (typeof localStorage === 'undefined') return new Set();
+    const raw = localStorage.getItem(DELETED_BETS_STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function recordDeletedBet(b: Partial<LoggedBet>): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const current = getDeletedSignatures();
+    if (b.id) current.add(b.id);
+    if (b.match && b.selection) {
+      const normMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
+      const normSel = b.selection.toLowerCase().trim();
+      current.add(`${normMatch}|${normSel}`);
+      current.add(normMatch);
+    } else if (b.match) {
+      const normMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
+      current.add(normMatch);
+    }
+    localStorage.setItem(DELETED_BETS_STORAGE_KEY, JSON.stringify(Array.from(current)));
+  } catch {}
+}
+
+export function isBetDeleted(b: Partial<LoggedBet>): boolean {
+  const current = getDeletedSignatures();
+  if (b.id && current.has(b.id)) return true;
+  if (b.match) {
+    const normMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
+    if (current.has(normMatch)) return true;
+    if (normMatch.includes('lithuania') && normMatch.includes('azerbaijan')) return true;
+    if (b.selection) {
+      const normSel = b.selection.toLowerCase().trim();
+      if (current.has(`${normMatch}|${normSel}`)) return true;
+    }
+  }
+  return false;
+}
+
+// Auto-purge "Lithuania vs Azerbaijan" ghost bet and tombstone it permanently
+export function purgeGhostBets(): void {
+  try {
+    recordDeletedBet({
+      match: 'Lithuania vs Azerbaijan',
+      selection: 'Lithuania or Draw (1X) (1X2)',
+    });
+    recordDeletedBet({
+      match: 'Lithuania vs Azerbaijan',
+    });
+
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
+      if (raw) {
+        const parsed: LoggedBet[] = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter(
+            (b) => !b.match.toLowerCase().includes('azerbaijan')
+          );
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(cleaned));
+            notifyLedgerUpdated(cleaned);
+          }
+        }
+      }
+    }
+
+    if (isFirebaseConfigured()) {
+      deleteBetFromFirestore('ghost', {
+        match: 'Lithuania vs Azerbaijan',
+        selection: 'Lithuania or Draw (1X) (1X2)',
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  purgeGhostBets();
+}
 
 /**
  * Initial historical seed: Matches user's exact executed 1xBet positions from 24/09/2026.
@@ -241,19 +325,24 @@ export function removeDuplicateBets(): { cleaned: LoggedBet[]; removedCount: num
 
 export function getLoggedBets(): LoggedBet[] {
   try {
-    if (typeof localStorage === 'undefined') return deduplicateBets(INITIAL_SEED_BETS);
+    if (typeof localStorage === 'undefined') {
+      return deduplicateBets(INITIAL_SEED_BETS).filter((b) => !isBetDeleted(b));
+    }
     const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
     if (!raw) {
-      const cleanSeeds = deduplicateBets(INITIAL_SEED_BETS);
+      const cleanSeeds = deduplicateBets(INITIAL_SEED_BETS).filter((b) => !isBetDeleted(b));
       localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(cleanSeeds));
       return cleanSeeds;
     }
     const parsed: LoggedBet[] = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return deduplicateBets(INITIAL_SEED_BETS);
+    if (!Array.isArray(parsed)) {
+      return deduplicateBets(INITIAL_SEED_BETS).filter((b) => !isBetDeleted(b));
+    }
 
-    // Ensure official bet slips (such as 87840835081) are merged if missing
-    const merged = [...parsed];
+    // Ensure official bet slips (such as 87840835081) are merged if missing and not deleted
+    const merged = parsed.filter((b) => !isBetDeleted(b));
     for (const seed of INITIAL_SEED_BETS) {
+      if (isBetDeleted(seed)) continue;
       const exists = merged.some((b) => 
         b.id === seed.id || 
         (b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() === seed.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() &&
@@ -266,18 +355,18 @@ export function getLoggedBets(): LoggedBet[] {
     }
 
     // Deduplicate entire list
-    const deduplicated = deduplicateBets(merged);
+    const deduplicated = deduplicateBets(merged).filter((b) => !isBetDeleted(b));
     deduplicated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     // Update storage if duplicates were removed or seed was merged
-    if (deduplicated.length !== parsed.length || merged.length !== parsed.length) {
+    if (deduplicated.length !== parsed.length) {
       localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(deduplicated));
     }
 
     return deduplicated;
   } catch (e) {
     console.error('Failed to read ledger from localStorage:', e);
-    return deduplicateBets(INITIAL_SEED_BETS);
+    return deduplicateBets(INITIAL_SEED_BETS).filter((b) => !isBetDeleted(b));
   }
 }
 
@@ -374,12 +463,26 @@ export function updateBetOutcome(
 
 export function deleteLoggedBet(id: string): LoggedBet[] {
   const existing = getLoggedBets();
-  const updated = existing.filter((b) => b.id !== id);
+  const target = existing.find((b) => b.id === id);
+  if (target) {
+    recordDeletedBet(target);
+  }
+
+  const updated = existing.filter(
+    (b) =>
+      b.id !== id &&
+      (!target ||
+        !(
+          b.match.toLowerCase().trim() === target.match.toLowerCase().trim() &&
+          b.selection.toLowerCase().trim() === target.selection.toLowerCase().trim()
+        )) &&
+      !isBetDeleted(b)
+  );
   saveLoggedBets(updated);
 
   // Background Cloud Sync to Firestore
-  if (isFirebaseConfigured()) {
-    deleteBetFromFirestore(id).catch((err) =>
+  if (isFirebaseConfigured() && target) {
+    deleteBetFromFirestore(id, { match: target.match, selection: target.selection }).catch((err) =>
       console.warn('Background Firestore delete failed:', err)
     );
   }
@@ -438,39 +541,22 @@ export function initLedgerSync(
   if (isFirebaseConfigured()) {
     unsubFirestore = subscribeToFirestoreBets((remoteBets) => {
       if (!isSubscribed) return;
-      if (!remoteBets || remoteBets.length === 0) {
-        // Cloud collection is currently empty; auto-sync local seeds to cloud
-        const local = getLoggedBets();
-        if (local.length > 0) {
-          syncAllLocalBetsToFirestore(local).catch(() => {});
+
+      // 1. Filter out any bets that were explicitly deleted by the user
+      const validRemote = (remoteBets || []).filter((b) => !isBetDeleted(b));
+
+      // 2. If remote has any bets that should have been deleted, purge them from Firestore
+      (remoteBets || []).forEach((b) => {
+        if (isBetDeleted(b) && b.id) {
+          deleteBetFromFirestore(b.id, { match: b.match, selection: b.selection }).catch(() => {});
         }
-        return;
-      }
+      });
 
-      // Merge remote bets with any un-synced local bets
-      const local = getLoggedBets();
-      const combined = [...remoteBets];
-
-      for (const loc of local) {
-        const inRemote = combined.some(
-          (r) =>
-            r.id === loc.id ||
-            (r.match.toLowerCase().trim() === loc.match.toLowerCase().trim() &&
-              r.selection.toLowerCase().trim() === loc.selection.toLowerCase().trim() &&
-              r.stake === loc.stake &&
-              Math.abs(r.priceTaken - loc.priceTaken) < 0.02)
-        );
-        if (!inRemote) {
-          combined.push(loc);
-          // Upload missing local bet to cloud
-          saveBetToFirestore(loc).catch(() => {});
-        }
-      }
-
-      const deduplicated = deduplicateBets(combined);
+      // 3. Deduplicate remote bets
+      const deduplicated = deduplicateBets(validRemote);
       deduplicated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-      // Save merged to local cache
+      // 4. Accept cloud truth into local cache (WITHOUT re-uploading missing bets)
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(deduplicated));
       }
