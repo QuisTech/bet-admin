@@ -472,7 +472,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
                     {fbStatus.projectId ? (
                       <>
                         Project: <strong className="text-cyan-400">{fbStatus.projectId}</strong>{' '}
-                        <span className="text-slate-500">({fbStatus.source === 'ENV' ? 'Vercel Env' : 'Custom Config'})</span>
+                        <span className="text-slate-500">
+                          ({fbStatus.source === 'ENV' ? 'Vercel Env' : fbStatus.source === 'DEFAULT' ? 'Built-in Auto Sync' : 'Custom Config'})
+                        </span>
                       </>
                     ) : (
                       'Positions are stored only in this specific browser'

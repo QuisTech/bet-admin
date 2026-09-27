@@ -29,12 +29,15 @@ export interface FirebaseConfigOptions {
   storageBucket?: string;
   messagingSenderId?: string;
   appId?: string;
+  measurementId?: string;
 }
 
 /**
- * Retrieves the active Firebase configuration from localStorage or Vite environment variables.
+ * Retrieves the active Firebase configuration from localStorage or Vite environment variables
+ * (configured securely via Vercel without committing secrets to GitHub).
  */
 export function getSavedFirebaseConfig(): FirebaseConfigOptions | null {
+  // 1. Check user-configured override in browser localStorage
   try {
     if (typeof localStorage !== 'undefined') {
       const stored = localStorage.getItem(FIREBASE_CONFIG_STORAGE_KEY);
@@ -49,7 +52,7 @@ export function getSavedFirebaseConfig(): FirebaseConfigOptions | null {
     console.warn('Error reading saved Firebase config from localStorage:', e);
   }
 
-  // Fallback to Vite environment variables if defined (e.g. in Vercel project settings)
+  // 2. Vite environment variables securely managed via Vercel CLI (zero secrets in GitHub)
   const envApiKey = import.meta.env.VITE_FIREBASE_API_KEY;
   const envProjectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
@@ -186,7 +189,7 @@ export function isFirebaseConfigured(): boolean {
 export function getFirebaseStatus(): {
   isConfigured: boolean;
   projectId: string | null;
-  source: 'LOCAL_STORAGE' | 'ENV' | 'NONE';
+  source: 'LOCAL_STORAGE' | 'ENV' | 'DEFAULT' | 'NONE';
 } {
   const config = getSavedFirebaseConfig();
   if (!config) {
@@ -196,11 +199,12 @@ export function getFirebaseStatus(): {
   const isLocalStored =
     typeof localStorage !== 'undefined' &&
     !!localStorage.getItem(FIREBASE_CONFIG_STORAGE_KEY);
+  const isEnv = !!import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
   return {
     isConfigured: true,
     projectId: config.projectId,
-    source: isLocalStored ? 'LOCAL_STORAGE' : 'ENV',
+    source: isLocalStored ? 'LOCAL_STORAGE' : isEnv ? 'ENV' : 'DEFAULT',
   };
 }
 
