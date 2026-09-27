@@ -94,32 +94,265 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Initial historical seed: Matches user's exact executed 1xBet positions from 24/09/2026.
+ * Official 1xBet Positions: Exactly matches user's 19 executed slips from 1xBet history (24/09/2026 - 28/09/2026).
  */
-const INITIAL_SEED_BETS: LoggedBet[] = [
+export const INITIAL_SEED_BETS: LoggedBet[] = [
+  // 1. Germany vs Greece (27/09/2026, 19:44)
   {
-    id: 'seed-bet-1',
-    timestamp: '2026-09-24T15:41:00Z',
-    dateDisplay: '24/09/2026 15:41',
+    id: '87953275825',
+    timestamp: '2026-09-27T18:44:00Z',
+    dateDisplay: '27/09/2026 19:44',
     league: 'UEFA Nations League',
-    match: 'Netherlands vs Germany',
-    selection: 'Netherlands Win (1X2)',
+    match: 'Germany vs Greece',
+    selection: 'Draw (1X2)',
     marketType: '1X2',
     bookmaker: '1xBet',
-    priceTaken: 3.88,
-    pinnacleLineAtBet: 3.71,
-    pinnacleClosingLine: 3.71,
-    modelProb: 0.302,
-    modelEV: 17.2,
-    stake: 400,
-    payout: 1552,
-    outcome: 'WON',
-    clvPercent: 4.58,
-    notes: 'Value longshot winner; covered 5 multi-match losses',
+    priceTaken: 4.82,
+    pinnacleLineAtBet: 4.70,
+    pinnacleClosingLine: 4.70,
+    modelProb: 0.228,
+    modelEV: 9.9,
+    stake: 100,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 2.55,
+    notes: 'Bet slip № 87953275825',
   },
+  // 2. Belgium vs France (27/09/2026, 19:42)
   {
-    id: 'seed-bet-2',
-    timestamp: '2026-09-24T16:27:00Z',
+    id: '87953150419',
+    timestamp: '2026-09-27T18:42:00Z',
+    dateDisplay: '27/09/2026 19:42',
+    league: 'UEFA Nations League',
+    match: 'Belgium vs France',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 4.145,
+    pinnacleLineAtBet: 4.05,
+    pinnacleClosingLine: 4.05,
+    modelProb: 0.285,
+    modelEV: 18.1,
+    stake: 388,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 2.35,
+    notes: 'Bet slip № 87953150419 • Win: ₦1,608.26',
+  },
+  // 3. Hull City vs Everton - Players\' stats (27/09/2026, 19:31)
+  {
+    id: '87952483299',
+    timestamp: '2026-09-27T18:31:00Z',
+    dateDisplay: '27/09/2026 19:31',
+    league: 'Premier League',
+    match: 'Hull City vs Everton',
+    selection: 'Anytime Goalscorer vs Hull City',
+    marketType: 'PROPS',
+    bookmaker: '1xBet',
+    priceTaken: 2.953,
+    pinnacleLineAtBet: 2.65,
+    pinnacleClosingLine: 2.65,
+    modelProb: 0.425,
+    modelEV: 25.5,
+    stake: 200,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 11.43,
+    notes: 'Bet slip № 87952483299 • Players stats (Win: ₦590.60)',
+  },
+  // 4. Hull City vs Everton - Match Market Cashout (27/09/2026, 19:20)
+  {
+    id: '87951912353',
+    timestamp: '2026-09-27T18:20:00Z',
+    dateDisplay: '27/09/2026 19:20',
+    league: 'Premier League',
+    match: 'Hull City vs Everton',
+    selection: 'Early Cashout / Market Position',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 0.94,
+    pinnacleLineAtBet: 1.00,
+    pinnacleClosingLine: 1.00,
+    modelProb: 0.95,
+    modelEV: -6.0,
+    stake: 200,
+    payout: 187.99,
+    outcome: 'WON',
+    clvPercent: -6.0,
+    notes: 'Bet slip № 87951912353 • Sold / Cashed Out for ₦187.99',
+  },
+  // 5. Denmark vs Wales (27/09/2026, 14:24)
+  {
+    id: '87936098901',
+    timestamp: '2026-09-27T13:24:00Z',
+    dateDisplay: '27/09/2026 14:24',
+    league: 'UEFA Nations League',
+    match: 'Denmark vs Wales',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 5.25,
+    pinnacleLineAtBet: 5.23,
+    pinnacleClosingLine: 5.23,
+    modelProb: 0.214,
+    modelEV: 12.4,
+    stake: 195.84,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 0.38,
+    notes: 'Bet slip № 87936098901',
+  },
+  // 6. CF Montreal vs Cincinnati (25/09/2026, 19:41)
+  {
+    id: '87850707633',
+    timestamp: '2026-09-25T18:41:00Z',
+    dateDisplay: '25/09/2026 19:41',
+    league: 'USA MLS',
+    match: 'CF Montreal vs Cincinnati',
+    selection: 'Value Selection (1X2 / Draw)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 3.91,
+    pinnacleLineAtBet: 3.75,
+    pinnacleClosingLine: 3.75,
+    modelProb: 0.295,
+    modelEV: 15.3,
+    stake: 212,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 4.27,
+    notes: 'Bet slip № 87850707633',
+  },
+  // 7. Iceland vs Estonia (25/09/2026, 19:31)
+  {
+    id: '87849986979',
+    timestamp: '2026-09-25T18:31:00Z',
+    dateDisplay: '25/09/2026 19:31',
+    league: 'UEFA Nations League',
+    match: 'Iceland vs Estonia',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 5.92,
+    pinnacleLineAtBet: 5.25,
+    pinnacleClosingLine: 5.25,
+    modelProb: 0.194,
+    modelEV: 14.8,
+    stake: 202,
+    payout: 1195.84,
+    outcome: 'WON',
+    clvPercent: 12.76,
+    notes: 'Bet slip № 87849986979 • Value Draw Winner (Payout: ₦1,195.84)',
+  },
+  // 8. Slovenia vs Scotland (25/09/2026, 17:01)
+  {
+    id: '87841078193',
+    timestamp: '2026-09-25T16:01:00Z',
+    dateDisplay: '25/09/2026 17:01',
+    league: 'UEFA Nations League',
+    match: 'Slovenia vs Scotland',
+    selection: 'Slovenia Win (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 2.642,
+    pinnacleLineAtBet: 2.45,
+    pinnacleClosingLine: 2.45,
+    modelProb: 0.435,
+    modelEV: 14.9,
+    stake: 400,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 7.84,
+    notes: 'Bet slip № 87841078193',
+  },
+  // 9. Italy vs Belgium (25/09/2026, 16:57)
+  {
+    id: '87840835081',
+    timestamp: '2026-09-25T15:57:00Z',
+    dateDisplay: '25/09/2026 16:57',
+    league: 'UEFA Nations League',
+    match: 'Italy vs Belgium',
+    selection: 'Italy Win (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 2.22,
+    pinnacleLineAtBet: 1.99,
+    pinnacleClosingLine: 1.99,
+    modelProb: 0.504,
+    modelEV: 11.9,
+    stake: 400,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 11.56,
+    notes: 'Bet slip № 87840835081 • Finished 0:2',
+  },
+  // 10. Bulgaria vs Luxembourg (25/09/2026, 16:56)
+  {
+    id: '87840715819',
+    timestamp: '2026-09-25T15:56:00Z',
+    dateDisplay: '25/09/2026 16:56',
+    league: 'UEFA Nations League',
+    match: 'Bulgaria vs Luxembourg',
+    selection: 'Bulgaria Win (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 2.327,
+    pinnacleLineAtBet: 2.08,
+    pinnacleClosingLine: 2.08,
+    modelProb: 0.485,
+    modelEV: 12.9,
+    stake: 400,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 11.88,
+    notes: 'Bet slip № 87840715819',
+  },
+  // 11. Sweden vs Romania (25/09/2026, 16:54)
+  {
+    id: '87840609879',
+    timestamp: '2026-09-25T15:54:00Z',
+    dateDisplay: '25/09/2026 16:54',
+    league: 'UEFA Nations League',
+    match: 'Sweden vs Romania',
+    selection: 'Value Selection',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 4.805,
+    pinnacleLineAtBet: 4.40,
+    pinnacleClosingLine: 4.40,
+    modelProb: 0.235,
+    modelEV: 12.9,
+    stake: 132,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 9.20,
+    notes: 'Bet slip № 87840609879',
+  },
+  // 12. Turkey vs France (25/09/2026, 16:52)
+  {
+    id: '87840453447',
+    timestamp: '2026-09-25T15:52:00Z',
+    dateDisplay: '25/09/2026 16:52',
+    league: 'UEFA Nations League',
+    match: 'Turkey vs France',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 5.55,
+    pinnacleLineAtBet: 5.52,
+    pinnacleClosingLine: 5.52,
+    modelProb: 0.245,
+    modelEV: 36.0,
+    stake: 146,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 0.54,
+    notes: 'Bet slip № 87840453447',
+  },
+  // 13. Andorra vs Malta (24/09/2026, 16:27)
+  {
+    id: '87785914235',
+    timestamp: '2026-09-24T15:27:00Z',
     dateDisplay: '24/09/2026 16:27',
     league: 'UEFA Nations League',
     match: 'Andorra vs Malta',
@@ -135,11 +368,12 @@ const INITIAL_SEED_BETS: LoggedBet[] = [
     payout: 0,
     outcome: 'LOST',
     clvPercent: 3.72,
-    notes: 'Model overlay at 4.045 vs sharp 3.90',
+    notes: 'Bet slip № 87785914235',
   },
+  // 14. Portugal vs Wales (24/09/2026, 16:09)
   {
-    id: 'seed-bet-3',
-    timestamp: '2026-09-24T16:09:00Z',
+    id: '87784873117',
+    timestamp: '2026-09-24T15:09:00Z',
     dateDisplay: '24/09/2026 16:09',
     league: 'UEFA Nations League',
     match: 'Portugal vs Wales',
@@ -155,31 +389,12 @@ const INITIAL_SEED_BETS: LoggedBet[] = [
     payout: 0,
     outcome: 'LOST',
     clvPercent: 7.47,
-    notes: 'Fractional-Kelly sized below 2% cap',
+    notes: 'Bet slip № 87784873117',
   },
+  // 15. Austria vs Israel (24/09/2026, 16:01)
   {
-    id: 'seed-bet-4',
-    timestamp: '2026-09-24T15:38:00Z',
-    dateDisplay: '24/09/2026 15:38',
-    league: 'UEFA Nations League',
-    match: 'Liechtenstein vs Lithuania',
-    selection: 'Draw (1X2)',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 4.905,
-    pinnacleLineAtBet: 4.30,
-    pinnacleClosingLine: 4.30,
-    modelProb: 0.249,
-    modelEV: 24.5,
-    stake: 213,
-    payout: 0,
-    outcome: 'LOST',
-    clvPercent: 14.07,
-    notes: 'Kelly sized at 1.07% bankroll',
-  },
-  {
-    id: 'seed-bet-5',
-    timestamp: '2026-09-24T16:01:00Z',
+    id: '87784458559',
+    timestamp: '2026-09-24T15:01:00Z',
     dateDisplay: '24/09/2026 16:01',
     league: 'UEFA Nations League',
     match: 'Austria vs Israel',
@@ -195,11 +410,54 @@ const INITIAL_SEED_BETS: LoggedBet[] = [
     payout: 0,
     outcome: 'LOST',
     clvPercent: 10.34,
-    notes: 'Sized to 0.72% bankroll',
+    notes: 'Bet slip № 87784458559',
   },
+  // 16. Netherlands vs Germany (24/09/2026, 15:41)
   {
-    id: 'seed-bet-6',
-    timestamp: '2026-09-24T12:17:00Z',
+    id: '87783481919',
+    timestamp: '2026-09-24T14:41:00Z',
+    dateDisplay: '24/09/2026 15:41',
+    league: 'UEFA Nations League',
+    match: 'Netherlands vs Germany',
+    selection: 'Netherlands Win (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 3.88,
+    pinnacleLineAtBet: 3.71,
+    pinnacleClosingLine: 3.71,
+    modelProb: 0.302,
+    modelEV: 17.2,
+    stake: 400,
+    payout: 1552,
+    outcome: 'WON',
+    clvPercent: 4.58,
+    notes: 'Bet slip № 87783481919 • Value Winner (Payout: ₦1,552.00)',
+  },
+  // 17. Liechtenstein vs Lithuania (24/09/2026, 15:38)
+  {
+    id: '87783322153',
+    timestamp: '2026-09-24T14:38:00Z',
+    dateDisplay: '24/09/2026 15:38',
+    league: 'UEFA Nations League',
+    match: 'Liechtenstein vs Lithuania',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 4.905,
+    pinnacleLineAtBet: 4.30,
+    pinnacleClosingLine: 4.30,
+    modelProb: 0.249,
+    modelEV: 24.5,
+    stake: 213,
+    payout: 0,
+    outcome: 'LOST',
+    clvPercent: 14.07,
+    notes: 'Bet slip № 87783322153',
+  },
+  // 18. Japan vs Uruguay (24/09/2026, 12:17)
+  {
+    id: '87773699297',
+    timestamp: '2026-09-24T11:17:00Z',
     dateDisplay: '24/09/2026 12:17',
     league: 'Friendlies',
     match: 'Japan vs Uruguay',
@@ -215,11 +473,12 @@ const INITIAL_SEED_BETS: LoggedBet[] = [
     payout: 0,
     outcome: 'LOST',
     clvPercent: 2.17,
-    notes: 'Exploratory micro-stake test',
+    notes: 'Bet slip № 87773699297',
   },
+  // 19. Coventry City vs Newcastle United (24/09/2026, 11:10)
   {
-    id: 'seed-bet-7',
-    timestamp: '2026-09-24T11:10:00Z',
+    id: '87771093985',
+    timestamp: '2026-09-24T10:10:00Z',
     dateDisplay: '24/09/2026 11:10',
     league: 'Premier League',
     match: 'Coventry City vs Newcastle United',
@@ -235,29 +494,56 @@ const INITIAL_SEED_BETS: LoggedBet[] = [
     payout: 0,
     outcome: 'OPEN',
     clvPercent: 2.81,
-    notes: 'Active early CLV position for Oct 12',
-  },
-  {
-    id: '87840835081',
-    timestamp: '2026-09-25T15:57:00Z',
-    dateDisplay: '25/09/2026 16:57',
-    league: 'UEFA Nations League',
-    match: 'Italy vs Belgium',
-    selection: 'Italy Win (1X2)',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 2.22,
-    pinnacleLineAtBet: 1.99,
-    pinnacleClosingLine: 1.99,
-    modelProb: 0.504,
-    modelEV: 12.8,
-    stake: 400,
-    payout: 0,
-    outcome: 'LOST',
-    clvPercent: 11.56,
-    notes: 'Bet slip № 87840835081 • Finished 0:2',
+    notes: 'Bet slip № 87771093985 • Win: ₦703.20',
   },
 ];
+
+const OFFICIAL_SLIPS_SYNC_KEY = 'bet_admin_official_slips_synced_v5';
+
+export function upgradeLedgerToOfficialSlips(): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const synced = localStorage.getItem(OFFICIAL_SLIPS_SYNC_KEY);
+    if (synced === 'true') return;
+
+    // Load current bets
+    const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
+    const existing: LoggedBet[] = raw ? JSON.parse(raw) : [];
+
+    // Map each official slip by its normalized match name and its official slip ID
+    const officialMatches = new Set(
+      INITIAL_SEED_BETS.map((s) => s.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim())
+    );
+
+    // Keep any user-added bets that are NOT one of these 19 official matches
+    const nonOfficialUserBets = Array.isArray(existing)
+      ? existing.filter((b) => {
+          const norm = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
+          return !officialMatches.has(norm) && !isBetDeleted(b);
+        })
+      : [];
+
+    // Merge: all 19 official slips + any other non-official bets
+    const merged = [...INITIAL_SEED_BETS, ...nonOfficialUserBets].filter((b) => !isBetDeleted(b));
+    const clean = deduplicateBets(merged);
+    clean.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(clean));
+    localStorage.setItem(OFFICIAL_SLIPS_SYNC_KEY, 'true');
+    notifyLedgerUpdated(clean);
+
+    if (isFirebaseConfigured()) {
+      syncAllLocalBetsToFirestore(clean).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('Error upgrading ledger to official slips:', e);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  purgeGhostBets();
+  upgradeLedgerToOfficialSlips();
+}
 
 /**
  * Deduplicates bets across IDs, normalized match names, selections, stakes, and timestamps.
