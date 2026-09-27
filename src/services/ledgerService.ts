@@ -1,4 +1,11 @@
 import type { LoggedBet, BetOutcome } from '../types';
+import {
+  saveBetToFirestore,
+  deleteBetFromFirestore,
+  subscribeToFirestoreBets,
+  isFirebaseConfigured,
+  syncAllLocalBetsToFirestore,
+} from './firebaseService';
 
 const LEDGER_STORAGE_KEY = 'bet_admin_logged_positions';
 
@@ -285,6 +292,15 @@ export function saveLoggedBets(bets: LoggedBet[]): void {
   }
 }
 
+const LEDGER_UPDATE_EVENT = 'bet_horizon_ledger_updated';
+
+export function notifyLedgerUpdated(bets?: LoggedBet[]): void {
+  if (typeof window !== 'undefined') {
+    const detail = bets || getLoggedBets();
+    window.dispatchEvent(new CustomEvent(LEDGER_UPDATE_EVENT, { detail }));
+  }
+}
+
 export function addLoggedBet(
   betData: Omit<LoggedBet, 'id' | 'timestamp' | 'dateDisplay' | 'clvPercent'>
 ): LoggedBet {
@@ -309,6 +325,15 @@ export function addLoggedBet(
   const existing = getLoggedBets();
   const updated = [newBet, ...existing];
   saveLoggedBets(updated);
+
+  // Background Cloud Sync to Firestore
+  if (isFirebaseConfigured()) {
+    saveBetToFirestore(newBet).catch((err) =>
+      console.warn('Background Firestore save failed:', err)
+    );
+  }
+
+  notifyLedgerUpdated(updated);
   return newBet;
 }
 
@@ -318,6 +343,7 @@ export function updateBetOutcome(
   customPayout?: number
 ): LoggedBet[] {
   const existing = getLoggedBets();
+  let modifiedBet: LoggedBet | null = null;
   const updated = existing.map((b) => {
     if (b.id !== id) return b;
     let payout = 0;
@@ -326,13 +352,23 @@ export function updateBetOutcome(
     } else if (outcome === 'PUSH') {
       payout = b.stake;
     }
-    return {
+    modifiedBet = {
       ...b,
       outcome,
       payout,
     };
+    return modifiedBet;
   });
   saveLoggedBets(updated);
+
+  // Background Cloud Sync to Firestore
+  if (modifiedBet && isFirebaseConfigured()) {
+    saveBetToFirestore(modifiedBet).catch((err) =>
+      console.warn('Background Firestore update failed:', err)
+    );
+  }
+
+  notifyLedgerUpdated(updated);
   return updated;
 }
 
@@ -340,12 +376,131 @@ export function deleteLoggedBet(id: string): LoggedBet[] {
   const existing = getLoggedBets();
   const updated = existing.filter((b) => b.id !== id);
   saveLoggedBets(updated);
+
+  // Background Cloud Sync to Firestore
+  if (isFirebaseConfigured()) {
+    deleteBetFromFirestore(id).catch((err) =>
+      console.warn('Background Firestore delete failed:', err)
+    );
+  }
+
+  notifyLedgerUpdated(updated);
   return updated;
 }
 
 export function resetLedgerToSeed(): LoggedBet[] {
   saveLoggedBets(INITIAL_SEED_BETS);
+  notifyLedgerUpdated(INITIAL_SEED_BETS);
   return INITIAL_SEED_BETS;
+}
+
+/**
+ * Initializes two-way synchronized ledger:
+ * 1. Emits initial positions from fast local cache.
+ * 2. Listens to window storage and custom events for multi-tab updates.
+ * 3. Subscribes to Firebase Firestore real-time snapshots (if configured),
+ *    merging cloud positions seamlessly.
+ */
+export function initLedgerSync(
+  onUpdate: (bets: LoggedBet[]) => void
+): () => void {
+  let isSubscribed = true;
+
+  // 1. Initial fast local read
+  onUpdate(getLoggedBets());
+
+  // 2. Intra-window and multi-tab listener
+  const handleLocalEvent = (e: Event) => {
+    if (!isSubscribed) return;
+    const custom = e as CustomEvent<LoggedBet[]>;
+    if (custom.detail && Array.isArray(custom.detail)) {
+      onUpdate(custom.detail);
+    } else {
+      onUpdate(getLoggedBets());
+    }
+  };
+
+  const handleStorageEvent = (e: StorageEvent) => {
+    if (!isSubscribed) return;
+    if (e.key === LEDGER_STORAGE_KEY) {
+      onUpdate(getLoggedBets());
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener(LEDGER_UPDATE_EVENT, handleLocalEvent);
+    window.addEventListener('storage', handleStorageEvent);
+  }
+
+  // 3. Real-time Firestore Cloud subscription
+  let unsubFirestore: (() => void) | null = null;
+
+  if (isFirebaseConfigured()) {
+    unsubFirestore = subscribeToFirestoreBets((remoteBets) => {
+      if (!isSubscribed) return;
+      if (!remoteBets || remoteBets.length === 0) {
+        // Cloud collection is currently empty; auto-sync local seeds to cloud
+        const local = getLoggedBets();
+        if (local.length > 0) {
+          syncAllLocalBetsToFirestore(local).catch(() => {});
+        }
+        return;
+      }
+
+      // Merge remote bets with any un-synced local bets
+      const local = getLoggedBets();
+      const combined = [...remoteBets];
+
+      for (const loc of local) {
+        const inRemote = combined.some(
+          (r) =>
+            r.id === loc.id ||
+            (r.match.toLowerCase().trim() === loc.match.toLowerCase().trim() &&
+              r.selection.toLowerCase().trim() === loc.selection.toLowerCase().trim() &&
+              r.stake === loc.stake &&
+              Math.abs(r.priceTaken - loc.priceTaken) < 0.02)
+        );
+        if (!inRemote) {
+          combined.push(loc);
+          // Upload missing local bet to cloud
+          saveBetToFirestore(loc).catch(() => {});
+        }
+      }
+
+      const deduplicated = deduplicateBets(combined);
+      deduplicated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      // Save merged to local cache
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(deduplicated));
+      }
+
+      onUpdate(deduplicated);
+    });
+  }
+
+  return () => {
+    isSubscribed = false;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(LEDGER_UPDATE_EVENT, handleLocalEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+    }
+    if (unsubFirestore) {
+      unsubFirestore();
+    }
+  };
+}
+
+/**
+ * Manually pushes all local positions to Firestore.
+ */
+export async function syncLocalLedgerToCloud(): Promise<{
+  success: boolean;
+  count: number;
+  error?: string;
+}> {
+  const current = getLoggedBets();
+  return syncAllLocalBetsToFirestore(current);
 }
 
 export interface LedgerStatistics {

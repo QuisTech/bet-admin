@@ -65,9 +65,15 @@ export default function App() {
 
   // Live Feed Status States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'feeds' | 'cloud'>('feeds');
   const [isFplLive, setIsFplLive] = useState(false);
   const [isOddsLive, setIsOddsLive] = useState(false);
   const [oddsSource, setOddsSource] = useState('Pinnacle Benchmark');
+
+  const handleOpenSettings = (tab: 'feeds' | 'cloud' = 'feeds') => {
+    setSettingsTab(tab);
+    setIsSettingsOpen(true);
+  };
 
   const syncDataFeeds = useCallback(
     async (customOddsKey?: string, leagueId?: string, forceRefresh: boolean = false) => {
@@ -127,7 +133,7 @@ export default function App() {
           activeSignalCount={slateStats.activeSignalCount}
           averageEV={slateStats.averageEV}
           brierScore={slateStats.brierScore}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => handleOpenSettings('feeds')}
           isOddsLive={isOddsLive}
           isFplLive={isFplLive}
           selectedLeagueId={selectedLeagueId}
@@ -213,7 +219,7 @@ export default function App() {
               )}
 
               {tab === 'ledger' && (
-                <BetLedger config={config} />
+                <BetLedger config={config} onOpenSettings={handleOpenSettings} />
               )}
 
               {tab === 'bankroll' && (
@@ -285,6 +291,7 @@ export default function App() {
         isFplLive={isFplLive}
         isOddsLive={isOddsLive}
         oddsSource={oddsSource}
+        initialTab={settingsTab}
       />
     </div>
   );

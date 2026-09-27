@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileSpreadsheet,
   TrendingUp,
@@ -12,9 +12,12 @@ import {
   RotateCcw,
   Sparkles,
   Info,
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
 import type { LoggedBet, BetOutcome, BankrollConfig } from '../types';
 import {
+  initLedgerSync,
   getLoggedBets,
   updateBetOutcome,
   deleteLoggedBet,
@@ -23,14 +26,24 @@ import {
   calculateLedgerStats,
   removeDuplicateBets,
 } from '../services/ledgerService';
+import { isFirebaseConfigured, getFirebaseStatus } from '../services/firebaseService';
 import { EquityCurveChart } from './EquityCurveChart';
 
 interface BetLedgerProps {
   config: BankrollConfig;
+  onOpenSettings?: (tab?: 'feeds' | 'cloud') => void;
 }
 
-export const BetLedger: React.FC<BetLedgerProps> = ({ config }) => {
+export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) => {
   const [bets, setBets] = useState<LoggedBet[]>(() => getLoggedBets());
+
+  useEffect(() => {
+    const unsub = initLedgerSync((syncedBets) => {
+      setBets(syncedBets);
+    });
+    return unsub;
+  }, []);
+
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'WON' | 'LOST'>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -139,6 +152,33 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config }) => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Cloud Sync Status Indicator */}
+            <button
+              onClick={() => onOpenSettings?.('cloud')}
+              title={
+                isFirebaseConfigured()
+                  ? `Real-time Cloud Sync Active (Project: ${getFirebaseStatus().projectId})`
+                  : 'Connect Firebase to sync positions between phone and PC'
+              }
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                isFirebaseConfigured()
+                  ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                  : 'bg-slate-900 border-slate-700/80 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+              }`}
+            >
+              {isFirebaseConfigured() ? (
+                <>
+                  <Cloud className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                  <span>Cloud Synced</span>
+                </>
+              ) : (
+                <>
+                  <CloudOff className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Sync Cloud</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={handleDeduplicate}
               title="Remove any duplicate positions from ledger"
