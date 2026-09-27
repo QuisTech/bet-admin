@@ -72,6 +72,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
     count: number;
     error?: string;
   } | null>(null);
+  const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -436,7 +437,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
         {activeTab === 'cloud' && (
           <div className="space-y-4">
             {/* Cloud Connection Status Badge */}
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div
                   className={`p-2.5 rounded-xl border ${
@@ -471,10 +472,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
                   <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                     {fbStatus.projectId ? (
                       <>
-                        Project: <strong className="text-cyan-400">{fbStatus.projectId}</strong>{' '}
-                        <span className="text-slate-500">
-                          ({fbStatus.source === 'ENV' ? 'Vercel Env' : fbStatus.source === 'DEFAULT' ? 'Built-in Auto Sync' : 'Custom Config'})
-                        </span>
+                        Project: <strong className="text-cyan-400">{fbStatus.projectId}</strong>
                       </>
                     ) : (
                       'Positions are stored only in this specific browser'
@@ -487,9 +485,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
                 <button
                   onClick={handleTestFirebase}
                   disabled={isTestingFb}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono font-bold border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono font-bold border border-slate-700 flex items-center gap-1.5 cursor-pointer transition"
                 >
-                  <RefreshCw className={`w-3 h-3 ${isTestingFb ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingFb ? 'animate-spin' : ''}`} />
                   <span>{isTestingFb ? 'Testing...' : 'Test Sync'}</span>
                 </button>
               )}
@@ -520,131 +518,151 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               </div>
             )}
 
-            {/* Firebase Configuration Paste Box */}
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Database className="w-4 h-4 text-emerald-400" />
-                  <label className="text-xs font-bold text-slate-200">Firebase Web App Config</label>
+            {/* Migration: Sync Local Positions to Cloud */}
+            {fbStatus.isConfigured && (
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <UploadCloud className="w-4 h-4 text-emerald-400" />
+                    <span>Sync Local Positions to Cloud</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+                    {getLoggedBets().length} positions in ledger
+                  </span>
                 </div>
-                <a
-                  href="https://console.firebase.google.com/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[10px] text-cyan-400 hover:underline font-mono flex items-center gap-1"
+
+                <p className="text-[11px] text-slate-400">
+                  Upload all existing ledger slips to Firestore so they are immediately accessible on your phone and any connected device.
+                </p>
+
+                {syncLocalResult && (
+                  <div
+                    className={`p-2.5 rounded-xl border text-xs font-mono ${
+                      syncLocalResult.success
+                        ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                        : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
+                    }`}
+                  >
+                    {syncLocalResult.success
+                      ? `✓ Successfully synced ${syncLocalResult.count} positions to Firestore!`
+                      : `Sync failed: ${syncLocalResult.error}`}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSyncAllLocalToCloud}
+                  disabled={isSyncingLocal}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20 transition cursor-pointer"
                 >
-                  <span>Firebase Console</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                  <UploadCloud className={`w-4 h-4 ${isSyncingLocal ? 'animate-bounce' : ''}`} />
+                  <span>
+                    {isSyncingLocal
+                      ? 'Uploading Positions...'
+                      : `Sync ${getLoggedBets().length} Positions to Cloud Now`}
+                  </span>
+                </button>
               </div>
+            )}
 
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Paste your Firebase config object or JSON from your console. Any position you log on your phone or laptop will sync instantaneously.
-              </p>
+            {/* Collapsible / Advanced Configuration */}
+            {fbStatus.isConfigured ? (
+              <div className="pt-1 border-t border-slate-800/60">
+                <button
+                  onClick={() => setShowAdvancedConfig(!showAdvancedConfig)}
+                  className="text-[11px] text-slate-400 hover:text-slate-200 font-mono flex items-center gap-1.5 cursor-pointer py-1"
+                >
+                  <span>{showAdvancedConfig ? '▴ Hide Advanced Settings' : '⚙️ Advanced: Reconfigure or Disconnect Project'}</span>
+                </button>
 
-              <textarea
-                rows={5}
-                value={fbConfigText}
-                onChange={(e) => setFbConfigText(e.target.value)}
-                placeholder={`Paste your firebaseConfig object here...\ne.g.:\nconst firebaseConfig = {\n  apiKey: "AIzaSy...",\n  projectId: "my-bet-project"\n};`}
-                className="w-full bg-slate-950 border border-slate-700/80 focus:border-emerald-500 rounded-xl p-3 text-xs font-mono text-white placeholder:text-slate-600 outline-none resize-none leading-relaxed"
-              />
-
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSaveFirebaseConfig}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer"
-                  >
-                    Save & Activate
-                  </button>
-                  <button
-                    onClick={handleTestFirebase}
-                    disabled={isTestingFb || !fbConfigText.trim()}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer border border-slate-700"
-                  >
-                    {isTestingFb ? 'Testing...' : 'Test Connection'}
-                  </button>
-                </div>
-
-                {fbStatus.isConfigured && (
-                  <button
-                    onClick={() => {
-                      saveFirebaseConfig(null);
-                      setFbConfigText('');
-                      setFbStatus(getFirebaseStatus());
-                      setFbTestResult({ success: true, message: 'Disconnected from Firebase.' });
-                    }}
-                    className="text-rose-400 hover:underline cursor-pointer text-xs"
-                  >
-                    Disconnect
-                  </button>
+                {showAdvancedConfig && (
+                  <div className="mt-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-300">Custom Firebase Config</label>
+                      <button
+                        onClick={() => {
+                          saveFirebaseConfig(null);
+                          setFbConfigText('');
+                          setFbStatus(getFirebaseStatus());
+                          setFbTestResult({ success: true, message: 'Disconnected from Firebase.' });
+                        }}
+                        className="text-rose-400 hover:underline cursor-pointer text-xs font-bold"
+                      >
+                        Disconnect Project
+                      </button>
+                    </div>
+                    <textarea
+                      rows={4}
+                      value={fbConfigText}
+                      onChange={(e) => setFbConfigText(e.target.value)}
+                      placeholder="Paste replacement firebaseConfig object here..."
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-mono text-white outline-none resize-none"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveFirebaseConfig}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer"
+                      >
+                        Save & Activate
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
+            ) : (
+              /* When Disconnected: Clean Setup Box */
+              <div className="space-y-3">
+                <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Database className="w-4 h-4 text-emerald-400" />
+                      <label className="text-xs font-bold text-slate-200">Connect Firebase Web App</label>
+                    </div>
+                    <a
+                      href="https://console.firebase.google.com/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-cyan-400 hover:underline font-mono flex items-center gap-1"
+                    >
+                      <span>Firebase Console</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
 
-            {/* Migration: Sync Local Positions to Cloud */}
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <UploadCloud className="w-4 h-4 text-cyan-400" />
-                  <span>Migrate Local Positions to Cloud</span>
-                </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  {getLoggedBets().length} local positions ready
-                </span>
-              </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Paste your Firebase config object to synchronize your positions ledger across your phone, tablet, and PC.
+                  </p>
 
-              <p className="text-[11px] text-slate-400">
-                Push all existing local ledger positions (including your verified historical slips) to Firestore so they are visible on all your devices.
-              </p>
+                  <textarea
+                    rows={4}
+                    value={fbConfigText}
+                    onChange={(e) => setFbConfigText(e.target.value)}
+                    placeholder={`Paste your firebaseConfig object here...\ne.g.:\nconst firebaseConfig = {\n  apiKey: "AIzaSy...",\n  projectId: "bet-admin-8d3fc"\n};`}
+                    className="w-full bg-slate-950 border border-slate-700/80 focus:border-emerald-500 rounded-xl p-3 text-xs font-mono text-white placeholder:text-slate-600 outline-none resize-none"
+                  />
 
-              {syncLocalResult && (
-                <div
-                  className={`p-2.5 rounded-xl border text-xs font-mono ${
-                    syncLocalResult.success
-                      ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-                      : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
-                  }`}
-                >
-                  {syncLocalResult.success
-                    ? `✓ Successfully uploaded ${syncLocalResult.count} positions to cloud!`
-                    : `Upload failed: ${syncLocalResult.error}`}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSaveFirebaseConfig}
+                      className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer"
+                    >
+                      Save & Connect
+                    </button>
+                  </div>
                 </div>
-              )}
 
-              <button
-                onClick={handleSyncAllLocalToCloud}
-                disabled={isSyncingLocal || !fbStatus.isConfigured}
-                className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
-                  fbStatus.isConfigured
-                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
-                    : 'bg-slate-950 text-slate-600 border border-slate-900 cursor-not-allowed'
-                }`}
-              >
-                <UploadCloud className={`w-3.5 h-3.5 ${isSyncingLocal ? 'animate-bounce' : ''}`} />
-                <span>
-                  {isSyncingLocal
-                    ? 'Uploading Positions to Firestore...'
-                    : fbStatus.isConfigured
-                    ? `Sync ${getLoggedBets().length} Local Positions to Cloud`
-                    : 'Connect Firebase Above to Enable Sync'}
-                </span>
-              </button>
-            </div>
-
-            {/* Quick 2-Minute Setup Guide */}
-            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 text-[11px] text-slate-400 space-y-1.5 font-mono">
-              <div className="font-bold text-slate-300 uppercase text-[10px]">
-                ⚡ 2-Minute Setup in Firebase Console:
+                {/* Quick Setup Guide only when disconnected */}
+                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 text-[11px] text-slate-400 space-y-1.5 font-mono">
+                  <div className="font-bold text-slate-300 uppercase text-[10px]">
+                    ⚡ Setup in Firebase Console:
+                  </div>
+                  <ol className="list-decimal pl-4 space-y-1 text-slate-400">
+                    <li>Go to <span className="text-cyan-400">console.firebase.google.com</span> & open your project.</li>
+                    <li>In sidebar, click <strong className="text-slate-200">Firestore Database</strong> → <strong className="text-slate-200">Create Database</strong>.</li>
+                    <li>In Project Settings (⚙️) → General → click <strong className="text-slate-200">&lt;/&gt; Web</strong> to get config.</li>
+                  </ol>
+                </div>
               </div>
-              <ol className="list-decimal pl-4 space-y-1 text-slate-400">
-                <li>Go to <span className="text-cyan-400">console.firebase.google.com</span> & create a project.</li>
-                <li>In sidebar, click <strong className="text-slate-200">Firestore Database</strong> → <strong className="text-slate-200">Create Database</strong> (start in Test mode).</li>
-                <li>In Project Settings (⚙️) → General → click <strong className="text-slate-200">&lt;/&gt; Web</strong> to add web app.</li>
-                <li>Copy the <strong className="text-slate-200">firebaseConfig</strong> code and paste it in the box above!</li>
-              </ol>
-            </div>
+            )}
           </div>
         )}
       </div>
