@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Bookmark,
@@ -35,7 +35,14 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
   const [parsedSlips, setParsedSlips] = useState<ParsedOneXBetSlip[]>([]);
   const [importSuccess, setImportSuccess] = useState<number | null>(null);
 
+  const bookmarkLinkRef = useRef<HTMLAnchorElement>(null);
   const bookmarkletCode = generateOneXBetBookmarklet('bet-admin-8d3fc');
+
+  useEffect(() => {
+    if (bookmarkLinkRef.current) {
+      bookmarkLinkRef.current.setAttribute('href', bookmarkletCode);
+    }
+  }, [bookmarkletCode, activeTab, isOpen]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(bookmarkletCode);
@@ -158,7 +165,7 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
                 </div>
                 <div className="flex items-center gap-3">
                   <a
-                    href={bookmarkletCode}
+                    ref={bookmarkLinkRef}
                     onClick={(e) => {
                       e.preventDefault();
                       alert('👉 Drag this button up to your browser Bookmarks Bar (Ctrl+Shift+B if hidden)!');
