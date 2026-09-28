@@ -989,14 +989,7 @@ export function initLedgerSync(
       // 1. Filter out any bets that were explicitly deleted by the user
       const validRemote = remoteBets.filter((b) => !isBetDeleted(b));
 
-      // 2. If remote has any bets that should have been deleted, purge them from Firestore
-      remoteBets.forEach((b) => {
-        if (isBetDeleted(b) && b.id && !b.id.startsWith('87')) {
-          deleteBetFromFirestore(b.id, { match: b.match, selection: b.selection }).catch(() => {});
-        }
-      });
-
-      // 3. Reconcile with official slips to prevent draft duplicates
+      // 2. Reconcile with official slips to prevent draft duplicates
       const reconciled = reconcileWithOfficialSlips(validRemote);
 
       // 4. Accept cloud truth into local cache (WITHOUT re-uploading missing bets)
