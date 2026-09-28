@@ -174,22 +174,22 @@ export function parse1xBetText(rawText: string): ParsedOneXBetSlip[] {
 
     // Extract Date
     const dateMatch =
-      chunk.match(/Date\s*[\n\r]+\s*(\d{2}\/\d{2}\/\d{4}\s*[/,]\s*\d{2}:\d{2})/i) ||
-      chunk.match(/(\d{2}\/\d{2}\/\d{4}\s*[/,]\s*\d{2}:\d{2})/);
-    const dateStr = dateMatch ? dateMatch[1].replace(/\s*\/\s*/, ' ').trim() : '';
+      chunk.match(/Date\s*[\n\r]+\s*(\d{2}\/\d{2}\/\d{4}[^0-9]+\d{2}:\d{2})/i) ||
+      chunk.match(/(\d{2}\/\d{2}\/\d{4}[^0-9]+\d{2}:\d{2})/);
+    const dateStr = dateMatch ? dateMatch[1].replace(/[^0-9/:]/g, ' ').trim() : '';
 
     // Extract Stake (Bet)
     const betMatch =
-      chunk.match(/Bet\s*[\n\r]+\s*([0-9.,]+)\s*(?:NGN|\$|€|£)?/i) ||
+      chunk.match(/Bet[\s\S]*?([0-9.,]+)\s*(?:NGN|\$|€|£)?/i) ||
       chunk.match(/([0-9.,]+)\s*NGN/i);
     const stake = betMatch ? parseFloat(betMatch[1].replace(/,/g, '')) : 0;
 
     // Extract Odds
-    const oddsMatch = chunk.match(/Odds\s*[\n\r]+\s*([0-9.]+)/i);
+    const oddsMatch = chunk.match(/Odds[\s\S]*?([0-9.]+)/i);
     const odds = oddsMatch ? parseFloat(oddsMatch[1]) : 0;
 
     // Extract Win / Potential Payout
-    const winMatch = chunk.match(/Win\s*[\n\r]+\s*([0-9.,]+)\s*(?:NGN)?/i);
+    const winMatch = chunk.match(/Win[\s\S]*?([0-9.,]+)/i);
     const potentialWin = winMatch ? parseFloat(winMatch[1].replace(/,/g, '')) : 0;
 
     // Determine Status & Outcome from the context directly above the bet slip
@@ -203,7 +203,7 @@ export function parse1xBetText(rawText: string): ParsedOneXBetSlip[] {
       .filter(Boolean);
     const last3Lines = prevLines.slice(-4).join(' ');
 
-    if (/Sold|Cashed\s*out/i.test(last3Lines) || /Sold|Cashed\s*out/i.test(chunk)) {
+    if (/Sold|Cashed/i.test(last3Lines) || /Sold|Cashed/i.test(chunk)) {
       status = 'Sold';
       outcome = 'WON';
       payout = potentialWin > 0 ? potentialWin : Math.round(stake * 0.94 * 100) / 100;
@@ -317,12 +317,10 @@ export function convertParsedSlipsToLoggedBets(slips: ParsedOneXBetSlip[]): Logg
 }
 
 /**
- * Generates the 1-click JavaScript bookmarklet string that runs on 1xbet.com.
- * Uses exact 1xBet data-test selectors with fallback to text parsing.
+ * Returns clean, unencoded JavaScript for running in browser Developer Tools Console.
  */
-export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'): string {
-  const scriptBody = `
-(function() {
+export function getOneXBetCleanScript(projectId: string = 'bet-admin-8d3fc'): string {
+  return `(function() {
   var existing = document.getElementById('bh-sync-overlay');
   if (existing) existing.remove();
 
@@ -403,9 +401,9 @@ export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'
     }
   }
 
-  // Method 2: Fallback to text parsing if DOM elements not found
+  // Method 2: Fallback to text parsing
   if (slips.length === 0) {
-    var text = document.body.innerText;
+    var text = document.body.innerText || '';
     var chunks = text.split(/Bet\\s+slip/i);
 
     for (var i = 1; i < chunks.length; i++) {
@@ -415,18 +413,16 @@ export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'
       if (!idM) continue;
       var slipId = idM[1];
 
-      var dateM = chunk.match(/Date\\s*[\\n\\r]+\\s*(\\d{2}\\/\\d{2}\\/\\d{4}\\s*[/,]\\s*\\d{2}:\\d{2})/i) ||
-                  chunk.match(/(\\d{2}\\/\\d{2}\\/\\d{4}\\s*[/,]\\s*\\d{2}:\\d{2})/);
-      var dateStr = dateM ? dateM[1].replace(/\\s*\\/\\s*/, ' ').trim() : '';
+      var dateM = chunk.match(/(\\d{2}\\/\\d{2}\\/\\d{4}[^0-9]+\\d{2}:\\d{2})/);
+      var dateStr = dateM ? dateM[1].replace(/[^0-9\\/:]/g, ' ').trim() : '';
 
-      var betM = chunk.match(/Bet\\s*[\\n\\r]+\\s*([0-9.,]+)\\s*(?:NGN|\\$|€|£)?/i) ||
-                 chunk.match(/([0-9.,]+)\\s*NGN/i);
+      var betM = chunk.match(/Bet[\\s\\S]*?([0-9.,]+)\\s*(?:NGN|\\$|€|£)?/i) || chunk.match(/([0-9.,]+)\\s*NGN/i);
       var stakeFallback = betM ? parseFloat(betM[1].replace(/,/g, '')) : 0;
 
-      var oddsM = chunk.match(/Odds\\s*[\\n\\r]+\\s*([0-9.]+)/i);
+      var oddsM = chunk.match(/Odds[\\s\\S]*?([0-9.]+)/i);
       var oddsFallback = oddsM ? parseFloat(oddsM[1]) : 0;
 
-      var winM = chunk.match(/Win\\s*[\\n\\r]+\\s*([0-9.,]+)\\s*(?:NGN)?/i);
+      var winM = chunk.match(/Win[\\s\\S]*?([0-9.,]+)/i);
       var winFallback = winM ? parseFloat(winM[1].replace(/,/g, '')) : 0;
 
       var prevLines = prevChunk.split(/[\\r\\n]+/).map(function(l) { return l.trim(); }).filter(Boolean);
@@ -435,7 +431,7 @@ export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'
       var oFallback = 'OPEN';
       var pFallback = 0;
 
-      if (/Sold|Cashed\\s*out/i.test(last3) || /Sold|Cashed\\s*out/i.test(chunk)) {
+      if (/Sold|Cashed/i.test(last3) || /Sold|Cashed/i.test(chunk)) {
         sFallback = 'Sold';
         oFallback = 'WON';
         pFallback = winFallback > 0 ? winFallback : stakeFallback * 0.94;
@@ -486,14 +482,14 @@ export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'
   }
 
   if (slips.length === 0) {
-    alert('⚠️ Bet Horizon: No bet slips detected on this page. Please open your 1xBet "Bet History" page and click again.');
+    alert('⚠️ Bet Horizon: No bet slips found on this page. Make sure you are on 1xBet "Bet history" page!');
     return;
   }
 
   // Create floating UI overlay on 1xBet page
   var box = document.createElement('div');
   box.id = 'bh-sync-overlay';
-  box.style.cssText = 'position:fixed;top:20px;right:20px;z-index:999999;background:#090d16;color:#f8fafc;padding:20px;border-radius:18px;border:2px solid #10b981;box-shadow:0 20px 50px rgba(0,0,0,0.85);font-family:sans-serif;width:340px;max-width:90vw;backdrop-filter:blur(10px);';
+  box.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999999;background:#090d16;color:#f8fafc;padding:20px;border-radius:18px;border:2px solid #10b981;box-shadow:0 20px 50px rgba(0,0,0,0.85);font-family:sans-serif;width:340px;max-width:90vw;backdrop-filter:blur(10px);';
 
   box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
     '<div style="font-weight:900;color:#10b981;font-size:14px;letter-spacing:0.5px;">⚡ BET HORIZON SYNC</div>' +
@@ -540,7 +536,7 @@ export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'
       var synced = 0;
       for (var k = 0; k < slips.length; k++) {
         var s = slips[k];
-        var url = 'https://firestore.googleapis.com/v1/projects/' + '${projectId}' + '/databases/(default)/documents/positions/' + s.id;
+        var url = 'https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/positions/' + s.id;
         var fields = {
           id: { stringValue: s.id },
           match: { stringValue: s.match },
@@ -567,14 +563,20 @@ export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'
       btn.innerText = '✅ Synced Successfully!';
       btn.style.background = '#059669';
     } catch (err) {
-      statusEl.innerHTML = '<span style="color:#ef4444;">⚠️ Cloud push failed. Use Copy JSON instead.</span>';
-      btn.innerText = 'Retry Sync';
+      statusEl.innerHTML = '<span style="color:#ef4444;">⚠️ Cloud push blocked by browser. Opening Bet Horizon to complete sync...</span>';
+      window.open('https://bet-admin.vercel.app/#import1x=' + encodeURIComponent(JSON.stringify(slips)), '_blank');
+      btn.innerText = 'Opened Bet Horizon!';
       btn.disabled = false;
     }
   };
-})();
-`;
+})();`;
+}
 
+/**
+ * Generates the 1-click JavaScript bookmarklet string that runs on 1xbet.com.
+ */
+export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'): string {
+  const scriptBody = getOneXBetCleanScript(projectId);
   const compact = scriptBody.replace(/\s+/g, ' ').trim();
-  return `javascript:${encodeURIComponent(compact)}`;
+  return `javascript:${encodeURI(compact)}`;
 }

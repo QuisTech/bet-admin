@@ -13,6 +13,9 @@ import { BASE_MATCHES } from './data/matchRepository';
 import { fetchLiveFPLBootstrap } from './services/fplService';
 import { fetchLiveOddsFeed } from './services/oddsService';
 import { evaluateOpportunities } from './models/opportunityEngine';
+import { convertParsedSlipsToLoggedBets } from './services/oneXBetParser';
+import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated } from './services/ledgerService';
+import { isFirebaseConfigured, syncAllLocalBetsToFirestore } from './services/firebaseService';
 
 export default function App() {
   const [config, setConfig] = useState<BankrollConfig>(() => {
@@ -106,6 +109,52 @@ export default function App() {
   useEffect(() => {
     syncDataFeeds();
   }, [syncDataFeeds]);
+
+  // Direct 1-click sync listener from 1xBet console / bookmarklet
+  useEffect(() => {
+    const handleHashImport = async () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#import1x=')) {
+        try {
+          const rawJson = decodeURIComponent(hash.substring('#import1x='.length));
+          const importedSlips = JSON.parse(rawJson);
+          if (Array.isArray(importedSlips) && importedSlips.length > 0) {
+            const newBets = convertParsedSlipsToLoggedBets(importedSlips);
+            const existing = getLoggedBets();
+            const merged = [...existing];
+            for (const nb of newBets) {
+              const idx = merged.findIndex(
+                (b) =>
+                  b.id === nb.id ||
+                  (b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() ===
+                    nb.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() &&
+                    b.dateDisplay?.split(' ')[0] === nb.dateDisplay?.split(' ')[0])
+              );
+              if (idx >= 0) {
+                merged[idx] = nb;
+              } else {
+                merged.push(nb);
+              }
+            }
+            saveLoggedBets(merged);
+            notifyLedgerUpdated(merged);
+            if (isFirebaseConfigured()) {
+              await syncAllLocalBetsToFirestore(merged);
+            }
+            setTab('ledger');
+            alert(`🎉 Successfully synchronized ${newBets.length} tickets from 1xBet into your ledger!`);
+            window.location.hash = '';
+          }
+        } catch (e) {
+          console.error('Failed to import slips from hash:', e);
+        }
+      }
+    };
+
+    handleHashImport();
+    window.addEventListener('hashchange', handleHashImport);
+    return () => window.removeEventListener('hashchange', handleHashImport);
+  }, []);
 
   const handleLeagueChange = (newLeagueId: string) => {
     setSelectedLeagueId(newLeagueId);

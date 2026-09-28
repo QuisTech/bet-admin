@@ -8,9 +8,11 @@ import {
   Sparkles,
   ArrowRight,
   CheckCircle2,
+  Terminal,
 } from 'lucide-react';
 import {
   generateOneXBetBookmarklet,
+  getOneXBetCleanScript,
   parse1xBetInput,
   convertParsedSlipsToLoggedBets,
   type ParsedOneXBetSlip,
@@ -29,25 +31,34 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
   onClose,
   onImportComplete,
 }) => {
-  const [activeTab, setActiveTab] = useState<'bookmarklet' | 'paste'>('bookmarklet');
-  const [copiedCode, setCopiedCode] = useState(false);
+  const [activeTab, setActiveTab] = useState<'console' | 'bookmarklet' | 'paste'>('console');
+  const [copiedConsole, setCopiedConsole] = useState(false);
+  const [copiedBookmark, setCopiedBookmark] = useState(false);
   const [rawText, setRawText] = useState('');
   const [parsedSlips, setParsedSlips] = useState<ParsedOneXBetSlip[]>([]);
   const [importSuccess, setImportSuccess] = useState<number | null>(null);
 
   const bookmarkLinkRef = useRef<HTMLAnchorElement>(null);
   const bookmarkletCode = generateOneXBetBookmarklet('bet-admin-8d3fc');
+  const cleanConsoleScript = getOneXBetCleanScript('bet-admin-8d3fc');
 
   useEffect(() => {
     if (bookmarkLinkRef.current) {
       bookmarkLinkRef.current.setAttribute('href', bookmarkletCode);
+      bookmarkLinkRef.current.setAttribute('draggable', 'true');
     }
   }, [bookmarkletCode, activeTab, isOpen]);
 
-  const handleCopyCode = () => {
+  const handleCopyConsole = () => {
+    navigator.clipboard.writeText(cleanConsoleScript);
+    setCopiedConsole(true);
+    setTimeout(() => setCopiedConsole(false), 3000);
+  };
+
+  const handleCopyBookmark = () => {
     navigator.clipboard.writeText(bookmarkletCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 3000);
+    setCopiedBookmark(true);
+    setTimeout(() => setCopiedBookmark(false), 3000);
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -79,7 +90,6 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
       );
 
       if (idx >= 0) {
-        // Update existing position with verified 1xBet ticket
         merged[idx] = nb;
       } else {
         merged.push(nb);
@@ -115,7 +125,7 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
                 ⚡ 1xBet ➔ Bet Horizon Sync
               </h2>
               <p className="text-xs text-slate-400">
-                Automated 1-click sync & seamless slip import
+                1-Click live extraction & cloud ledger synchronization
               </p>
             </div>
           </div>
@@ -130,122 +140,162 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
         {/* Tab Switcher */}
         <div className="flex border-b border-slate-800/80 bg-slate-950/30 p-2 gap-2">
           <button
+            onClick={() => setActiveTab('console')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+              activeTab === 'console'
+                ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 font-black'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>1-Click Console (Fastest)</span>
+          </button>
+          <button
             onClick={() => setActiveTab('bookmarklet')}
-            className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
               activeTab === 'bookmarklet'
                 ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 font-black'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
           >
-            <Bookmark className="w-4 h-4" />
-            <span>1-Click Bookmarklet (Desktop)</span>
+            <Bookmark className="w-3.5 h-3.5" />
+            <span>Browser Bookmark</span>
           </button>
           <button
             onClick={() => setActiveTab('paste')}
-            className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
               activeTab === 'paste'
                 ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 font-black'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
           >
-            <ClipboardPaste className="w-4 h-4" />
-            <span>Quick-Paste Text or HTML</span>
+            <ClipboardPaste className="w-3.5 h-3.5" />
+            <span>Quick-Paste (Mobile)</span>
           </button>
         </div>
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-300">
+          {/* TAB 1: CONSOLE SNIPPET (FOOLPROOF, 100% RELIABLE ACROSS ALL BROWSERS) */}
+          {activeTab === 'console' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-black text-emerald-400 flex items-center gap-2">
+                    <Terminal className="w-4 h-4" />
+                    Run on 1xBet in 2 Seconds:
+                  </div>
+                  <button
+                    onClick={handleCopyConsole}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 cursor-pointer"
+                  >
+                    {copiedConsole ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Code Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>📋 Copy Console Code</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Clean, unencoded JavaScript that instantly bypasses browser security and directly mounts the floating <strong>⚡ Bet Horizon Sync</strong> widget onto your 1xBet screen.
+                </p>
+              </div>
+
+              {/* 3 Step Instructions */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Quick 3 Steps on 1xBet:
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 font-mono font-bold flex items-center justify-center text-[11px]">
+                      1
+                    </div>
+                    <div className="font-bold text-slate-200">Open 1xBet</div>
+                    <div className="text-[11px] text-slate-400">
+                      Go to your 1xBet account &amp; open <strong>Bet History</strong>.
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="w-5 h-5 rounded-md bg-cyan-500/20 text-cyan-400 font-mono font-bold flex items-center justify-center text-[11px]">
+                      2
+                    </div>
+                    <div className="font-bold text-slate-200">Open Console</div>
+                    <div className="text-[11px] text-slate-400">
+                      Press <kbd className="px-1 py-0.5 bg-slate-800 rounded font-mono text-slate-200">F12</kbd> (or right-click anywhere ➔ <strong>Inspect</strong> ➔ <strong>Console</strong>).
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 font-mono font-bold flex items-center justify-center text-[11px]">
+                      3
+                    </div>
+                    <div className="font-bold text-slate-200">Paste &amp; Enter</div>
+                    <div className="text-[11px] text-slate-400">
+                      Paste the copied code and press <kbd className="px-1 py-0.5 bg-slate-800 rounded font-mono text-slate-200">Enter</kbd>. Done!
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: BOOKMARKLET */}
           {activeTab === 'bookmarklet' && (
-            <div className="space-y-5">
-              {/* Highlight Box */}
+            <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/30 space-y-3">
                 <div className="text-sm font-black text-emerald-400 flex items-center gap-2">
                   <Bookmark className="w-4 h-4" />
-                  Drag this button into your Bookmarks Bar:
+                  Add to Browser Bookmarks Bar:
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <a
                     ref={bookmarkLinkRef}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      alert('👉 Drag this button up to your browser Bookmarks Bar (Ctrl+Shift+B if hidden)!');
-                    }}
+                    href={bookmarkletCode}
+                    draggable="true"
                     className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition cursor-grab active:cursor-grabbing border border-emerald-300"
                     title="Drag me to your Bookmarks Bar!"
                   >
                     <span>⚡ Sync to Bet Horizon</span>
                   </a>
                   <button
-                    onClick={handleCopyCode}
-                    className="px-3.5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition border border-slate-700"
+                    onClick={handleCopyBookmark}
+                    className="px-3.5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition border border-slate-700 cursor-pointer"
                   >
-                    {copiedCode ? (
+                    {copiedBookmark ? (
                       <>
                         <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="text-emerald-400">Code Copied!</span>
+                        <span className="text-emerald-400">Bookmark URL Copied!</span>
                       </>
                     ) : (
                       <>
                         <Copy className="w-3.5 h-3.5" />
-                        <span>Copy Code</span>
+                        <span>📋 Copy Bookmarklet URL</span>
                       </>
                     )}
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Tip: Press <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-slate-200">Ctrl + Shift + B</kbd> (or Cmd+Shift+B on Mac) if your browser bookmarks bar is currently hidden.
-                </p>
-              </div>
-
-              {/* 3 Step Instructions */}
-              <div className="space-y-3">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  How It Works in 3 Seconds:
+                <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-300 space-y-1.5">
+                  <div className="font-bold text-emerald-400">If dragging is disabled by Chrome:</div>
+                  <ol className="list-decimal list-inside space-y-1 text-slate-400">
+                    <li>Click <strong>Copy Bookmarklet URL</strong> above.</li>
+                    <li>Right-click your browser Bookmarks Bar ➔ Click <strong>"Add page..."</strong> (or "Add bookmark").</li>
+                    <li>Name it <code>⚡ 1xBet Sync</code> and paste the copied URL into the <strong>URL</strong> field.</li>
+                  </ol>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 font-mono font-bold flex items-center justify-center text-xs">
-                      1
-                    </div>
-                    <div className="font-bold text-slate-200">Open 1xBet</div>
-                    <div className="text-[11px] text-slate-400">
-                      Go to your 1xBet account and open your <strong>Bet History</strong> page.
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-mono font-bold flex items-center justify-center text-xs">
-                      2
-                    </div>
-                    <div className="font-bold text-slate-200">Click Bookmark</div>
-                    <div className="text-[11px] text-slate-400">
-                      Click the <strong>⚡ Sync to Bet Horizon</strong> bookmark on your toolbar.
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 font-mono font-bold flex items-center justify-center text-xs">
-                      3
-                    </div>
-                    <div className="font-bold text-slate-200">Instant Sync!</div>
-                    <div className="text-[11px] text-slate-400">
-                      All your slips are sent straight to your Cloud Ledger and visible on all devices.
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Security Banner */}
-              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>
-                  <strong>100% Safe &amp; Undetectable:</strong> The bookmarklet never asks for your 1xBet password or makes bot calls. It simply reads the tickets already visible on your active screen using native DOM attributes and sends them to your personal Firebase database.
-                </span>
               </div>
             </div>
           )}
 
+          {/* TAB 3: QUICK-PASTE (MOBILE / ZERO SETUP) */}
           {activeTab === 'paste' && (
             <div className="space-y-4">
               <div>
@@ -310,7 +360,7 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
 
                   <button
                     onClick={handleImportSlips}
-                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span>🚀 Import &amp; Sync {parsedSlips.length} Slips to Ledger</span>
                     <ArrowRight className="w-4 h-4" />
@@ -338,7 +388,7 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition cursor-pointer"
           >
             Close
           </button>
