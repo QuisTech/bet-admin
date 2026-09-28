@@ -102,7 +102,24 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
       );
 
       if (idx >= 0) {
-        merged[idx] = nb;
+        const old = merged[idx];
+        // Intelligent reconciliation: Adopt 1xBet real settlement outcome, payout, and official slip ID,
+        // while preserving rich model probabilities, Pinnacle CLV, and EV if already calculated.
+        merged[idx] = {
+          ...old,
+          ...nb,
+          id: nb.id || old.id,
+          modelProb: old.modelProb && old.modelProb !== Math.round((1 / (old.priceTaken || 2.0)) * 1000) / 1000 ? old.modelProb : nb.modelProb,
+          modelEV: typeof old.modelEV === 'number' && old.modelEV !== 5.0 ? old.modelEV : nb.modelEV,
+          pinnacleLineAtBet: old.pinnacleLineAtBet || nb.pinnacleLineAtBet,
+          pinnacleClosingLine: old.pinnacleClosingLine || nb.pinnacleClosingLine,
+          clvPercent: typeof old.clvPercent === 'number' && old.clvPercent !== 5.0 ? old.clvPercent : nb.clvPercent,
+          outcome: nb.outcome,
+          payout: nb.payout,
+          priceTaken: nb.priceTaken || old.priceTaken,
+          stake: nb.stake || old.stake,
+          notes: old.notes && !old.notes.includes(nb.id) ? `${old.notes} • Slip № ${nb.id}` : (nb.notes || old.notes),
+        };
       } else {
         merged.push(nb);
       }
