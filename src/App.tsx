@@ -314,7 +314,6 @@ export default function App() {
           averageEV={slateStats.averageEV}
           brierScore={slateStats.brierScore}
           onOpenSettings={() => handleOpenSettings('feeds')}
-          onOpenClvCalculator={() => setIsClvModalOpen(true)}
           isOddsLive={isOddsLive}
           isFplLive={isFplLive}
           selectedLeagueId={selectedLeagueId}

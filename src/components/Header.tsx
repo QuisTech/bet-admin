@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, Trophy, Calculator } from 'lucide-react';
+import { Globe, Trophy } from 'lucide-react';
 import type { BankrollConfig } from '../types';
 import { SUPPORTED_LEAGUES } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
@@ -11,7 +11,6 @@ interface HeaderProps {
   averageEV?: number;
   brierScore?: number;
   onOpenSettings?: () => void;
-  onOpenClvCalculator?: () => void;
   isOddsLive?: boolean;
   isFplLive?: boolean;
   selectedLeagueId: string;
@@ -25,7 +24,6 @@ export const Header: React.FC<HeaderProps> = ({
   averageEV = 0,
   brierScore = 0.174,
   onOpenSettings,
-  onOpenClvCalculator,
   isOddsLive = false,
   isFplLive = false,
   selectedLeagueId,
@@ -49,14 +47,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="bg-slate-900 text-emerald-400 text-[8px] font-mono px-2 py-0.5 rounded border border-emerald-500/30">
               DUAL ML ENGINE
             </span>
-            <button
-              onClick={onOpenClvCalculator}
-              className="flex items-center gap-1.5 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-md bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/40 transition-all cursor-pointer shadow-sm hover:shadow-[0_0_12px_rgba(16,185,129,0.3)]"
-              title="Universal CLV & Fair Line Calculator - Check any game on earth"
-            >
-              <Calculator className="w-3 h-3 text-emerald-400" />
-              <span>Check Any Game CLV</span>
-            </button>
           </div>
           <p className="text-[10px] text-slate-400 font-light uppercase tracking-widest">
             Institutional Sports Betting & Multi-League +EV Optimization Engine
@@ -175,8 +165,6 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
           </div>
-
-
         </div>
 
         <div className="h-px xl:h-8 w-full xl:w-px bg-slate-800 my-1 xl:my-0"></div>
