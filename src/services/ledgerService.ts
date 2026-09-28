@@ -39,19 +39,15 @@ export function recordDeletedBet(b: Partial<LoggedBet>): void {
 }
 
 export function isBetDeleted(b: Partial<LoggedBet>): boolean {
+  if (!b) return false;
+  // Official verified 1xBet slips (starting with '87') must NEVER be deleted
+  if (b.id && b.id.startsWith('87')) return false;
+
   if (b.selection === 'Early Cashout / Market Position') return true;
+  if (b.match && b.match.toLowerCase().includes('azerbaijan')) return true;
+
   const current = getDeletedSignatures();
-  // 87951912353 is an official verified slip from 1xBet email statement (Hull City cashed out @ 0.94)
-  if (b.id && current.has(b.id) && b.id !== '87951912353') return true;
-  if (b.match) {
-    const normMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
-    if (current.has(normMatch)) return true;
-    if (normMatch.includes('lithuania') && normMatch.includes('azerbaijan')) return true;
-    if (b.selection) {
-      const normSel = b.selection.toLowerCase().trim();
-      if (current.has(`${normMatch}|${normSel}`)) return true;
-    }
-  }
+  if (b.id && current.has(b.id)) return true;
   return false;
 }
 
@@ -66,14 +62,18 @@ export function purgeGhostBets(): void {
       match: 'Lithuania vs Azerbaijan',
     });
 
-    // Unblock official slip 87951912353 from deleted storage if previously marked
+    // Unblock all official slips from deleted storage if previously marked
     if (typeof localStorage !== 'undefined') {
       try {
         const rawDel = localStorage.getItem(DELETED_BETS_STORAGE_KEY);
         if (rawDel) {
           const parsedDel = JSON.parse(rawDel);
           if (Array.isArray(parsedDel)) {
-            const unblocked = parsedDel.filter((id: string) => id !== '87951912353');
+            const unblocked = parsedDel.filter(
+              (sig: string) =>
+                !sig.startsWith('87') &&
+                !sig.toLowerCase().includes('hull')
+            );
             localStorage.setItem(DELETED_BETS_STORAGE_KEY, JSON.stringify(unblocked));
           }
         }
@@ -991,7 +991,7 @@ export function initLedgerSync(
 
       // 2. If remote has any bets that should have been deleted, purge them from Firestore
       remoteBets.forEach((b) => {
-        if (isBetDeleted(b) && b.id) {
+        if (isBetDeleted(b) && b.id && !b.id.startsWith('87')) {
           deleteBetFromFirestore(b.id, { match: b.match, selection: b.selection }).catch(() => {});
         }
       });
