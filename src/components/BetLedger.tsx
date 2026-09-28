@@ -169,25 +169,27 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Top Banner & Audit Overview */}
-      <div className="glass-card p-5 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 rounded-3xl relative overflow-hidden">
+      <div className="glass-card p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 rounded-2xl sm:rounded-3xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-base font-extrabold text-slate-100">
-                Institutional Position Ledger & CLV Audit
-              </h2>
-              <span className="text-[10px] font-mono font-bold bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800/60">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 relative z-10">
+          <div className="min-w-0 max-w-full">
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-400 shrink-0" />
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-100 leading-tight">
+                  Institutional Position Ledger & CLV Audit
+                </h2>
+              </div>
+              <span className="text-[10px] font-mono font-bold bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800/60 shrink-0">
                 QUANT V3 AUDIT
               </span>
             </div>
-            <p className="text-xs text-slate-400 max-w-xl">
+            <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
               Strict empirical accounting of real executions: tracks <strong>Closing Line Value (CLV)</strong>, Brier calibration, and realized P&L across independent single positions.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             {/* Cloud Sync Status Indicator */}
             <button
               onClick={() => onOpenSettings?.('cloud')}
@@ -196,7 +198,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
                   ? `Real-time Cloud Sync Active (Project: ${getFirebaseStatus().projectId})`
                   : 'Connect Firebase to sync positions between phone and PC'
               }
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 isFirebaseConfigured()
                   ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
                   : 'bg-slate-900 border-slate-700/80 text-slate-400 hover:text-slate-200 hover:border-slate-600'
@@ -204,13 +206,13 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
             >
               {isFirebaseConfigured() ? (
                 <>
-                  <Cloud className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                  <span>Cloud Synced</span>
+                  <Cloud className="w-3.5 h-3.5 text-emerald-400 animate-pulse shrink-0" />
+                  <span className="whitespace-nowrap">Cloud Synced</span>
                 </>
               ) : (
                 <>
-                  <CloudOff className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Sync Cloud</span>
+                  <CloudOff className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="whitespace-nowrap">Sync Cloud</span>
                 </>
               )}
             </button>
@@ -218,33 +220,33 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
             <button
               onClick={handleDeduplicate}
               title="Remove any duplicate positions from ledger"
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-700/60"
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-700/60"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Deduplicate</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="whitespace-nowrap">Deduplicate</span>
             </button>
             <button
               onClick={() => setIsOneXBetSyncOpen(true)}
               title="1-Click Bookmarklet & 1xBet Slip Importer"
-              className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
+              className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 flex items-center justify-center gap-1.5 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
             >
-              <Zap className="w-3.5 h-3.5 fill-current" />
-              <span>⚡ 1xBet Sync</span>
+              <Zap className="w-3.5 h-3.5 fill-current shrink-0" />
+              <span className="whitespace-nowrap">⚡ 1xBet Sync</span>
             </button>
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center gap-1.5 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              Log Position
+              <Plus className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Log Position</span>
             </button>
             <button
               onClick={handleCloudRefresh}
               disabled={isRefreshing}
               title="Refresh ledger & sync from Cloud Firestore"
-              className="p-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer border border-slate-700/60"
+              className="p-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer border border-slate-700/60 shrink-0 flex items-center justify-center"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-cyan-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 shrink-0 ${isRefreshing ? 'animate-spin text-cyan-400' : ''}`} />
             </button>
           </div>
         </div>
@@ -342,11 +344,11 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
       />
 
       {/* Filter Tabs & Position Counts */}
-      <div className="flex items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-mono font-bold">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-mono font-bold overflow-x-auto max-w-full">
           <button
             onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'ALL'
                 ? 'bg-slate-800 text-slate-100 shadow'
                 : 'text-slate-400 hover:text-slate-200'
@@ -356,7 +358,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
           </button>
           <button
             onClick={() => setStatusFilter('OPEN')}
-            className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'OPEN'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                 : 'text-slate-400 hover:text-slate-200'
@@ -366,7 +368,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
           </button>
           <button
             onClick={() => setStatusFilter('WON')}
-            className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'WON'
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                 : 'text-slate-400 hover:text-slate-200'
@@ -376,7 +378,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
           </button>
           <button
             onClick={() => setStatusFilter('LOST')}
-            className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'LOST'
                 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                 : 'text-slate-400 hover:text-slate-200'
@@ -386,7 +388,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
           </button>
           <button
             onClick={() => setStatusFilter('CASHOUT')}
-            className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'CASHOUT'
                 ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
                 : 'text-slate-400 hover:text-slate-200'
@@ -396,7 +398,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
           </button>
         </div>
 
-        <div className="text-right text-[11px] font-mono text-slate-500">
+        <div className="text-left sm:text-right text-[11px] font-mono text-slate-500">
           Showing {filteredBets.length} of {bets.length} positions
         </div>
       </div>
