@@ -29,6 +29,10 @@ import {
   type FPLTeam,
   buildPlayerPropFeatures,
 } from './fplService';
+import {
+  getCloudCachedOdds,
+  saveCloudCachedOdds,
+} from './firebaseService';
 
 export interface OddsApiFixture {
   id: string;
@@ -292,7 +296,7 @@ export async function fetchLiveOddsFeed(
   const cacheMatchesKey = `${CACHE_MATCHES_BASE}_${leagueId}`;
   const cacheTimeKey = `${CACHE_TIME_BASE}_${leagueId}`;
 
-  // Check in-memory / localStorage cache first to avoid burning credits on refresh
+  // 1. Check in-memory / localStorage cache first to avoid burning credits on refresh
   const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheMatchesKey) : null;
   const cachedTime = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheTimeKey) : null;
 
@@ -312,7 +316,7 @@ export async function fetchLiveOddsFeed(
           return {
             matches: sanitized,
             isLive: true,
-            source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} - Cached)`,
+            source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} - Device Cache)`,
             count: sanitized.length,
             selectedLeague,
           };
@@ -321,8 +325,49 @@ export async function fetchLiveOddsFeed(
     }
   }
 
-  // If no API key is provided, use structured baseline matches enriched with dual model
+  // 2. Check Cloud Firestore Distributed Odds Cache
+  // This shares live odds across ALL user devices (Vercel, localhost, mobile)
+  // so NO API quota is consumed if any device has fetched within the last 60 minutes!
+  if (!forceRefresh) {
+    try {
+      const cloudCached = await getCloudCachedOdds(leagueId, 60 * 60 * 1000); // 60-min cloud TTL
+      if (cloudCached && cloudCached.matches && cloudCached.matches.length > 0) {
+        // Also update local device cache for instantaneous subsequent renders
+        try {
+          localStorage.setItem(cacheMatchesKey, JSON.stringify(cloudCached.matches));
+          localStorage.setItem(cacheTimeKey, String(cloudCached.timestamp));
+        } catch {}
+
+        const ageMins = Math.max(1, Math.round((Date.now() - cloudCached.timestamp) / 60000));
+        return {
+          matches: cloudCached.matches,
+          isLive: true,
+          source: `${selectedLeague.flag} Cloud Shared Odds (${ageMins}m ago • 0 API Hits)`,
+          count: cloudCached.matches.length,
+          selectedLeague,
+        };
+      }
+    } catch (e) {
+      console.warn('[bet-admin] Cloud odds cache read failed:', e);
+    }
+  }
+
+  // 3. If no API key is provided on this device, check if Cloud Firestore has ANY recent odds
+  // (up to 24 hours old) before falling back to baseline synthetic data!
   if (!apiKey) {
+    try {
+      const cloudCached = await getCloudCachedOdds(leagueId, 24 * 60 * 60 * 1000);
+      if (cloudCached && cloudCached.matches && cloudCached.matches.length > 0) {
+        return {
+          matches: cloudCached.matches,
+          isLive: true,
+          source: `${selectedLeague.flag} Cloud Live Feed (Synced from Cloud)`,
+          count: cloudCached.matches.length,
+          selectedLeague,
+        };
+      }
+    } catch {}
+
     const baseEnriched = enrichBaselineMatches(selectedLeague);
     return {
       matches: baseEnriched,
@@ -704,11 +749,17 @@ export async function fetchLiveOddsFeed(
       };
     });
 
-    // Cache the successfully ingested live matches for this league
+    // Cache the successfully ingested live matches for this league locally
     try {
       localStorage.setItem(cacheMatchesKey, JSON.stringify(matches));
       localStorage.setItem(cacheTimeKey, Date.now().toString());
     } catch {}
+
+    // ALSO sync to Cloud Firestore so ALL devices (Vercel, localhost, phone)
+    // share the exact same feed without burning quota credits!
+    saveCloudCachedOdds(leagueId, matches).catch((err) =>
+      console.warn('[bet-admin] Failed to save cloud odds cache:', err)
+    );
 
     console.log(`[bet-admin] Successfully ingested ${matches.length} live matches for ${selectedLeague.name}.`);
     return {

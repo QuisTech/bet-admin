@@ -9,6 +9,7 @@ import {
   getFirestore,
   collection,
   doc,
+  getDoc,
   setDoc,
   onSnapshot,
   getDocs,
@@ -18,12 +19,11 @@ import {
   type Firestore,
   type Unsubscribe,
 } from 'firebase/firestore';
-import type { LoggedBet, BankrollConfig } from '../types';
+import type { LoggedBet, BankrollConfig, MatchData } from '../types';
 
 export const FIREBASE_CONFIG_STORAGE_KEY = 'bet_admin_firebase_config';
 const POSITIONS_COLLECTION = 'positions';
-const SETTINGS_COLLECTION = 'settings';
-const BANKROLL_DOC_ID = 'bankroll_config';
+const BANKROLL_DOC_ID = 'config_bankroll';
 
 export interface FirebaseConfigOptions {
   apiKey: string;
@@ -406,7 +406,7 @@ export async function saveBankrollConfigToFirestore(config: BankrollConfig): Pro
   if (!db) return false;
 
   try {
-    const docRef = doc(db, SETTINGS_COLLECTION, BANKROLL_DOC_ID);
+    const docRef = doc(db, POSITIONS_COLLECTION, BANKROLL_DOC_ID);
     await setDoc(
       docRef,
       {
@@ -438,7 +438,7 @@ export function subscribeToFirestoreBankrollConfig(
   if (!db) return null;
 
   try {
-    const docRef = doc(db, SETTINGS_COLLECTION, BANKROLL_DOC_ID);
+    const docRef = doc(db, POSITIONS_COLLECTION, BANKROLL_DOC_ID);
     return onSnapshot(
       docRef,
       (snap) => {
@@ -446,9 +446,9 @@ export function subscribeToFirestoreBankrollConfig(
           const data = snap.data() as BankrollConfig;
           if (data && (data.totalBankrollNGN > 0 || data.totalBankroll > 0)) {
             onUpdate({
-              totalBankrollNGN: data.totalBankrollNGN || 20000,
-              totalBankroll: data.totalBankroll || data.totalBankrollNGN || 20000,
-              masterCapitalNGN: data.masterCapitalNGN || 200000,
+              totalBankrollNGN: data.totalBankrollNGN || 2500,
+              totalBankroll: data.totalBankroll || data.totalBankrollNGN || 2500,
+              masterCapitalNGN: data.masterCapitalNGN || 20000,
               kellyFraction: typeof data.kellyFraction === 'number' ? data.kellyFraction : 0.25,
               maxStakePercent: typeof data.maxStakePercent === 'number' ? data.maxStakePercent : 0.02,
               currency: data.currency === 'USD' ? 'USD' : 'NGN',
@@ -467,3 +467,72 @@ export function subscribeToFirestoreBankrollConfig(
     return null;
   }
 }
+
+/**
+ * Saves processed live odds to Cloud Firestore so all devices/sessions share the same feed
+ * without burning The Odds API quota credits.
+ */
+export async function saveCloudCachedOdds(
+  leagueId: string,
+  matches: MatchData[]
+): Promise<boolean> {
+  const db = getFirebaseDb();
+  if (!db || !matches || matches.length === 0) return false;
+
+  try {
+    const docId = `odds_cache_${leagueId}`;
+    const docRef = doc(db, POSITIONS_COLLECTION, docId);
+    await setDoc(
+      docRef,
+      {
+        leagueId,
+        timestamp: Date.now(),
+        updatedAt: new Date().toISOString(),
+        matchCount: matches.length,
+        matchesJson: JSON.stringify(matches),
+      },
+      { merge: true }
+    );
+    return true;
+  } catch (e) {
+    console.warn('Failed to save odds cache to Firestore:', e);
+    return false;
+  }
+}
+
+/**
+ * Retrieves shared live odds from Cloud Firestore.
+ * If data is fresh (< maxAgeMs, default 60 minutes), returns the matches directly from the cloud.
+ */
+export async function getCloudCachedOdds(
+  leagueId: string,
+  maxAgeMs: number = 60 * 60 * 1000
+): Promise<{ matches: MatchData[]; timestamp: number } | null> {
+  const db = getFirebaseDb();
+  if (!db) return null;
+
+  try {
+    const docId = `odds_cache_${leagueId}`;
+    const docRef = doc(db, POSITIONS_COLLECTION, docId);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+
+    const data = snap.data();
+    if (!data || !data.matchesJson || !data.timestamp) return null;
+
+    const age = Date.now() - Number(data.timestamp);
+    if (age > maxAgeMs) {
+      return null; // Expired, caller can fetch fresh
+    }
+
+    const matches = JSON.parse(data.matchesJson);
+    if (Array.isArray(matches) && matches.length > 0) {
+      return { matches, timestamp: Number(data.timestamp) };
+    }
+    return null;
+  } catch (e) {
+    console.warn('Failed to read cloud odds cache:', e);
+    return null;
+  }
+}
+
