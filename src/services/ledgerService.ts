@@ -861,13 +861,7 @@ export function addLoggedBet(
     ...betData,
     id: `bet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     timestamp: now.toISOString(),
-    dateDisplay: now.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
+    dateDisplay: `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
     clvPercent: clv,
   };
 

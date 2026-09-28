@@ -1,7 +1,8 @@
-import React from 'react';
-import { Flame, Clock, ArrowUpRight } from 'lucide-react';
-import type { MatchData } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Flame, Clock, ArrowUpRight, Check } from 'lucide-react';
+import type { MatchData, LoggedBet } from '../types';
 import type { OpportunityItem } from '../models/opportunityEngine';
+import { initLedgerSync, getLoggedBets } from '../services/ledgerService';
 
 interface TopPicksColumnProps {
   matches: MatchData[];
@@ -18,6 +19,11 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
   isLive = false,
   oddsSource = 'Pinnacle Benchmark',
 }) => {
+  const [ledgerBets, setLedgerBets] = useState<LoggedBet[]>(() => getLoggedBets());
+
+  useEffect(() => {
+    return initLedgerSync((synced) => setLedgerBets(synced));
+  }, []);
   // Extract all value bets across all matches and sort by highest EV edge
   const allBargains = (opportunities && opportunities.length > 0)
     ? opportunities
@@ -88,6 +94,16 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
             const breakevenProb = ((1 / item.market.sportyBetOdds) * 100).toFixed(1);
             const isHighVariance = item.market.sportyBetOdds >= 2.50;
 
+            const home = item.match.homeTeam.toLowerCase().trim();
+            const away = item.match.awayTeam.toLowerCase().trim();
+            const heldPosition = ledgerBets.find((b) => {
+              const bMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
+              const isMatch = (bMatch.includes(home) && bMatch.includes(away)) ||
+                              (home.length > 3 && bMatch.includes(home)) ||
+                              (away.length > 3 && bMatch.includes(away));
+              return isMatch && b.outcome === 'OPEN';
+            });
+
             return (
               <div
                 key={`${item.match.id}-${item.market.selection}-${idx}`}
@@ -95,10 +111,12 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
                   const mIdx = item.match.markets.findIndex((m) => m.selection === item.market.selection);
                   onSelectMatch(item.match, mIdx >= 0 ? mIdx : 0);
                 }}
-                className="flex items-center justify-between border-b border-slate-800 pb-2.5 last:border-0 last:pb-0 hover:bg-slate-800/40 p-2 rounded-xl cursor-pointer transition-colors"
+                className={`flex items-center justify-between border-b border-slate-800 pb-2.5 last:border-0 last:pb-0 hover:bg-slate-800/40 p-2 rounded-xl cursor-pointer transition-colors ${
+                  heldPosition ? 'bg-emerald-950/20 border-emerald-500/30' : ''
+                }`}
               >
                 <div className="flex flex-col min-w-0 pr-2">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-xs font-bold text-slate-200 truncate">
                       {item.market.selection}
                     </span>
@@ -111,6 +129,11 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
                     >
                       {isHighVariance ? 'High Var' : 'Mod Var'}
                     </span>
+                    {heldPosition && (
+                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded uppercase font-black bg-emerald-500 text-slate-950 flex items-center gap-0.5 shadow-[0_0_8px_rgba(16,185,129,0.4)]">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" /> In Play
+                      </span>
+                    )}
                   </div>
                   <span className="text-[10px] text-slate-400 truncate">
                     {item.match.homeTeam} vs {item.match.awayTeam}
@@ -127,7 +150,9 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
                   <span className="text-sm font-mono font-bold text-emerald-400">
                     +{item.market.evPercent.toFixed(1)}%
                   </span>
-                  <div className="text-[8px] text-slate-500 uppercase font-bold">Edge EV</div>
+                  <div className="text-[8px] text-slate-500 uppercase font-bold">
+                    {heldPosition ? `₦${heldPosition.stake} Logged` : 'Edge EV'}
+                  </div>
                 </div>
               </div>
             );
