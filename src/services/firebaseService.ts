@@ -18,10 +18,12 @@ import {
   type Firestore,
   type Unsubscribe,
 } from 'firebase/firestore';
-import type { LoggedBet } from '../types';
+import type { LoggedBet, BankrollConfig } from '../types';
 
 export const FIREBASE_CONFIG_STORAGE_KEY = 'bet_admin_firebase_config';
 const POSITIONS_COLLECTION = 'positions';
+const SETTINGS_COLLECTION = 'settings';
+const BANKROLL_DOC_ID = 'bankroll_config';
 
 export interface FirebaseConfigOptions {
   apiKey: string;
@@ -392,5 +394,76 @@ export async function testFirebaseConnection(): Promise<{
       success: false,
       message: `Connection failed: ${msg}. Make sure Cloud Firestore is enabled in your Firebase console.`,
     };
+  }
+}
+
+/**
+ * Saves Bankroll Configuration (Active Working Capital & Master Vault Reserve) to Cloud Firestore.
+ * Automatically broadcasts to all connected devices in real time.
+ */
+export async function saveBankrollConfigToFirestore(config: BankrollConfig): Promise<boolean> {
+  const db = getFirebaseDb();
+  if (!db) return false;
+
+  try {
+    const docRef = doc(db, SETTINGS_COLLECTION, BANKROLL_DOC_ID);
+    await setDoc(
+      docRef,
+      {
+        totalBankrollNGN: config.totalBankrollNGN,
+        totalBankroll: config.totalBankroll,
+        masterCapitalNGN: config.masterCapitalNGN || config.totalBankrollNGN,
+        kellyFraction: config.kellyFraction,
+        maxStakePercent: config.maxStakePercent,
+        currency: config.currency,
+        strategyMode: config.strategyMode,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return true;
+  } catch (e) {
+    console.warn('Failed to save bankroll config to Cloud Firestore:', e);
+    return false;
+  }
+}
+
+/**
+ * Subscribes to real-time Bankroll Configuration changes from Cloud Firestore across all devices.
+ */
+export function subscribeToFirestoreBankrollConfig(
+  onUpdate: (config: BankrollConfig) => void
+): Unsubscribe | null {
+  const db = getFirebaseDb();
+  if (!db) return null;
+
+  try {
+    const docRef = doc(db, SETTINGS_COLLECTION, BANKROLL_DOC_ID);
+    return onSnapshot(
+      docRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as BankrollConfig;
+          if (data && (data.totalBankrollNGN > 0 || data.totalBankroll > 0)) {
+            onUpdate({
+              totalBankrollNGN: data.totalBankrollNGN || 20000,
+              totalBankroll: data.totalBankroll || data.totalBankrollNGN || 20000,
+              masterCapitalNGN: data.masterCapitalNGN || 200000,
+              kellyFraction: typeof data.kellyFraction === 'number' ? data.kellyFraction : 0.25,
+              maxStakePercent: typeof data.maxStakePercent === 'number' ? data.maxStakePercent : 0.02,
+              currency: data.currency === 'USD' ? 'USD' : 'NGN',
+              strategyMode: data.strategyMode || 'safe',
+              updatedAt: data.updatedAt,
+            });
+          }
+        }
+      },
+      (err) => {
+        console.warn('Firestore bankroll subscription error:', err);
+      }
+    );
+  } catch (e) {
+    console.warn('Failed to subscribe to Firestore bankroll:', e);
+    return null;
   }
 }

@@ -14,7 +14,7 @@ export const BankrollManager: React.FC<BankrollManagerProps> = ({ config, onConf
   const [activeSubTab, setActiveSubTab] = useState<'monte-carlo' | 'backtest'>('monte-carlo');
 
   const sym = config.currency === 'USD' ? '$' : '₦';
-  const presetPools = [200000, 1000000, 10000000];
+  const presetPools = config.currency === 'USD' ? [100, 200, 500, 1000, 2000] : [20000, 50000, 100000, 200000, 1000000];
 
   // 1. Run 10,000-path Monte Carlo Stochastic Simulation
   const mcResult = useMemo(() => {

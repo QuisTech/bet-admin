@@ -1,7 +1,20 @@
-import React, { useState, useMemo } from 'react';
-import { Sliders, Cpu, Edit2, Check, TrendingUp } from 'lucide-react';
-import type { BankrollConfig } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  Sliders,
+  Cpu,
+  Edit2,
+  Check,
+  TrendingUp,
+  ShieldCheck,
+  Lock,
+  Cloud,
+  Wallet,
+  Clock,
+  Coins,
+} from 'lucide-react';
+import type { BankrollConfig, LoggedBet } from '../types';
 import { runMonteCarloSimulation } from '../models/monteCarloEngine';
+import { getLoggedBets, calculateLedgerStats } from '../services/ledgerService';
 
 interface MetricsColumnProps {
   config: BankrollConfig;
@@ -20,17 +33,33 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
   onOpenBankrollTab,
 }) => {
   const sym = config.currency === 'USD' ? '$' : '₦';
-  const totalAmount = config.currency === 'USD' ? config.totalBankroll : config.totalBankrollNGN;
-  const feedExposure = liveFeedExposure !== undefined ? liveFeedExposure : Math.round(totalAmount * 0.09);
-  const maxStrategyCap = Math.round(totalAmount * 0.124); // 12.4% max exposure cap
-  const liquidCash = Math.max(0, totalAmount - feedExposure);
-  const exposurePct = ((feedExposure / totalAmount) * 100).toFixed(1);
-  const maxSingleBetAmount = Math.round(totalAmount * config.maxStakePercent);
+  const activeCapital = config.currency === 'USD' ? config.totalBankroll : config.totalBankrollNGN;
+  const masterCapital = config.masterCapitalNGN || (config.currency === 'USD' ? 2000 : 200000);
+  const vaultReserve = Math.max(0, masterCapital - activeCapital);
+  const vaultProtectionPct = masterCapital > 0 ? ((vaultReserve / masterCapital) * 100).toFixed(0) : '0';
 
-  // Compute stochastic path simulation for 95% VaR and drawdown limits
+  // Real-time ledger statistics listener
+  const [ledgerBets, setLedgerBets] = useState<LoggedBet[]>(() => getLoggedBets());
+  useEffect(() => {
+    const handler = () => setLedgerBets(getLoggedBets());
+    window.addEventListener('bet_horizon_ledger_updated', handler);
+    return () => window.removeEventListener('bet_horizon_ledger_updated', handler);
+  }, []);
+
+  const ledgerStats = useMemo(() => calculateLedgerStats(ledgerBets), [ledgerBets]);
+
+  const realizedBankroll = Math.round((activeCapital + ledgerStats.netProfit) * 100) / 100;
+  const liquidCash = Math.max(0, Math.round((realizedBankroll - ledgerStats.openExposure) * 100) / 100);
+
+  const feedExposure = liveFeedExposure !== undefined ? liveFeedExposure : ledgerStats.openExposure;
+  const maxStrategyCap = Math.round(activeCapital * 0.124); // 12.4% max exposure cap
+  const exposurePct = activeCapital > 0 ? ((feedExposure / activeCapital) * 100).toFixed(1) : '0.0';
+  const maxSingleBetAmount = Math.round(activeCapital * config.maxStakePercent);
+
+  // Compute stochastic path simulation based on active working bankroll
   const mcResult = useMemo(() => {
     return runMonteCarloSimulation({
-      initialBankroll: totalAmount,
+      initialBankroll: activeCapital,
       winProbability: 0.54,
       averageDecimalOdds: 2.05,
       kellyFraction: config.kellyFraction,
@@ -38,12 +67,17 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
       simulations: 5000,
       numBets: 100,
     });
-  }, [totalAmount, config.kellyFraction, config.maxStakePercent]);
+  }, [activeCapital, config.kellyFraction, config.maxStakePercent]);
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [inputValue, setInputValue] = useState('');
+  // Editing state for Active Working Capital
+  const [isEditingActive, setIsEditingActive] = useState(false);
+  const [activeInput, setActiveInput] = useState('');
 
-  const handleBankrollSave = (val: number) => {
+  // Editing state for Master Capital Vault
+  const [isEditingMaster, setIsEditingMaster] = useState(false);
+  const [masterInput, setMasterInput] = useState('');
+
+  const handleActiveSave = (val: number) => {
     const safeVal = Math.max(100, Math.round(val));
     onConfigChange({
       ...config,
@@ -55,6 +89,17 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
     } catch {}
   };
 
+  const handleMasterSave = (val: number) => {
+    const safeVal = Math.max(activeCapital, Math.round(val));
+    onConfigChange({
+      ...config,
+      masterCapitalNGN: safeVal,
+    });
+    try {
+      localStorage.setItem('bet_admin_master_capital', safeVal.toString());
+    } catch {}
+  };
+
   const handleKellySlider = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     onConfigChange({
@@ -63,51 +108,56 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
     });
   };
 
-  const presets = config.currency === 'USD'
-    ? [200, 500, 1000, 2500, 5000, 10000]
-    : [50000, 100000, 200000, 500000, 1000000, 5000000];
+  const activePresets =
+    config.currency === 'USD'
+      ? [100, 200, 500, 1000, 2000]
+      : [10000, 20000, 50000, 100000, 200000];
 
   return (
     <div className="col-span-12 lg:col-span-3 grid grid-cols-1 gap-4 auto-rows-min">
-      {/* Bankroll Capital Card matching Squad Value Card in uefa-admin */}
+      {/* 1. Active Working Bankroll Card */}
       <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between shadow-xl backdrop-blur-md">
-        <div className="flex justify-between items-start mb-3">
-          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            Bankroll Capital
-          </h2>
+        <div className="flex justify-between items-start mb-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-emerald-400 text-[10px] font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-              CUSTOMIZABLE
+            <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+            <h2 className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+              Active Working Bankroll
+            </h2>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-emerald-400 text-[9px] font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
+              <Cloud className="w-2.5 h-2.5 animate-pulse text-emerald-400" />
+              <span>SYNCED</span>
             </span>
           </div>
         </div>
 
         <div>
-          {isEditing ? (
-            <div className="space-y-2">
+          {isEditingActive ? (
+            <div className="space-y-2 mt-1">
               <div className="flex items-center gap-1.5 bg-slate-950 p-2 rounded-xl border border-emerald-500/50">
                 <span className="text-lg font-bold font-mono text-emerald-400">{sym}</span>
                 <input
                   type="number"
                   min="100"
                   step="1000"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  value={activeInput}
+                  onChange={(e) => setActiveInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      handleBankrollSave(parseFloat(inputValue) || totalAmount);
-                      setIsEditing(false);
+                      handleActiveSave(parseFloat(activeInput) || activeCapital);
+                      setIsEditingActive(false);
                     }
-                    if (e.key === 'Escape') setIsEditing(false);
+                    if (e.key === 'Escape') setIsEditingActive(false);
                   }}
-                  placeholder="Enter custom amount..."
+                  placeholder="Enter active capital..."
                   className="w-full bg-transparent text-xl font-mono font-bold text-white focus:outline-none"
                   autoFocus
                 />
                 <button
                   onClick={() => {
-                    handleBankrollSave(parseFloat(inputValue) || totalAmount);
-                    setIsEditing(false);
+                    handleActiveSave(parseFloat(activeInput) || activeCapital);
+                    setIsEditingActive(false);
                   }}
                   className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-lg transition cursor-pointer shrink-0"
                 >
@@ -115,42 +165,45 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
                 </button>
               </div>
               <div className="text-[10px] text-slate-400 font-mono">
-                Type any amount and press Enter or Save.
+                Type active operating balance &amp; press Enter.
               </div>
             </div>
           ) : (
             <div
               onClick={() => {
-                setInputValue(totalAmount.toString());
-                setIsEditing(true);
+                setActiveInput(activeCapital.toString());
+                setIsEditingActive(true);
               }}
               className="flex items-center justify-between group cursor-pointer p-1 -m-1 rounded-xl hover:bg-slate-800/40 transition"
-              title="Click to input custom bankroll"
+              title="Click to edit active working bankroll"
             >
-              <div className="text-3xl sm:text-4xl font-bold font-mono tracking-tighter text-white">
-                {sym}{totalAmount.toLocaleString()}
+              <div>
+                <div className="text-3xl sm:text-4xl font-bold font-mono tracking-tighter text-white">
+                  {sym}{activeCapital.toLocaleString()}
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  Operating stake pool for today's Kelly calculations
+                </div>
               </div>
-              <button
-                className="opacity-70 group-hover:opacity-100 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-[10px] font-bold flex items-center gap-1 cursor-pointer shrink-0 border border-slate-700"
-              >
+              <button className="opacity-70 group-hover:opacity-100 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-[10px] font-bold flex items-center gap-1 cursor-pointer shrink-0 border border-slate-700">
                 <Edit2 className="w-3 h-3 text-emerald-400" />
                 <span>Edit</span>
               </button>
             </div>
           )}
 
-          {/* Quick Preset Chips */}
+          {/* Quick Working Presets */}
           <div className="flex flex-wrap gap-1 mt-3">
-            {presets.map((preset) => (
+            {activePresets.map((preset) => (
               <button
                 key={preset}
                 onClick={() => {
-                  handleBankrollSave(preset);
-                  setInputValue(preset.toString());
-                  setIsEditing(false);
+                  handleActiveSave(preset);
+                  setActiveInput(preset.toString());
+                  setIsEditingActive(false);
                 }}
                 className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition cursor-pointer ${
-                  totalAmount === preset
+                  activeCapital === preset
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
                     : 'bg-slate-950/60 text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-700'
                 }`}
@@ -162,40 +215,69 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
             ))}
           </div>
 
-          <div className="flex justify-between mt-3 pt-3 border-t border-slate-800">
-            <span className="text-slate-400 text-xs font-medium">Liquid Cash</span>
-            <span className="font-mono font-black text-sm text-emerald-400">
-              {sym}{liquidCash.toLocaleString()}
-            </span>
+          {/* Real-time Session Balance Status */}
+          <div className="mt-3.5 pt-3 border-t border-slate-800/80 space-y-2 text-[11px] font-mono">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-sans">Realized Equity</span>
+              <span
+                className={`font-bold ${
+                  ledgerStats.netProfit > 0
+                    ? 'text-emerald-400'
+                    : ledgerStats.netProfit === 0
+                    ? 'text-slate-300'
+                    : 'text-amber-400'
+                }`}
+              >
+                {sym}{realizedBankroll.toLocaleString()}
+                <span className="text-[10px] text-slate-500 ml-1">
+                  ({ledgerStats.netProfit >= 0 ? '+' : ''}{sym}{ledgerStats.netProfit.toLocaleString()})
+                </span>
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-sans flex items-center gap-1">
+                <Clock className="w-3 h-3 text-cyan-400" />
+                <span>Open in Play</span>
+              </span>
+              <span className="font-bold text-cyan-300">
+                {sym}{ledgerStats.openExposure.toLocaleString()}
+                <span className="text-[10px] text-slate-500 ml-1">({ledgerStats.openBets} pending)</span>
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center bg-slate-950/80 p-2 rounded-xl border border-slate-800">
+              <span className="text-slate-300 font-sans font-bold flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Liquid Account Cash</span>
+              </span>
+              <span className="font-bold text-emerald-400 text-xs">
+                {sym}{liquidCash.toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 space-y-2.5">
-          <div className="flex justify-between items-center text-[11px]">
+        <div className="mt-4 space-y-2 text-[11px]">
+          <div className="flex justify-between items-center">
             <span className="text-slate-400">Active Feed Exposure</span>
             <span className="font-bold font-mono text-cyan-400">
               {sym}{feedExposure.toLocaleString()} ({exposurePct}%)
             </span>
           </div>
-          <div className="flex justify-between items-center text-[11px]">
+          <div className="flex justify-between items-center">
             <span className="text-slate-400">Max Exposure Cap</span>
             <span className="font-bold font-mono text-slate-300">
               {sym}{maxStrategyCap.toLocaleString()} (12.4%)
             </span>
           </div>
-          <div className="flex justify-between items-center text-[11px]">
+          <div className="flex justify-between items-center">
             <span className="text-slate-400">95% Value at Risk (VaR)</span>
             <span className="font-bold font-mono text-emerald-400">
               {mcResult.var95Percent > 0 ? `-${mcResult.var95Percent}%` : '0.0% (Capital Preserved)'}
             </span>
           </div>
-          <div className="flex justify-between items-center text-[11px]">
-            <span className="text-slate-400">&gt;50% DD Ruin Risk</span>
-            <span className="font-bold font-mono text-emerald-400">
-              0 / 5,000 simulated paths
-            </span>
-          </div>
-          <div className="flex justify-between items-center text-[11px]">
+          <div className="flex justify-between items-center">
             <span className="text-slate-400">Strategy Profile</span>
             <span
               className={`font-bold uppercase ${
@@ -213,12 +295,114 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
           {onOpenBankrollTab && (
             <button
               onClick={onOpenBankrollTab}
-              className="mt-3 w-full py-2 px-3 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700/60 hover:border-emerald-500/40 text-slate-300 hover:text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer group shadow-sm"
+              className="mt-2.5 w-full py-2 px-3 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700/60 hover:border-emerald-500/40 text-slate-300 hover:text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer group shadow-sm"
             >
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition" />
-              <span>View Compounding Chart & Zones</span>
+              <span>View Equity Curve &amp; Compounding</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* 2. Master Capital Vault Card (The Permanent 200k Reserve) */}
+      <div className="bg-gradient-to-br from-slate-900/90 to-slate-950 border border-slate-800/90 rounded-3xl p-5 shadow-xl backdrop-blur-md">
+        <div className="flex justify-between items-start mb-2">
+          <div className="flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <h2 className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+              Master Capital Vault
+            </h2>
+          </div>
+          <span className="text-amber-400 text-[9px] font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+            PERMANENT RESERVE
+          </span>
+        </div>
+
+        <div>
+          {isEditingMaster ? (
+            <div className="space-y-2 mt-1">
+              <div className="flex items-center gap-1.5 bg-slate-950 p-2 rounded-xl border border-amber-500/50">
+                <span className="text-lg font-bold font-mono text-amber-400">{sym}</span>
+                <input
+                  type="number"
+                  min={activeCapital}
+                  step="10000"
+                  value={masterInput}
+                  onChange={(e) => setMasterInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleMasterSave(parseFloat(masterInput) || masterCapital);
+                      setIsEditingMaster(false);
+                    }
+                    if (e.key === 'Escape') setIsEditingMaster(false);
+                  }}
+                  placeholder="Enter total capital..."
+                  className="w-full bg-transparent text-xl font-mono font-bold text-white focus:outline-none"
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    handleMasterSave(parseFloat(masterInput) || masterCapital);
+                    setIsEditingMaster(false);
+                  }}
+                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg transition cursor-pointer shrink-0"
+                >
+                  <Check className="w-3.5 h-3.5 inline" /> Save
+                </button>
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono">
+                Permanent portfolio reserve.
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={() => {
+                setMasterInput(masterCapital.toString());
+                setIsEditingMaster(true);
+              }}
+              className="flex items-center justify-between group cursor-pointer p-1 -m-1 rounded-xl hover:bg-slate-800/40 transition"
+              title="Click to edit permanent master capital"
+            >
+              <div>
+                <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tighter text-slate-100">
+                  {sym}{masterCapital.toLocaleString()}
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  Permanent total portfolio capital
+                </div>
+              </div>
+              <button className="opacity-70 group-hover:opacity-100 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-[10px] font-bold flex items-center gap-1 cursor-pointer shrink-0 border border-slate-700">
+                <Edit2 className="w-3 h-3 text-amber-400" />
+                <span>Edit</span>
+              </button>
+            </div>
+          )}
+
+          {/* Vault Protection Progress & Metrics */}
+          <div className="mt-3 space-y-2">
+            <div className="flex justify-between items-center text-[11px] font-mono">
+              <span className="text-slate-400 font-sans flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Protected in Vault</span>
+              </span>
+              <span className="font-bold text-emerald-400">
+                {sym}{vaultReserve.toLocaleString()} ({vaultProtectionPct}%)
+              </span>
+            </div>
+
+            {/* Visual Vault Bar */}
+            <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${vaultProtectionPct}%` }}
+                title={`${vaultProtectionPct}% of capital safely preserved in vault`}
+              />
+            </div>
+
+            <p className="text-[10px] text-slate-400 leading-relaxed font-sans mt-2">
+              🛡️ <strong>{sym}{vaultReserve.toLocaleString()}</strong> is permanently shielded and never risked on daily bets. Kelly stake sizing only uses your working bankroll (<strong>{sym}{activeCapital.toLocaleString()}</strong>).
+            </p>
+          </div>
         </div>
       </div>
 

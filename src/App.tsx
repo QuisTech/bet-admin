@@ -15,7 +15,12 @@ import { fetchLiveOddsFeed } from './services/oddsService';
 import { evaluateOpportunities } from './models/opportunityEngine';
 import { convertParsedSlipsToLoggedBets } from './services/oneXBetParser';
 import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated, resetLedgerToSeed } from './services/ledgerService';
-import { isFirebaseConfigured, syncAllLocalBetsToFirestore } from './services/firebaseService';
+import {
+  isFirebaseConfigured,
+  syncAllLocalBetsToFirestore,
+  saveBankrollConfigToFirestore,
+  subscribeToFirestoreBankrollConfig,
+} from './services/firebaseService';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -77,11 +82,14 @@ class LedgerErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
 
 export default function App() {
   const [config, setConfig] = useState<BankrollConfig>(() => {
-    let savedBankroll = 200000;
+    let savedBankroll = 20000;
+    let savedMaster = 200000;
     let savedCurrency: 'NGN' | 'USD' = 'NGN';
     try {
       const b = localStorage.getItem('bet_admin_bankroll');
       if (b && parseFloat(b) > 0) savedBankroll = parseFloat(b);
+      const m = localStorage.getItem('bet_admin_master_capital');
+      if (m && parseFloat(m) > 0) savedMaster = parseFloat(m);
       const c = localStorage.getItem('bet_admin_currency');
       if (c === 'USD' || c === 'NGN') savedCurrency = c;
     } catch {}
@@ -89,6 +97,7 @@ export default function App() {
     return {
       totalBankrollNGN: savedBankroll,
       totalBankroll: savedBankroll,
+      masterCapitalNGN: savedMaster,
       kellyFraction: 0.25,
       maxStakePercent: 0.02,
       currency: savedCurrency,
@@ -96,12 +105,51 @@ export default function App() {
     };
   });
 
+  // Real-time Cloud Synchronization for Bankroll Configuration from Firestore
+  useEffect(() => {
+    if (!isFirebaseConfigured()) return;
+    const unsub = subscribeToFirestoreBankrollConfig((cloudConfig) => {
+      setConfig((prev) => {
+        if (
+          prev.totalBankrollNGN === cloudConfig.totalBankrollNGN &&
+          prev.masterCapitalNGN === cloudConfig.masterCapitalNGN &&
+          prev.currency === cloudConfig.currency &&
+          prev.strategyMode === cloudConfig.strategyMode
+        ) {
+          return prev;
+        }
+        try {
+          localStorage.setItem('bet_admin_bankroll', cloudConfig.totalBankrollNGN.toString());
+          if (cloudConfig.masterCapitalNGN) {
+            localStorage.setItem('bet_admin_master_capital', cloudConfig.masterCapitalNGN.toString());
+          }
+          localStorage.setItem('bet_admin_currency', cloudConfig.currency);
+        } catch {}
+        return cloudConfig;
+      });
+    });
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
+
   const handleConfigChange = (newConfig: BankrollConfig) => {
     setConfig(newConfig);
     try {
       localStorage.setItem('bet_admin_bankroll', newConfig.totalBankrollNGN.toString());
+      if (newConfig.masterCapitalNGN) {
+        localStorage.setItem('bet_admin_master_capital', newConfig.masterCapitalNGN.toString());
+      }
       localStorage.setItem('bet_admin_currency', newConfig.currency);
     } catch {}
+
+    // Real-time broadcast to Cloud Firestore
+    if (isFirebaseConfigured()) {
+      saveBankrollConfigToFirestore(newConfig).catch((err) =>
+        console.warn('Background Firestore bankroll save failed:', err)
+      );
+    }
   };
 
   const [tab, setTab] = useState<'feed' | 'ledger' | 'bankroll' | 'diagnostics'>('feed');
