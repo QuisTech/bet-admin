@@ -933,6 +933,11 @@ export function deleteLoggedBet(id: string): LoggedBet[] {
 export function resetLedgerToSeed(): LoggedBet[] {
   saveLoggedBets(INITIAL_SEED_BETS);
   notifyLedgerUpdated(INITIAL_SEED_BETS);
+  if (isFirebaseConfigured()) {
+    syncAllLocalBetsToFirestore(INITIAL_SEED_BETS).catch((err) =>
+      console.warn('Background Firestore reset sync failed:', err)
+    );
+  }
   return INITIAL_SEED_BETS;
 }
 

@@ -112,7 +112,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
   };
 
   const handleResetSeed = () => {
-    if (window.confirm('Reset ledger to the verified 24/09/2026 execution positions?')) {
+    if (window.confirm('Reset ledger to all 21 official verified 1xBet positions? This will sync the official slips to both local and cloud storage.')) {
       const reset = resetLedgerToSeed();
       setBets(reset);
     }
@@ -235,7 +235,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
             </button>
             <button
               onClick={handleResetSeed}
-              title="Reset to 24/09 verified seed positions"
+              title="Reset ledger to all 21 official verified 1xBet positions"
               className="p-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
