@@ -49,6 +49,14 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="bg-slate-900 text-emerald-400 text-[8px] font-mono px-2 py-0.5 rounded border border-emerald-500/30">
               DUAL ML ENGINE
             </span>
+            <button
+              onClick={onOpenClvCalculator}
+              className="flex items-center gap-1.5 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-md bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/40 transition-all cursor-pointer shadow-sm hover:shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+              title="Universal CLV & Fair Line Calculator - Check any game on earth"
+            >
+              <Calculator className="w-3 h-3 text-emerald-400" />
+              <span>Check Any Game CLV</span>
+            </button>
           </div>
           <p className="text-[10px] text-slate-400 font-light uppercase tracking-widest">
             Institutional Sports Betting & Multi-League +EV Optimization Engine
@@ -168,22 +176,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Quick Universal CLV Calculator */}
-          <div className="flex flex-col w-full sm:w-auto">
-            <span className="text-[10px] uppercase tracking-widest text-slate-400 text-left sm:text-right font-medium">
-              Arbitrary CLV
-            </span>
-            <div className="flex items-center gap-1.5 mt-1">
-              <button
-                onClick={onOpenClvCalculator}
-                className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-black rounded-lg bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/40 transition-all cursor-pointer shadow-[0_0_10px_rgba(16,185,129,0.15)]"
-                title="Check CLV, fair line, and EV for any match or retail odds on earth"
-              >
-                <Calculator className="w-3.5 h-3.5" />
-                <span>Check Any Game CLV</span>
-              </button>
-            </div>
-          </div>
+
         </div>
 
         <div className="h-px xl:h-8 w-full xl:w-px bg-slate-800 my-1 xl:my-0"></div>

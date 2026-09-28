@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, Component, type ErrorInfo, type ReactNode } from 'react';
+import { Calculator } from 'lucide-react';
 import { Header } from './components/Header';
 import { MetricsColumn } from './components/MetricsColumn';
 import { TopPicksColumn } from './components/TopPicksColumn';
@@ -378,9 +379,19 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="text-right text-[11px] font-mono text-slate-400">
-                <span className="text-emerald-400 font-bold">{slateStats.activeSignalCount}</span>{' '}
-                signals active
+              <div className="flex items-center gap-3 justify-between md:justify-end">
+                <button
+                  onClick={() => setIsClvModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/40 text-emerald-400 hover:text-white text-[11px] font-bold transition cursor-pointer shadow-sm"
+                  title="Universal CLV & Fair Line Calculator - Check any game on earth"
+                >
+                  <Calculator className="w-3 h-3 text-emerald-400" />
+                  <span>Check Any Game CLV</span>
+                </button>
+                <div className="text-right text-[11px] font-mono text-slate-400">
+                  <span className="text-emerald-400 font-bold">{slateStats.activeSignalCount}</span>{' '}
+                  signals active
+                </div>
               </div>
             </div>
 
