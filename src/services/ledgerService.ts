@@ -709,13 +709,22 @@ export function sanitizeBet(raw: any): LoggedBet {
 
 /**
  * Deduplicates bets across IDs, normalized match names, selections, stakes, and timestamps.
+ * Discards temporary unverified drafts (e.g. 'bet-...') when an official slip already exists for the match.
  */
 export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
   const seenIds = new Set<string>();
   const seenSignatures = new Set<string>();
+  const seenMatchDates = new Set<string>();
   const result: LoggedBet[] = [];
 
-  for (const raw of bets) {
+  // Sort so official 1xBet slips (numeric IDs like 87983860761) come BEFORE temporary unverified drafts (bet-...)
+  const sorted = [...bets].sort((a, b) => {
+    const aIsDraft = a.id && a.id.startsWith('bet-') ? 1 : 0;
+    const bIsDraft = b.id && b.id.startsWith('bet-') ? 1 : 0;
+    return aIsDraft - bIsDraft;
+  });
+
+  for (const raw of sorted) {
     if (!raw) continue;
     const b = sanitizeBet(raw);
 
@@ -736,11 +745,19 @@ export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
       .replace(/\s+/g, ' ')
       .trim();
 
+    // Clean datePart: strip commas, slashes, extract DD/MM/YYYY
     const datePart = b.dateDisplay
-      ? b.dateDisplay.split(' ')[0]
+      ? b.dateDisplay.replace(/[^0-9/]/g, ' ').trim().split(/\s+/)[0]
       : b.timestamp
       ? b.timestamp.substring(0, 10)
       : '';
+
+    // If an official verified slip is already recorded for this match & date,
+    // discard any unverified temporary draft (bet-...) for the same match
+    const matchDateKey = `${normMatch}|${datePart}`;
+    if (b.id && b.id.startsWith('bet-') && seenMatchDates.has(matchDateKey)) {
+      continue;
+    }
 
     // Primary signature: match + selection + stake + priceTaken + datePart
     const primarySig = `${normMatch}|${normSel}|${b.stake}|${b.priceTaken.toFixed(2)}|${datePart}`;
@@ -754,6 +771,7 @@ export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
     if (b.id) seenIds.add(b.id);
     seenSignatures.add(primarySig);
     seenSignatures.add(matchSig);
+    seenMatchDates.add(matchDateKey);
     result.push(b);
   }
 
@@ -768,6 +786,10 @@ export function removeDuplicateBets(): { cleaned: LoggedBet[]; removedCount: num
     const removedCount = current.length - clean.length;
     if (removedCount > 0 && typeof localStorage !== 'undefined') {
       localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(clean));
+      notifyLedgerUpdated(clean);
+      if (isFirebaseConfigured()) {
+        syncAllLocalBetsToFirestore(clean).catch(() => {});
+      }
     }
     return { cleaned: clean, removedCount };
   } catch {

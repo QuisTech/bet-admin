@@ -19,7 +19,7 @@ import {
   type ParsedOneXBetSlip,
 } from '../services/oneXBetParser';
 import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated } from '../services/ledgerService';
-import { isFirebaseConfigured, syncAllLocalBetsToFirestore } from '../services/firebaseService';
+import { isFirebaseConfigured, syncAllLocalBetsToFirestore, deleteBetFromFirestore } from '../services/firebaseService';
 
 interface OneXBetSyncModalProps {
   isOpen: boolean;
@@ -93,16 +93,18 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
     const merged = [...existing];
 
     for (const nb of newBets) {
+      const cleanDate = (d?: string) => (d ? d.replace(/[^0-9/]/g, ' ').trim().split(/\s+/)[0] : '');
       const idx = merged.findIndex(
         (b) =>
           b.id === nb.id ||
           (b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() ===
             nb.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() &&
-            b.dateDisplay?.split(' ')[0] === nb.dateDisplay?.split(' ')[0])
+            cleanDate(b.dateDisplay) === cleanDate(nb.dateDisplay))
       );
 
       if (idx >= 0) {
         const old = merged[idx];
+        const oldId = old.id;
         // Intelligent reconciliation: Adopt 1xBet real settlement outcome, payout, and official slip ID,
         // while preserving rich model probabilities, Pinnacle CLV, and EV if already calculated.
         merged[idx] = {
@@ -120,6 +122,12 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
           stake: nb.stake || old.stake,
           notes: old.notes && !old.notes.includes(nb.id) ? `${old.notes} • Slip № ${nb.id}` : (nb.notes || old.notes),
         };
+
+        // If the old position had a temporary/draft ID that was replaced by an official slip ID,
+        // prune the ghost draft doc from Firestore to prevent double counting
+        if (oldId && oldId !== nb.id && oldId.startsWith('bet-') && isFirebaseConfigured()) {
+          deleteBetFromFirestore(oldId).catch(() => {});
+        }
       } else {
         merged.push(nb);
       }
