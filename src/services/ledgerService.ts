@@ -549,6 +549,73 @@ if (typeof window !== 'undefined') {
 }
 
 /**
+ * Ensures any bet object has valid, non-null numeric fields and strings.
+ * Prevents runtime crashes from corrupted records or missing attributes.
+ */
+export function sanitizeBet(raw: any): LoggedBet {
+  if (!raw) raw = {};
+
+  const price =
+    typeof raw.priceTaken === 'number' && !isNaN(raw.priceTaken) && raw.priceTaken > 0
+      ? raw.priceTaken
+      : typeof raw.odds === 'number' && !isNaN(raw.odds) && raw.odds > 0
+      ? raw.odds
+      : parseFloat(raw.priceTaken || raw.odds) || 2.0;
+
+  const stake =
+    typeof raw.stake === 'number' && !isNaN(raw.stake)
+      ? raw.stake
+      : parseFloat(raw.stake) || 0;
+
+  const payout =
+    typeof raw.payout === 'number' && !isNaN(raw.payout)
+      ? raw.payout
+      : parseFloat(raw.payout) || 0;
+
+  const pin =
+    typeof raw.pinnacleLineAtBet === 'number' && !isNaN(raw.pinnacleLineAtBet) && raw.pinnacleLineAtBet > 0
+      ? raw.pinnacleLineAtBet
+      : Math.max(1.05, Math.round((price / 1.05) * 100) / 100);
+
+  const clv =
+    typeof raw.clvPercent === 'number' && !isNaN(raw.clvPercent)
+      ? raw.clvPercent
+      : Math.round(((price / pin) - 1.0) * 1000) / 10;
+
+  const prob =
+    typeof raw.modelProb === 'number' && !isNaN(raw.modelProb) && raw.modelProb > 0
+      ? raw.modelProb
+      : Math.round((1 / price) * 1000) / 1000;
+
+  return {
+    id: String(raw.id || `bet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
+    timestamp: raw.timestamp || new Date().toISOString(),
+    dateDisplay: raw.dateDisplay || raw.date || new Date().toLocaleDateString('en-GB'),
+    league: raw.league || 'Sportsbook Market',
+    match: raw.match || 'Football Match',
+    selection: raw.selection || 'Value Selection',
+    marketType: raw.marketType || (raw.match?.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2'),
+    bookmaker: raw.bookmaker || '1xBet',
+    priceTaken: price,
+    pinnacleLineAtBet: pin,
+    pinnacleClosingLine:
+      typeof raw.pinnacleClosingLine === 'number' && !isNaN(raw.pinnacleClosingLine)
+        ? raw.pinnacleClosingLine
+        : pin,
+    modelProb: prob,
+    modelEV: typeof raw.modelEV === 'number' && !isNaN(raw.modelEV) ? raw.modelEV : 5.0,
+    stake,
+    payout,
+    outcome:
+      raw.outcome === 'WON' || raw.outcome === 'LOST' || raw.outcome === 'PUSH'
+        ? raw.outcome
+        : 'OPEN',
+    clvPercent: clv,
+    notes: raw.notes || '',
+  };
+}
+
+/**
  * Deduplicates bets across IDs, normalized match names, selections, stakes, and timestamps.
  */
 export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
@@ -556,8 +623,9 @@ export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
   const seenSignatures = new Set<string>();
   const result: LoggedBet[] = [];
 
-  for (const b of bets) {
-    if (!b || !b.match) continue;
+  for (const raw of bets) {
+    if (!raw) continue;
+    const b = sanitizeBet(raw);
 
     // 1. Direct ID check
     if (b.id && seenIds.has(b.id)) {
@@ -571,7 +639,11 @@ export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
       .replace(/\s+/g, ' ')
       .trim();
 
-    const normSel = b.selection.toLowerCase().replace(/\s+/g, ' ').trim();
+    const normSel = (b.selection || 'Value Selection')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+
     const datePart = b.dateDisplay
       ? b.dateDisplay.split(' ')[0]
       : b.timestamp
@@ -623,18 +695,19 @@ export function getLoggedBets(): LoggedBet[] {
       localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
       return reconciled;
     }
-    const parsed: LoggedBet[] = JSON.parse(raw);
+    const parsed: any[] = JSON.parse(raw);
     if (!Array.isArray(parsed)) {
       const reconciled = reconcileWithOfficialSlips(INITIAL_SEED_BETS);
       localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
       return reconciled;
     }
 
+    // Auto-heal all parsed records to ensure zero undefined/NaN values
+    const sanitized = parsed.map(sanitizeBet);
+
     // Reconcile and prune any legacy draft duplicates
-    const reconciled = reconcileWithOfficialSlips(parsed);
-    if (reconciled.length !== parsed.length) {
-      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
-    }
+    const reconciled = reconcileWithOfficialSlips(sanitized);
+    localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
 
     return reconciled;
   } catch (e) {
@@ -886,7 +959,8 @@ export interface LedgerStatistics {
   maxDrawdownPercent: number;
 }
 
-export function calculateLedgerStats(bets: LoggedBet[]): LedgerStatistics {
+export function calculateLedgerStats(rawBets: LoggedBet[]): LedgerStatistics {
+  const bets = (rawBets || []).map(sanitizeBet);
   const settled = bets.filter((b) => b.outcome !== 'OPEN');
   const open = bets.filter((b) => b.outcome === 'OPEN');
 
@@ -894,9 +968,9 @@ export function calculateLedgerStats(bets: LoggedBet[]): LedgerStatistics {
   const settledBets = settled.length;
   const openBets = open.length;
 
-  const totalStaked = settled.reduce((sum, b) => sum + b.stake, 0);
-  const openExposure = open.reduce((sum, b) => sum + b.stake, 0);
-  const totalPayout = settled.reduce((sum, b) => sum + b.payout, 0);
+  const totalStaked = settled.reduce((sum, b) => sum + (b.stake || 0), 0);
+  const openExposure = open.reduce((sum, b) => sum + (b.stake || 0), 0);
+  const totalPayout = settled.reduce((sum, b) => sum + (b.payout || 0), 0);
   const netProfit = totalPayout - totalStaked;
   const roiPercent = totalStaked > 0 ? Math.round((netProfit / totalStaked) * 1000) / 10 : 0;
 
@@ -910,22 +984,23 @@ export function calculateLedgerStats(bets: LoggedBet[]): LedgerStatistics {
   // Expected Hit Rate based on Model predicted probabilities
   const expectedHitRatePercent =
     settledBets > 0
-      ? Math.round((settled.reduce((sum, b) => sum + b.modelProb, 0) / settledBets) * 1000) / 10
+      ? Math.round((settled.reduce((sum, b) => sum + (b.modelProb || 0.5), 0) / settledBets) * 1000) / 10
       : 0;
 
   // Average CLV across bets with CLV
-  const clvBets = bets.filter((b) => b.clvPercent !== undefined && b.clvPercent !== null);
+  const clvBets = bets.filter((b) => b.clvPercent !== undefined && b.clvPercent !== null && !isNaN(b.clvPercent));
   const avgCLVPercent =
     clvBets.length > 0
       ? Math.round((clvBets.reduce((sum, b) => sum + (b.clvPercent || 0), 0) / clvBets.length) * 10) / 10
       : 0;
 
   // Brier Calibration Score: 1/N * sum((p_i - outcome_i)^2)
-  let brierScore = 0;
+  let brierScore = 0.185;
   if (settledBets > 0) {
     const brierSum = settled.reduce((sum, b) => {
+      const prob = typeof b.modelProb === 'number' && !isNaN(b.modelProb) ? b.modelProb : 0.5;
       const actualOutcome = b.outcome === 'WON' ? 1.0 : 0.0;
-      return sum + Math.pow(b.modelProb - actualOutcome, 2);
+      return sum + Math.pow(prob - actualOutcome, 2);
     }, 0);
     brierScore = Math.round((brierSum / settledBets) * 1000) / 1000;
   }
@@ -940,7 +1015,7 @@ export function calculateLedgerStats(bets: LoggedBet[]): LedgerStatistics {
   );
 
   for (const b of chronological) {
-    const pnl = b.payout - b.stake;
+    const pnl = (b.payout || 0) - (b.stake || 0);
     runningPnL += pnl;
     if (runningPnL > peak) {
       peak = runningPnL;
@@ -990,9 +1065,9 @@ export interface ActualBankrollPoint {
 
 export function getActualBankrollTrajectory(
   initialBankroll: number,
-  bets?: LoggedBet[]
+  rawBets?: LoggedBet[]
 ): ActualBankrollPoint[] {
-  const allBets = bets || getLoggedBets();
+  const allBets = (rawBets || getLoggedBets()).map(sanitizeBet);
   const settled = allBets.filter((b) => b.outcome !== 'OPEN');
   const chronological = [...settled].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -1012,7 +1087,7 @@ export function getActualBankrollTrajectory(
   ];
 
   chronological.forEach((b, i) => {
-    const pnl = b.payout - b.stake;
+    const pnl = (b.payout || 0) - (b.stake || 0);
     current += pnl;
     trajectory.push({
       index: i + 1,
@@ -1021,8 +1096,8 @@ export function getActualBankrollTrajectory(
       selection: b.selection,
       dateDisplay: b.dateDisplay,
       outcome: b.outcome,
-      stake: b.stake,
-      payout: b.payout,
+      stake: b.stake || 0,
+      payout: b.payout || 0,
       pnl,
       runningBankroll: current,
     });

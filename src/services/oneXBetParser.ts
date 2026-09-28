@@ -279,39 +279,77 @@ export function parse1xBetText(rawText: string): ParsedOneXBetSlip[] {
 /**
  * Converts parsed 1xBet slips into full LoggedBet records ready for Position Ledger.
  */
-export function convertParsedSlipsToLoggedBets(slips: ParsedOneXBetSlip[]): LoggedBet[] {
-  return slips.map((s) => {
+export function convertParsedSlipsToLoggedBets(slips: any[]): LoggedBet[] {
+  return (slips || []).map((s) => {
     let timestamp = new Date().toISOString();
-    if (s.date) {
-      const parts = s.date.match(/(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}):(\d{2})/);
+    const dateStr = s.dateDisplay || s.date || '';
+    if (dateStr) {
+      const parts = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}):(\d{2})/);
       if (parts) {
         const [, d, m, y, h, min] = parts;
         timestamp = new Date(`${y}-${m}-${d}T${h}:${min}:00Z`).toISOString();
       }
     }
 
-    const pinnacleLine = Math.max(1.05, Math.round((s.odds / 1.05) * 100) / 100);
-    const clv = Math.round(((s.odds / pinnacleLine) - 1.0) * 1000) / 10;
+    const odds =
+      typeof s.odds === 'number' && !isNaN(s.odds) && s.odds > 0
+        ? s.odds
+        : typeof s.priceTaken === 'number' && !isNaN(s.priceTaken) && s.priceTaken > 0
+        ? s.priceTaken
+        : parseFloat(s.odds || s.priceTaken) || 2.0;
+
+    const stake =
+      typeof s.stake === 'number' && !isNaN(s.stake)
+        ? s.stake
+        : parseFloat(s.stake) || 0;
+
+    const payout =
+      typeof s.payout === 'number' && !isNaN(s.payout)
+        ? s.payout
+        : parseFloat(s.payout) || 0;
+
+    const pinnacleLine =
+      typeof s.pinnacleLineAtBet === 'number' && !isNaN(s.pinnacleLineAtBet) && s.pinnacleLineAtBet > 0
+        ? s.pinnacleLineAtBet
+        : Math.max(1.05, Math.round((odds / 1.05) * 100) / 100);
+
+    const clv =
+      typeof s.clvPercent === 'number' && !isNaN(s.clvPercent)
+        ? s.clvPercent
+        : Math.round(((odds / pinnacleLine) - 1.0) * 1000) / 10;
+
+    const prob =
+      typeof s.modelProb === 'number' && !isNaN(s.modelProb) && s.modelProb > 0
+        ? s.modelProb
+        : Math.round((1 / odds) * 1000) / 1000;
+
+    const outcome =
+      s.outcome === 'WON' || s.outcome === 'LOST' || s.outcome === 'PUSH'
+        ? s.outcome
+        : 'OPEN';
 
     return {
-      id: s.id,
+      id: String(s.id || `bet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
       timestamp,
-      dateDisplay: s.date || new Date().toLocaleDateString('en-GB'),
-      league: s.league,
-      match: s.match,
-      selection: s.selection,
-      marketType: s.match.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2',
-      bookmaker: '1xBet',
-      priceTaken: s.odds,
+      dateDisplay: dateStr || new Date().toLocaleDateString('en-GB'),
+      league: s.league || 'Sportsbook Market',
+      match: s.match || 'Football Match',
+      selection: s.selection || 'Match Outcome (1X2)',
+      marketType: s.marketType || (s.match?.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2'),
+      bookmaker: s.bookmaker || '1xBet',
+      priceTaken: odds,
       pinnacleLineAtBet: pinnacleLine,
-      pinnacleClosingLine: pinnacleLine,
-      modelProb: Math.round((1 / s.odds) * 1000) / 1000,
-      modelEV: Math.round(clv * 10) / 10,
-      stake: s.stake,
-      payout: s.payout,
-      outcome: s.outcome,
+      pinnacleClosingLine:
+        typeof s.pinnacleClosingLine === 'number' && !isNaN(s.pinnacleClosingLine)
+          ? s.pinnacleClosingLine
+          : pinnacleLine,
+      modelProb: prob,
+      modelEV: typeof s.modelEV === 'number' && !isNaN(s.modelEV) ? s.modelEV : Math.round(clv * 10) / 10,
+      stake,
+      payout,
+      outcome,
       clvPercent: clv,
-      notes: `Bet slip № ${s.id}${s.status === 'Sold' ? ' • Cashed Out / Sold' : ''}`,
+      notes: s.notes || `Bet slip № ${s.id || ''}${s.status === 'Sold' ? ' • Cashed Out / Sold' : ''}`,
     };
   });
 }

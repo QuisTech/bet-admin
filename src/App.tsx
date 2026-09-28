@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, Component, type ErrorInfo, type ReactNode } from 'react';
 import { Header } from './components/Header';
 import { MetricsColumn } from './components/MetricsColumn';
 import { TopPicksColumn } from './components/TopPicksColumn';
@@ -14,8 +14,66 @@ import { fetchLiveFPLBootstrap } from './services/fplService';
 import { fetchLiveOddsFeed } from './services/oddsService';
 import { evaluateOpportunities } from './models/opportunityEngine';
 import { convertParsedSlipsToLoggedBets } from './services/oneXBetParser';
-import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated } from './services/ledgerService';
+import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated, resetLedgerToSeed } from './services/ledgerService';
 import { isFirebaseConfigured, syncAllLocalBetsToFirestore } from './services/firebaseService';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class LedgerErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('LedgerErrorBoundary caught error:', error, errorInfo);
+  }
+
+  handleReset = () => {
+    try {
+      resetLedgerToSeed();
+      this.setState({ hasError: false });
+      window.location.reload();
+    } catch {}
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-4 max-w-lg mx-auto my-12 shadow-2xl animate-fade-in">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto text-xl">
+            🛡️
+          </div>
+          <h3 className="text-base font-black text-slate-100">
+            Position Ledger Recovered
+          </h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            A corrupted ticket was detected from browser storage. Click below to self-heal and restore your official 1xBet verified positions.
+          </p>
+          <button
+            onClick={this.handleReset}
+            className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition cursor-pointer"
+          >
+            🚀 Recover &amp; Restore Ledger
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const [config, setConfig] = useState<BankrollConfig>(() => {
@@ -268,7 +326,9 @@ export default function App() {
               )}
 
               {tab === 'ledger' && (
-                <BetLedger config={config} onOpenSettings={handleOpenSettings} />
+                <LedgerErrorBoundary>
+                  <BetLedger config={config} onOpenSettings={handleOpenSettings} />
+                </LedgerErrorBoundary>
               )}
 
               {tab === 'bankroll' && (

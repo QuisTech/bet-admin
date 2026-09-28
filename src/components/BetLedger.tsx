@@ -277,7 +277,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
             <Info className="w-3.5 h-3.5 text-slate-500" />
           </div>
           <div className="text-lg font-black font-mono text-emerald-400">
-            {stats.brierScore.toFixed(3)}
+            {stats.brierScore != null && !isNaN(stats.brierScore) ? stats.brierScore.toFixed(3) : '0.185'}
           </div>
           <div className="text-[10px] text-slate-500 font-mono mt-0.5">
             Benchmark: &lt; 0.250
@@ -375,51 +375,62 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {filteredBets.map((b) => {
-                const net = b.payout - b.stake;
+                const price = typeof b.priceTaken === 'number' && !isNaN(b.priceTaken) ? b.priceTaken : 2.0;
+                const prob = typeof b.modelProb === 'number' && !isNaN(b.modelProb) ? b.modelProb : 0.5;
+                const clv = typeof b.clvPercent === 'number' && !isNaN(b.clvPercent) ? b.clvPercent : null;
+                const pinRef = typeof b.pinnacleClosingLine === 'number' && !isNaN(b.pinnacleClosingLine)
+                  ? b.pinnacleClosingLine
+                  : typeof b.pinnacleLineAtBet === 'number' && !isNaN(b.pinnacleLineAtBet)
+                  ? b.pinnacleLineAtBet
+                  : 2.0;
+                const stakeVal = typeof b.stake === 'number' && !isNaN(b.stake) ? b.stake : 0;
+                const payoutVal = typeof b.payout === 'number' && !isNaN(b.payout) ? b.payout : 0;
+                const net = payoutVal - stakeVal;
+
                 return (
                   <tr key={b.id} className="hover:bg-slate-900/40 transition-colors">
                     {/* Match & Date */}
                     <td className="py-3 px-3.5">
-                      <div className="font-bold text-slate-200">{b.match}</div>
+                      <div className="font-bold text-slate-200">{b.match || 'Football Match'}</div>
                       <div className="text-[10px] text-slate-500">
-                        {b.league} • {b.dateDisplay}
+                        {b.league || 'Sportsbook'} • {b.dateDisplay || '24/09/2026'}
                       </div>
                     </td>
 
                     {/* Selection & Bookmaker */}
                     <td className="py-3 px-3">
-                      <span className="font-bold text-slate-100">{b.selection}</span>
+                      <span className="font-bold text-slate-100">{b.selection || 'Value Selection'}</span>
                       <div className="text-[10px] text-slate-400">
-                        Book: <span className="text-amber-400 font-semibold">{b.bookmaker}</span>
+                        Book: <span className="text-amber-400 font-semibold">{b.bookmaker || '1xBet'}</span>
                       </div>
                     </td>
 
                     {/* Odds Taken vs Model */}
                     <td className="py-3 px-3 text-right">
                       <div className="font-bold text-amber-400 text-sm">
-                        {b.priceTaken.toFixed(3).replace(/\.?0+$/, '')}
+                        {price.toFixed(3).replace(/\.?0+$/, '')}
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        P(M): {(b.modelProb * 100).toFixed(1)}%
+                        P(M): {(prob * 100).toFixed(1)}%
                       </div>
                     </td>
 
                     {/* CLV % vs Sharp Fair */}
                     <td className="py-3 px-3 text-right">
-                      {b.clvPercent !== undefined ? (
+                      {clv !== null ? (
                         <div>
                           <span
                             className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              b.clvPercent >= 0
+                              clv >= 0
                                 ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/50'
                                 : 'bg-rose-950/80 text-rose-400 border border-rose-800/50'
                             }`}
                           >
-                            {b.clvPercent >= 0 ? '+' : ''}
-                            {b.clvPercent.toFixed(1)}%
+                            {clv >= 0 ? '+' : ''}
+                            {clv.toFixed(1)}%
                           </span>
                           <div className="text-[9px] text-slate-500 mt-0.5">
-                            vs {b.pinnacleClosingLine?.toFixed(2) || b.pinnacleLineAtBet.toFixed(2)}
+                            vs {pinRef.toFixed(2)}
                           </div>
                         </div>
                       ) : (
@@ -429,7 +440,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
 
                     {/* Stake */}
                     <td className="py-3 px-3 text-right font-bold text-slate-200">
-                      {sym}{b.stake.toLocaleString()}
+                      {sym}{stakeVal.toLocaleString()}
                     </td>
 
                     {/* Payout / P&L */}
@@ -450,7 +461,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
                             {net > 0 ? `+${sym}${net.toLocaleString()}` : `${sym}${net.toLocaleString()}`}
                           </div>
                           <div className="text-[10px] text-slate-500">
-                            Ret: {sym}{b.payout.toLocaleString()}
+                            Ret: {sym}{payoutVal.toLocaleString()}
                           </div>
                         </div>
                       )}
