@@ -39,9 +39,10 @@ export function recordDeletedBet(b: Partial<LoggedBet>): void {
 }
 
 export function isBetDeleted(b: Partial<LoggedBet>): boolean {
-  if (b.id === '87951912353' || b.selection === 'Early Cashout / Market Position') return true;
+  if (b.selection === 'Early Cashout / Market Position') return true;
   const current = getDeletedSignatures();
-  if (b.id && current.has(b.id)) return true;
+  // 87951912353 is an official verified slip from 1xBet email statement (Hull City cashed out @ 0.94)
+  if (b.id && current.has(b.id) && b.id !== '87951912353') return true;
   if (b.match) {
     const normMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
     if (current.has(normMatch)) return true;
@@ -54,7 +55,7 @@ export function isBetDeleted(b: Partial<LoggedBet>): boolean {
   return false;
 }
 
-// Auto-purge ghost bets (Lithuania vs Azerbaijan and phantom cashouts) and tombstone permanently
+// Auto-purge ghost bets (Lithuania vs Azerbaijan and manual draft ghosts) and tombstone permanently
 export function purgeGhostBets(): void {
   try {
     recordDeletedBet({
@@ -64,11 +65,20 @@ export function purgeGhostBets(): void {
     recordDeletedBet({
       match: 'Lithuania vs Azerbaijan',
     });
-    recordDeletedBet({
-      id: '87951912353',
-      match: 'Hull City vs Everton',
-      selection: 'Early Cashout / Market Position',
-    });
+
+    // Unblock official slip 87951912353 from deleted storage if previously marked
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const rawDel = localStorage.getItem(DELETED_BETS_STORAGE_KEY);
+        if (rawDel) {
+          const parsedDel = JSON.parse(rawDel);
+          if (Array.isArray(parsedDel)) {
+            const unblocked = parsedDel.filter((id: string) => id !== '87951912353');
+            localStorage.setItem(DELETED_BETS_STORAGE_KEY, JSON.stringify(unblocked));
+          }
+        }
+      } catch {}
+    }
 
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
@@ -78,7 +88,6 @@ export function purgeGhostBets(): void {
           const cleaned = parsed.filter(
             (b) =>
               !b.match.toLowerCase().includes('azerbaijan') &&
-              b.id !== '87951912353' &&
               b.selection !== 'Early Cashout / Market Position' &&
               !b.id.startsWith('seed-bet-')
           );
@@ -94,10 +103,6 @@ export function purgeGhostBets(): void {
       deleteBetFromFirestore('ghost', {
         match: 'Lithuania vs Azerbaijan',
         selection: 'Lithuania or Draw (1X) (1X2)',
-      }).catch(() => {});
-      deleteBetFromFirestore('87951912353', {
-        match: 'Hull City vs Everton',
-        selection: 'Early Cashout / Market Position',
       }).catch(() => {});
     }
   } catch {}
