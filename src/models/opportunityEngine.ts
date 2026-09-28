@@ -52,12 +52,12 @@ export function evaluateOpportunities(
 ): SlateStatistics {
   const strategy = STRATEGY_MODES[riskMode] || STRATEGY_MODES.safe;
 
-  const matchMarkets: OpportunityItem[] = matches.flatMap((m) =>
-    m.markets.map((mk) => {
+  const matchMarkets: OpportunityItem[] = (matches || []).flatMap((m) =>
+    (m.markets || []).map((mk) => {
       const stakePct = strategy.maxStakePercent;
       // 1X2 canonical decomposition coherence check
-      const hMk = m.markets.find((x) => x.selection.includes('Win') && !x.selection.includes(m.awayTeam));
-      const dMk = m.markets.find((x) => x.selection === 'Draw');
+      const hMk = (m.markets || []).find((x) => x.selection.includes('Win') && !x.selection.includes(m.awayTeam));
+      const dMk = (m.markets || []).find((x) => x.selection === 'Draw');
 
       let domainProb = mk.domainProb ?? mk.ensembleProb;
       let trainedMlProb = mk.trainedMlProb ?? mk.ensembleProb;
@@ -116,8 +116,8 @@ export function evaluateOpportunities(
     })
   );
 
-  const playerPropMarkets: OpportunityItem[] = matches.flatMap((m) =>
-    m.playerProps.map((p) => {
+  const playerPropMarkets: OpportunityItem[] = (matches || []).flatMap((m) =>
+    (m.playerProps || []).map((p) => {
       const stakePct = strategy.maxStakePercent;
       const domainProb = p.domainProb ?? p.modelProb;
       const trainedMlProb = p.trainedMlProb ?? p.modelProb;

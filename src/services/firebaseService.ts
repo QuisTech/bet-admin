@@ -558,7 +558,12 @@ export async function getCloudCachedOdds(
 
     const matches = JSON.parse(data.matchesJson);
     if (Array.isArray(matches) && matches.length > 0) {
-      return { matches, timestamp: Number(data.timestamp) };
+      const validMatches = matches.filter(
+        (m: any) => m && Array.isArray(m.markets) && m.markets.length > 0
+      );
+      if (validMatches.length > 0) {
+        return { matches: validMatches, timestamp: Number(data.timestamp) };
+      }
     }
     return null;
   } catch (e) {

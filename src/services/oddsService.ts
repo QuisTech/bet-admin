@@ -306,20 +306,23 @@ export async function fetchLiveOddsFeed(
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Sanitize: strictly strip out any mismatched player props from older caches
-          const sanitized = parsed.map((m: MatchData) => ({
-            ...m,
-            playerProps: (m.playerProps || []).filter(
-              (p) => p.team === m.homeTeam || p.team === m.awayTeam
-            ),
-          }));
-          return {
-            matches: sanitized,
-            isLive: true,
-            source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} - Device Cache)`,
-            count: sanitized.length,
-            selectedLeague,
-          };
+          const valid = parsed.filter((m: any) => m && Array.isArray(m.markets) && m.markets.length > 0);
+          if (valid.length > 0) {
+            // Sanitize: strictly strip out any mismatched player props from older caches
+            const sanitized = valid.map((m: MatchData) => ({
+              ...m,
+              playerProps: (m.playerProps || []).filter(
+                (p) => p.team === m.homeTeam || p.team === m.awayTeam
+              ),
+            }));
+            return {
+              matches: sanitized,
+              isLive: true,
+              source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} - Device Cache)`,
+              count: sanitized.length,
+              selectedLeague,
+            };
+          }
         }
       } catch {}
     }
@@ -775,13 +778,16 @@ export async function fetchLiveOddsFeed(
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return {
-            matches: parsed,
-            isLive: true,
-            source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} Cached Feed)`,
-            count: parsed.length,
-            selectedLeague,
-          };
+          const valid = parsed.filter((m: any) => m && Array.isArray(m.markets) && m.markets.length > 0);
+          if (valid.length > 0) {
+            return {
+              matches: valid,
+              isLive: true,
+              source: `${selectedLeague.flag} The Odds API (${selectedLeague.name} Cached Feed)`,
+              count: valid.length,
+              selectedLeague,
+            };
+          }
         }
       } catch {}
     }

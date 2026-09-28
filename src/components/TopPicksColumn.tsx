@@ -40,10 +40,10 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
             },
           };
         })
-    : matches
+    : (matches || [])
         .flatMap((m) =>
-          m.markets
-            .filter((market) => market.evPercent > 0)
+          (m.markets || [])
+            .filter((market) => market && market.evPercent > 0)
             .map((market) => ({
               match: m,
               market,
