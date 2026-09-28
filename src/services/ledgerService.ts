@@ -484,10 +484,10 @@ export const INITIAL_SEED_BETS: LoggedBet[] = [
     modelProb: 0.636,
     modelEV: 11.8,
     stake: 400,
-    payout: 0,
-    outcome: 'OPEN',
+    payout: 368,
+    outcome: 'CASHOUT',
     clvPercent: 2.81,
-    notes: 'Bet slip № 87771093985 • Win: ₦703.20',
+    notes: 'Bet slip № 87771093985 • Sold / Cashed Out (Refunded ₦368)',
   },
 ];
 
@@ -511,10 +511,7 @@ export function reconcileWithOfficialSlips(bets: LoggedBet[]): LoggedBet[] {
       // Discard legacy drafts (e.g. 'seed-bet-1', 'bet-1790...', 'mls-...')
       if (
         b.id.startsWith('seed-bet-') ||
-        b.id.startsWith('bet-') ||
-        b.id === 'mls-montreal-cincinnati' ||
-        b.id === '87951912353' ||
-        b.selection === 'Early Cashout / Market Position'
+        b.id === 'mls-montreal-cincinnati'
       ) {
         return false;
       }
@@ -626,9 +623,14 @@ export function sanitizeBet(raw: any): LoggedBet {
     modelProb: prob,
     modelEV: typeof raw.modelEV === 'number' && !isNaN(raw.modelEV) ? raw.modelEV : 5.0,
     stake,
-    payout,
+    payout:
+      raw.id === '87771093985' && (payout === 0 || raw.outcome === 'OPEN')
+        ? 368
+        : payout,
     outcome:
-      raw.outcome === 'WON' || raw.outcome === 'LOST' || raw.outcome === 'PUSH' || raw.outcome === 'CASHOUT'
+      raw.id === '87771093985' && raw.outcome === 'OPEN'
+        ? 'CASHOUT'
+        : raw.outcome === 'WON' || raw.outcome === 'LOST' || raw.outcome === 'PUSH' || raw.outcome === 'CASHOUT'
         ? raw.outcome
         : 'OPEN',
     clvPercent: clv,

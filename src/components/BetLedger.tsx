@@ -88,7 +88,21 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
   }, [bets, statusFilter]);
 
   const handleOutcomeChange = (id: string, outcome: BetOutcome) => {
-    const updated = updateBetOutcome(id, outcome);
+    let customPayout: number | undefined = undefined;
+    if (outcome === 'CASHOUT') {
+      const target = bets.find((b) => b.id === id);
+      const defaultReturn = target ? Math.round(target.stake * 0.92 * 100) / 100 : 0;
+      const input = window.prompt(
+        `Enter refund amount received from 1xBet for ${target?.match || 'this match'} (NGN):`,
+        String(target?.payout && target.payout > 0 ? target.payout : defaultReturn)
+      );
+      if (input === null) return; // user cancelled
+      const val = parseFloat(input);
+      if (!isNaN(val) && val >= 0) {
+        customPayout = val;
+      }
+    }
+    const updated = updateBetOutcome(id, outcome, customPayout);
     setBets(updated);
   };
 
@@ -364,18 +378,16 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
           >
             Lost ({stats.lossCount})
           </button>
-          {stats.cashoutCount > 0 && (
-            <button
-              onClick={() => setStatusFilter('CASHOUT')}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                statusFilter === 'CASHOUT'
-                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Cashed Out ({stats.cashoutCount})
-            </button>
-          )}
+          <button
+            onClick={() => setStatusFilter('CASHOUT')}
+            className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+              statusFilter === 'CASHOUT'
+                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Cashed Out ({stats.cashoutCount})
+          </button>
         </div>
 
         <div className="text-right text-[11px] font-mono text-slate-500">
