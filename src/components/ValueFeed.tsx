@@ -493,6 +493,8 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                           <span className="text-cyan-400 font-semibold">
                             {opt.selection.includes('(1X)')
                               ? '1X Double Chance'
+                              : opt.selection.includes('(2X)') || opt.selection.includes('(X2)')
+                              ? '2X Double Chance'
                               : opt.type === 'PROPS'
                               ? 'Goalscorer Prop'
                               : '1X2 Match Line'}
@@ -1010,6 +1012,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                     const isDrawPick = activeSelection.includes('Draw') && !activeSelection.includes('or Draw');
                     const isAwayPick = activeSelection.includes('Win') && !activeSelection.includes('Draw') && activeSelection.includes(opt.match.awayTeam);
                     const is1XPick = activeSelection.includes('(1X)');
+                    const is2XPick = activeSelection.includes('(2X)') || activeSelection.includes('(X2)');
 
                     return (
                       <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-xs font-mono">
@@ -1034,29 +1037,29 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                           </div>
                           <div
                             className={`p-1.5 rounded border transition-all ${
-                              isDrawPick || is1XPick
+                              isDrawPick || is1XPick || is2XPick
                                 ? 'bg-emerald-950/70 border-emerald-500/70 ring-1 ring-emerald-500/40'
                                 : 'bg-slate-900/60 border-slate-800'
                             }`}
                           >
                             <span className="text-slate-400 text-[9px] block flex items-center justify-center gap-1">
-                              Draw {(isDrawPick || is1XPick) && <span className="text-[8px] text-emerald-400 font-bold">🎯 TARGET</span>}
+                              Draw {(isDrawPick || is1XPick || is2XPick) && <span className="text-[8px] text-emerald-400 font-bold">🎯 TARGET</span>}
                             </span>
-                            <span className={`font-bold ${isDrawPick || is1XPick ? 'text-emerald-300 font-black' : 'text-slate-200'}`}>
+                            <span className={`font-bold ${isDrawPick || is1XPick || is2XPick ? 'text-emerald-300 font-black' : 'text-slate-200'}`}>
                               {pD}%
                             </span>
                           </div>
                           <div
                             className={`p-1.5 rounded border transition-all ${
-                              isAwayPick
+                              isAwayPick || is2XPick
                                 ? 'bg-emerald-950/70 border-emerald-500/70 ring-1 ring-emerald-500/40'
                                 : 'bg-slate-900/60 border-slate-800'
                             }`}
                           >
                             <span className="text-slate-400 text-[9px] block flex items-center justify-center gap-1">
-                              Away Win {isAwayPick && <span className="text-[8px] text-emerald-400 font-bold">🎯 TARGET</span>}
+                              Away Win {(isAwayPick || is2XPick) && <span className="text-[8px] text-emerald-400 font-bold">🎯 TARGET</span>}
                             </span>
-                            <span className={`font-bold ${isAwayPick ? 'text-emerald-300 font-black' : 'text-slate-200'}`}>
+                            <span className={`font-bold ${isAwayPick || is2XPick ? 'text-emerald-300 font-black' : 'text-slate-200'}`}>
                               {pA}%
                             </span>
                           </div>
@@ -1064,6 +1067,11 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         {is1XPick && (
                           <div className="text-[10px] text-cyan-400 mt-1.5 text-center pt-1 border-t border-slate-900 font-bold">
                             P(1X Target) = P(Home {pH}%) + P(Draw {pD}%) = <span className="text-emerald-400">{(pH + pD).toFixed(1)}%</span>
+                          </div>
+                        )}
+                        {is2XPick && (
+                          <div className="text-[10px] text-cyan-400 mt-1.5 text-center pt-1 border-t border-slate-900 font-bold">
+                            P(2X Target) = P(Away {pA}%) + P(Draw {pD}%) = <span className="text-emerald-400">{(pA + pD).toFixed(1)}%</span>
                           </div>
                         )}
                       </div>

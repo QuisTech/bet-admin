@@ -58,11 +58,12 @@ export function evaluateOpportunities(
       // 1X2 canonical decomposition coherence check
       const hMk = (m.markets || []).find((x) => x.selection.includes('Win') && !x.selection.includes(m.awayTeam));
       const dMk = (m.markets || []).find((x) => x.selection === 'Draw');
+      const aMk = (m.markets || []).find((x) => x.selection.includes('Win') && x.selection.includes(m.awayTeam));
 
       let domainProb = mk.domainProb ?? mk.ensembleProb;
       let trainedMlProb = mk.trainedMlProb ?? mk.ensembleProb;
 
-      // If this is a 1X market and both Home and Draw markets exist, enforce exact canonical sum
+      // If this is a 1X or 2X market and underlying component markets exist, enforce exact canonical sum
       let canonicalConsensusProb: number | null = null;
       if (mk.selection.includes('(1X)') && hMk && dMk) {
         const hDomain = hMk.domainProb ?? hMk.ensembleProb;
@@ -76,6 +77,18 @@ export function evaluateOpportunities(
         const hEvolved = calculateEvolvedConsensus(hDomain, hMl, m.league || 'soccer_epl');
         const dEvolved = calculateEvolvedConsensus(dDomain, dMl, m.league || 'soccer_epl');
         canonicalConsensusProb = Math.min(0.99, Math.round((hEvolved.consensusProb + dEvolved.consensusProb) * 1000) / 1000);
+      } else if ((mk.selection.includes('(2X)') || mk.selection.includes('(X2)')) && aMk && dMk) {
+        const aDomain = aMk.domainProb ?? aMk.ensembleProb;
+        const dDomain = dMk.domainProb ?? dMk.ensembleProb;
+        const aMl = aMk.trainedMlProb ?? aMk.ensembleProb;
+        const dMl = dMk.trainedMlProb ?? dMk.ensembleProb;
+
+        domainProb = Math.min(0.99, Math.round((aDomain + dDomain) * 1000) / 1000);
+        trainedMlProb = Math.min(0.99, Math.round((aMl + dMl) * 1000) / 1000);
+
+        const aEvolved = calculateEvolvedConsensus(aDomain, aMl, m.league || 'soccer_epl');
+        const dEvolved = calculateEvolvedConsensus(dDomain, dMl, m.league || 'soccer_epl');
+        canonicalConsensusProb = Math.min(0.99, Math.round((aEvolved.consensusProb + dEvolved.consensusProb) * 1000) / 1000);
       }
 
       // Evolved meta-learning consensus

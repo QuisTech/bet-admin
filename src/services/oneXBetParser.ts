@@ -195,7 +195,10 @@ export function parse1xBetEmailHTML(rawHtml: string): ParsedOneXBetSlip[] {
     let selection = 'Match Outcome (1X2)';
     if (rawSel === 'X') selection = 'Draw (1X2)';
     else if (rawSel === 'W1') selection = 'Home Win (1X2)';
+    else if (rawSel === 'W2') selection = 'Away Win (1X2)';
     else if (rawSel === '1X') selection = 'Double Chance (1X)';
+    else if (rawSel === '2X' || rawSel === 'X2') selection = 'Double Chance (2X)';
+    else if (rawSel === '12') selection = 'Double Chance (12)';
     else if (rawSel.toLowerCase().includes('score a goal')) selection = 'Anytime Goalscorer';
     else if (rawSel) selection = rawSel;
 

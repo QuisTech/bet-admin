@@ -506,6 +506,18 @@ export async function fetchLiveOddsFeed(
       const pinnacle1X = Math.round((1 / Math.max(0.01, fairHomeProb + fairDrawProb)) * 100) / 100;
       const ev1X = Math.round((consensus1X.consensusProb * retail1X - 1.0) * 1000) / 10;
 
+      // 9b. Double Chance (2X: Draw or Away Win) -> Canonical mathematical sum of Away Win and Draw
+      const domain2X = Math.min(0.99, Math.round((domainAway + domainDraw) * 1000) / 1000);
+      const ml2X = Math.min(0.99, Math.round((mlProbs.pAway + mlProbs.pDraw) * 1000) / 1000);
+      const consensus2XProb = Math.min(0.99, Math.round((consensusAway.consensusProb + consensusDraw.consensusProb) * 1000) / 1000);
+      const consensus2X = {
+        ...evaluateConsensus(domain2X, ml2X),
+        consensusProb: consensus2XProb,
+      };
+      const retail2X = Math.round((1 / ((1 / bestRetailAway) + (1 / bestRetailDraw))) * 100) / 100;
+      const pinnacle2X = Math.round((1 / Math.max(0.01, fairAwayProb + fairDrawProb)) * 100) / 100;
+      const ev2X = Math.round((consensus2X.consensusProb * retail2X - 1.0) * 1000) / 10;
+
       // 10. Totals (Over 2.5)
       const sharpTotals = sharpBook?.markets.find((m) => m.key === 'totals');
       let bestRetailOver = 1.95;
@@ -590,6 +602,24 @@ export async function fetchLiveOddsFeed(
           models: [
             { modelId: 'dixon_coles', modelName: 'Dixon-Coles Joint Matrix', probability: domain1X, uncertainty: 0.015 },
             { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: Math.round(ml1X * 1000) / 1000, uncertainty: 0.018 },
+          ],
+        },
+        {
+          marketType: '1X2',
+          selection: `${fix.away_team} or Draw (2X)`,
+          sportyBetOdds: retail2X,
+          pinnacleOdds: pinnacle2X,
+          ensembleProb: consensus2X.consensusProb,
+          domainProb: domain2X,
+          trainedMlProb: Math.round(ml2X * 1000) / 1000,
+          consensusProb: consensus2X.consensusProb,
+          modelDelta: Math.round(consensus2X.delta * 1000) / 1000,
+          consensusLevel: consensus2X.level,
+          evPercent: ev2X,
+          recommendedStakePercent: 0.02,
+          models: [
+            { modelId: 'dixon_coles', modelName: 'Dixon-Coles Joint Matrix', probability: domain2X, uncertainty: 0.015 },
+            { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: Math.round(ml2X * 1000) / 1000, uncertainty: 0.018 },
           ],
         },
         {
