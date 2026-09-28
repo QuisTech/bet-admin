@@ -181,11 +181,11 @@ export const INITIAL_SEED_BETS: LoggedBet[] = [
   },
   // 4b. Hull City vs Everton (27/09/2026, 19:20)
   {
-    id: '87951912353',
+    id: '87951912353_cashout',
     timestamp: '2026-09-27T18:20:00Z',
     dateDisplay: '27/09/2026 19:20',
     league: 'Premier League',
-    match: 'Hull City vs Everton',
+    match: 'Hull City vs Everton FC',
     selection: 'Double Chance (1X)',
     marketType: '1X',
     bookmaker: '1xBet',
