@@ -96,6 +96,7 @@ export interface BankrollConfig {
   currency: 'NGN' | 'USD';
   strategyMode: 'safe' | 'risky' | 'value';
   updatedAt?: string;
+  oddsApiKey?: string;
 }
 
 export interface BacktestMetric {

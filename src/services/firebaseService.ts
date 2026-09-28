@@ -407,23 +407,47 @@ export async function saveBankrollConfigToFirestore(config: BankrollConfig): Pro
 
   try {
     const docRef = doc(db, POSITIONS_COLLECTION, BANKROLL_DOC_ID);
+    const payload: any = {
+      totalBankrollNGN: config.totalBankrollNGN,
+      totalBankroll: config.totalBankroll,
+      masterCapitalNGN: config.masterCapitalNGN || config.totalBankrollNGN,
+      kellyFraction: config.kellyFraction,
+      maxStakePercent: config.maxStakePercent,
+      currency: config.currency,
+      strategyMode: config.strategyMode,
+      updatedAt: new Date().toISOString(),
+    };
+    if (config.oddsApiKey) {
+      payload.oddsApiKey = config.oddsApiKey;
+    }
+    await setDoc(docRef, payload, { merge: true });
+    return true;
+  } catch (e) {
+    console.warn('Failed to save bankroll config to Cloud Firestore:', e);
+    return false;
+  }
+}
+
+/**
+ * Saves or syncs The Odds API key to Cloud Firestore so all devices share the key automatically.
+ */
+export async function saveOddsApiKeyToCloud(apiKey: string): Promise<boolean> {
+  const db = getFirebaseDb();
+  if (!db || !apiKey) return false;
+
+  try {
+    const docRef = doc(db, POSITIONS_COLLECTION, BANKROLL_DOC_ID);
     await setDoc(
       docRef,
       {
-        totalBankrollNGN: config.totalBankrollNGN,
-        totalBankroll: config.totalBankroll,
-        masterCapitalNGN: config.masterCapitalNGN || config.totalBankrollNGN,
-        kellyFraction: config.kellyFraction,
-        maxStakePercent: config.maxStakePercent,
-        currency: config.currency,
-        strategyMode: config.strategyMode,
+        oddsApiKey: apiKey.trim(),
         updatedAt: new Date().toISOString(),
       },
       { merge: true }
     );
     return true;
   } catch (e) {
-    console.warn('Failed to save bankroll config to Cloud Firestore:', e);
+    console.warn('Failed to sync Odds API key to Cloud Firestore:', e);
     return false;
   }
 }
@@ -443,8 +467,14 @@ export function subscribeToFirestoreBankrollConfig(
       docRef,
       (snap) => {
         if (snap.exists()) {
-          const data = snap.data() as BankrollConfig;
+          const data = snap.data() as BankrollConfig & { oddsApiKey?: string };
           if (data && (data.totalBankrollNGN > 0 || data.totalBankroll > 0)) {
+            // Automatically sync Odds API key into local device storage if present
+            if (data.oddsApiKey && typeof localStorage !== 'undefined') {
+              try {
+                localStorage.setItem('bet_admin_odds_api_key', data.oddsApiKey);
+              } catch {}
+            }
             onUpdate({
               totalBankrollNGN: data.totalBankrollNGN || 2500,
               totalBankroll: data.totalBankroll || data.totalBankrollNGN || 2500,
@@ -454,6 +484,7 @@ export function subscribeToFirestoreBankrollConfig(
               currency: data.currency === 'USD' ? 'USD' : 'NGN',
               strategyMode: data.strategyMode || 'safe',
               updatedAt: data.updatedAt,
+              oddsApiKey: data.oddsApiKey,
             });
           }
         }

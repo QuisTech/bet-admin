@@ -27,6 +27,7 @@ import {
   parseFirebaseConfigInput,
   getFirebaseStatus,
   testFirebaseConnection,
+  saveOddsApiKeyToCloud,
 } from '../services/firebaseService';
 import { syncLocalLedgerToCloud, getLoggedBets } from '../services/ledgerService';
 
@@ -116,6 +117,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
 
   const handleSaveAndSync = () => {
     saveOddsApiKey(apiKey);
+    if (apiKey.trim()) {
+      saveOddsApiKeyToCloud(apiKey.trim()).catch(() => {});
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     onRefresh(apiKey);
