@@ -228,9 +228,9 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
                     : 'text-amber-400'
                 }`}
               >
-                {sym}{realizedBankroll.toLocaleString()}
+                {sym}{realizedBankroll.toLocaleString(undefined, { minimumFractionDigits: realizedBankroll % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
                 <span className="text-[10px] text-slate-500 ml-1">
-                  ({ledgerStats.netProfit >= 0 ? '+' : ''}{sym}{ledgerStats.netProfit.toLocaleString()})
+                  ({ledgerStats.netProfit >= 0 ? '+' : ''}{sym}{ledgerStats.netProfit.toLocaleString(undefined, { minimumFractionDigits: ledgerStats.netProfit % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })})
                 </span>
               </span>
             </div>
@@ -241,7 +241,7 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
                 <span>Open in Play</span>
               </span>
               <span className="font-bold text-cyan-300">
-                {sym}{ledgerStats.openExposure.toLocaleString()}
+                {sym}{ledgerStats.openExposure.toLocaleString(undefined, { minimumFractionDigits: ledgerStats.openExposure % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
                 <span className="text-[10px] text-slate-500 ml-1">({ledgerStats.openBets} pending)</span>
               </span>
             </div>
@@ -252,7 +252,7 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
                 <span>Liquid Account Cash</span>
               </span>
               <span className="font-bold text-emerald-400 text-xs">
-                {sym}{liquidCash.toLocaleString()}
+                {sym}{liquidCash.toLocaleString(undefined, { minimumFractionDigits: liquidCash % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
               </span>
             </div>
           </div>
