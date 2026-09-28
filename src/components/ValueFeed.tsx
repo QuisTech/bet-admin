@@ -252,6 +252,12 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
       ? customPinnacleOdds
       : (opt.pinnacleOdds > 1.0 ? opt.pinnacleOdds : odds);
 
+    const existingPosition = getMatchedPosition(opt, selection);
+    if (existingPosition && existingPosition.outcome === 'OPEN') {
+      alert(`⚠️ You are already in position for this match (${existingPosition.selection} • ${currSym}${existingPosition.stake.toLocaleString()} @ ${existingPosition.priceTaken.toFixed(2)}).`);
+      return;
+    }
+
     addLoggedBet({
       league: opt.match.league,
       match: `${opt.match.homeTeam} vs ${opt.match.awayTeam}`,
