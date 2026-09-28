@@ -39,6 +39,7 @@ export function recordDeletedBet(b: Partial<LoggedBet>): void {
 }
 
 export function isBetDeleted(b: Partial<LoggedBet>): boolean {
+  if (b.id === '87951912353' || b.selection === 'Early Cashout / Market Position') return true;
   const current = getDeletedSignatures();
   if (b.id && current.has(b.id)) return true;
   if (b.match) {
@@ -53,7 +54,7 @@ export function isBetDeleted(b: Partial<LoggedBet>): boolean {
   return false;
 }
 
-// Auto-purge "Lithuania vs Azerbaijan" ghost bet and tombstone it permanently
+// Auto-purge ghost bets (Lithuania vs Azerbaijan and phantom cashouts) and tombstone permanently
 export function purgeGhostBets(): void {
   try {
     recordDeletedBet({
@@ -63,6 +64,11 @@ export function purgeGhostBets(): void {
     recordDeletedBet({
       match: 'Lithuania vs Azerbaijan',
     });
+    recordDeletedBet({
+      id: '87951912353',
+      match: 'Hull City vs Everton',
+      selection: 'Early Cashout / Market Position',
+    });
 
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
@@ -70,7 +76,11 @@ export function purgeGhostBets(): void {
         const parsed: LoggedBet[] = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           const cleaned = parsed.filter(
-            (b) => !b.match.toLowerCase().includes('azerbaijan')
+            (b) =>
+              !b.match.toLowerCase().includes('azerbaijan') &&
+              b.id !== '87951912353' &&
+              b.selection !== 'Early Cashout / Market Position' &&
+              !b.id.startsWith('seed-bet-')
           );
           if (cleaned.length !== parsed.length) {
             localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(cleaned));
@@ -84,6 +94,10 @@ export function purgeGhostBets(): void {
       deleteBetFromFirestore('ghost', {
         match: 'Lithuania vs Azerbaijan',
         selection: 'Lithuania or Draw (1X) (1X2)',
+      }).catch(() => {});
+      deleteBetFromFirestore('87951912353', {
+        match: 'Hull City vs Everton',
+        selection: 'Early Cashout / Market Position',
       }).catch(() => {});
     }
   } catch {}
@@ -139,14 +153,14 @@ export const INITIAL_SEED_BETS: LoggedBet[] = [
     clvPercent: 2.35,
     notes: 'Bet slip № 87953150419 • Win: ₦1,608.26',
   },
-  // 3. Hull City vs Everton - Players\' stats (27/09/2026, 19:31)
+  // 3. Players' stats Hull City vs Players' stats Everton (27/09/2026, 19:31)
   {
     id: '87952483299',
     timestamp: '2026-09-27T18:31:00Z',
     dateDisplay: '27/09/2026 19:31',
     league: 'Premier League',
-    match: 'Hull City vs Everton',
-    selection: 'Anytime Goalscorer vs Hull City',
+    match: "Players' stats Hull City vs Players' stats Everton",
+    selection: 'Anytime Goalscorer',
     marketType: 'PROPS',
     bookmaker: '1xBet',
     priceTaken: 2.953,
@@ -159,27 +173,6 @@ export const INITIAL_SEED_BETS: LoggedBet[] = [
     outcome: 'OPEN',
     clvPercent: 11.43,
     notes: 'Bet slip № 87952483299 • Players stats (Win: ₦590.60)',
-  },
-  // 4. Hull City vs Everton - Match Market Cashout (27/09/2026, 19:20)
-  {
-    id: '87951912353',
-    timestamp: '2026-09-27T18:20:00Z',
-    dateDisplay: '27/09/2026 19:20',
-    league: 'Premier League',
-    match: 'Hull City vs Everton',
-    selection: 'Early Cashout / Market Position',
-    marketType: '1X2',
-    bookmaker: '1xBet',
-    priceTaken: 0.94,
-    pinnacleLineAtBet: 1.00,
-    pinnacleClosingLine: 1.00,
-    modelProb: 0.95,
-    modelEV: -6.0,
-    stake: 200,
-    payout: 187.99,
-    outcome: 'WON',
-    clvPercent: -6.0,
-    notes: 'Bet slip № 87951912353 • Sold / Cashed Out for ₦187.99',
   },
   // 5. Denmark vs Wales (27/09/2026, 14:24)
   {
@@ -500,26 +493,58 @@ export const INITIAL_SEED_BETS: LoggedBet[] = [
 
 /**
  * Reconciles any legacy draft positions with official 1xBet verified slips.
- * If a match already exists in official slips, the official 1xBet slip replaces the draft.
+ * Live incoming positions (from local cache, 1xBet sync, or Cloud Firestore)
+ * are prioritized as authoritative truth.
  */
 export function reconcileWithOfficialSlips(bets: LoggedBet[]): LoggedBet[] {
-  const officialSlips = INITIAL_SEED_BETS.filter((s) => !isBetDeleted(s));
-  const officialMatches = new Set(
-    officialSlips.map((s) => s.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim())
-  );
-  const officialIds = new Set(officialSlips.map((s) => s.id));
+  const officialSeedSlips = INITIAL_SEED_BETS.filter((s) => !isBetDeleted(s));
 
-  // Keep any user-added bets that are genuinely outside the official 19 slips
-  const nonOfficialBets = (bets || []).filter((b) => {
-    if (!b || !b.match || isBetDeleted(b)) return false;
-    if (officialIds.has(b.id)) return false;
+  if (!bets || bets.length === 0) {
+    return officialSeedSlips;
+  }
+
+  // 1. Sanitize and remove deleted bets & legacy draft ghosts
+  const valid = bets
+    .map(sanitizeBet)
+    .filter((b) => {
+      if (!b || !b.match || isBetDeleted(b)) return false;
+      // Discard legacy drafts (e.g. 'seed-bet-1', 'bet-1790...', 'mls-...')
+      if (
+        b.id.startsWith('seed-bet-') ||
+        b.id.startsWith('bet-') ||
+        b.id === 'mls-montreal-cincinnati' ||
+        b.id === '87951912353' ||
+        b.selection === 'Early Cashout / Market Position'
+      ) {
+        return false;
+      }
+      if (b.match.toLowerCase().includes('azerbaijan')) return false;
+      return true;
+    });
+
+  if (valid.length === 0) {
+    return officialSeedSlips;
+  }
+
+  // 2. Index valid incoming bets by id and normalized match
+  const incomingById = new Map<string, LoggedBet>();
+  const incomingByMatch = new Map<string, LoggedBet>();
+  for (const b of valid) {
+    if (b.id) incomingById.set(b.id, b);
     const norm = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
-    // If it matches an official match name, but has a non-official ID (e.g. 'seed-bet-' or 'bet-'), discard the draft!
-    if (officialMatches.has(norm)) return false;
-    return true;
-  });
+    incomingByMatch.set(norm, b);
+  }
 
-  const merged = [...officialSlips, ...nonOfficialBets];
+  // 3. For any seed slip, if incoming bet exists, prioritize incoming live data!
+  // If not in incoming, include seed slip only if it has not been deleted.
+  const merged: LoggedBet[] = [...valid];
+  for (const seed of officialSeedSlips) {
+    const norm = seed.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
+    if (!incomingById.has(seed.id) && !incomingByMatch.has(norm)) {
+      merged.push(seed);
+    }
+  }
+
   const clean = deduplicateBets(merged);
   clean.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   return clean;
@@ -534,10 +559,6 @@ export function upgradeLedgerToOfficialSlips(): void {
 
     localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
     notifyLedgerUpdated(reconciled);
-
-    if (isFirebaseConfigured()) {
-      syncAllLocalBetsToFirestore(reconciled).catch(() => {});
-    }
   } catch (e) {
     console.warn('Error upgrading ledger to official slips:', e);
   }
