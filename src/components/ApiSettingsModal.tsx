@@ -29,7 +29,7 @@ import {
   testFirebaseConnection,
   saveOddsApiKeyToCloud,
 } from '../services/firebaseService';
-import { syncLocalLedgerToCloud, getLoggedBets } from '../services/ledgerService';
+import { syncLocalLedgerToCloud, getLoggedBets, resetLedgerToSeed } from '../services/ledgerService';
 
 interface ApiSettingsModalProps {
   isOpen: boolean;
@@ -177,6 +177,17 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
       setSyncLocalResult(res);
     } finally {
       setIsSyncingLocal(false);
+    }
+  };
+
+  const handleFactoryReset = () => {
+    const confirmation = window.prompt(
+      'DANGER: This will wipe all future logged bets and restore strictly the original 21 seed positions across both local storage and Cloud Firestore.\n\nType RESET to confirm:'
+    );
+    if (confirmation === 'RESET') {
+      resetLedgerToSeed();
+      alert('Ledger restored to the 21 baseline seed positions.');
+      onClose();
     }
   };
 
@@ -667,6 +678,28 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
                 </div>
               </div>
             )}
+            {/* Danger Zone: Factory Reset (Development Seed) */}
+            <div className="pt-4 border-t border-slate-800/80">
+              <details className="group">
+                <summary className="text-[11px] font-mono text-rose-400/70 hover:text-rose-300 cursor-pointer flex items-center justify-between select-none p-2 rounded-xl hover:bg-rose-950/20 transition">
+                  <span className="flex items-center gap-1.5 font-bold">
+                    ⚠️ Advanced Danger Zone: Factory Reset
+                  </span>
+                  <span className="text-[10px] text-slate-500 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-2.5 p-3.5 rounded-2xl bg-rose-950/20 border border-rose-900/40 space-y-2">
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    This will permanently overwrite the entire ledger in local browser storage and Cloud Firestore back to the 21 baseline seed slips. Any future bets you have logged will be wiped.
+                  </p>
+                  <button
+                    onClick={handleFactoryReset}
+                    className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold font-mono transition cursor-pointer"
+                  >
+                    Reset Ledger to 21 Baseline Slips
+                  </button>
+                </div>
+              </details>
+            </div>
           </div>
         )}
       </div>

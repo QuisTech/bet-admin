@@ -365,6 +365,37 @@ export function subscribeToFirestoreBets(
 }
 
 /**
+ * Fetches all active bet positions from Cloud Firestore once.
+ */
+export async function fetchFirestoreBets(): Promise<LoggedBet[]> {
+  const db = getFirebaseDb();
+  if (!db) return [];
+
+  try {
+    const colRef = collection(db, POSITIONS_COLLECTION);
+    const snap = await getDocs(colRef);
+    const bets: LoggedBet[] = [];
+    snap.forEach((docSnap) => {
+      // Exclude system configs and caches
+      if (docSnap.id === BANKROLL_DOC_ID || docSnap.id.startsWith('odds_cache_')) return;
+      const data = docSnap.data() as LoggedBet;
+      if (data && data.match) {
+        bets.push({
+          ...data,
+          id: data.id || docSnap.id,
+        });
+      }
+    });
+    // Sort descending by timestamp
+    bets.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return bets;
+  } catch (e) {
+    console.error('Failed to fetch bets from Firestore:', e);
+    return [];
+  }
+}
+
+/**
  * Tests live connection to Firestore and returns the number of positions in the cloud.
  */
 export async function testFirebaseConnection(): Promise<{

@@ -5,6 +5,7 @@ import {
   subscribeToFirestoreBets,
   isFirebaseConfigured,
   syncAllLocalBetsToFirestore,
+  fetchFirestoreBets,
 } from './firebaseService';
 
 const LEDGER_STORAGE_KEY = 'bet_admin_logged_positions';
@@ -1028,6 +1029,30 @@ export async function syncLocalLedgerToCloud(): Promise<{
 }> {
   const current = getLoggedBets();
   return syncAllLocalBetsToFirestore(current);
+}
+
+/**
+ * Manually pulls and refreshes ledger positions from Cloud Firestore without data loss.
+ * Preserves all new bets (including future bets 50+ steps ahead) and merges remote updates.
+ */
+export async function refreshLedgerFromCloud(): Promise<LoggedBet[]> {
+  if (isFirebaseConfigured()) {
+    try {
+      const remoteBets = await fetchFirestoreBets();
+      if (remoteBets && remoteBets.length > 0) {
+        const validRemote = remoteBets.filter((b) => !isBetDeleted(b));
+        const reconciled = reconcileWithOfficialSlips(validRemote);
+        saveLoggedBets(reconciled);
+        notifyLedgerUpdated(reconciled);
+        return reconciled;
+      }
+    } catch (e) {
+      console.warn('Manual cloud refresh failed, falling back to local cache:', e);
+    }
+  }
+  const current = getLoggedBets();
+  notifyLedgerUpdated(current);
+  return current;
 }
 
 export interface LedgerStatistics {

@@ -10,7 +10,7 @@ import {
   Clock,
   Plus,
   Trash2,
-  RotateCcw,
+  RefreshCw,
   Sparkles,
   Info,
   Cloud,
@@ -24,7 +24,7 @@ import {
   getLoggedBets,
   updateBetOutcome,
   deleteLoggedBet,
-  resetLedgerToSeed,
+  refreshLedgerFromCloud,
   addLoggedBet,
   calculateLedgerStats,
   removeDuplicateBets,
@@ -111,10 +111,15 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
     setBets(updated);
   };
 
-  const handleResetSeed = () => {
-    if (window.confirm('Reset ledger to all 21 official verified 1xBet positions? This will sync the official slips to both local and cloud storage.')) {
-      const reset = resetLedgerToSeed();
-      setBets(reset);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleCloudRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const fresh = await refreshLedgerFromCloud();
+      setBets(fresh);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
     }
   };
 
@@ -234,11 +239,12 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
               Log Position
             </button>
             <button
-              onClick={handleResetSeed}
-              title="Reset ledger to all 21 official verified 1xBet positions"
-              className="p-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+              onClick={handleCloudRefresh}
+              disabled={isRefreshing}
+              title="Refresh ledger & sync from Cloud Firestore"
+              className="p-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer border border-slate-700/60"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-cyan-400' : ''}`} />
             </button>
           </div>
         </div>
