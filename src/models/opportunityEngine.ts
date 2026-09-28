@@ -42,6 +42,92 @@ export interface SlateStatistics {
 }
 
 /**
+ * Ensures both 1X and 2X Double Chance markets exist on any fixture with 1X2 odds.
+ * Synthesizes exact canonical probabilities across P1 (Domain Ensemble) and P2 (Trained XGBoost).
+ */
+export function ensureDoubleChanceMarkets(matches: MatchData[]): MatchData[] {
+  return (matches || []).map((m) => {
+    if (!m || !m.markets || m.markets.length === 0) return m;
+
+    const has1X = m.markets.some((mk) => mk.selection.includes('(1X)'));
+    const has2X = m.markets.some((mk) => mk.selection.includes('(2X)') || mk.selection.includes('(X2)'));
+
+    if (has1X && has2X) return m;
+
+    const hMk = m.markets.find((x) => x.selection.includes('Win') && !x.selection.includes(m.awayTeam));
+    const dMk = m.markets.find((x) => x.selection === 'Draw');
+    const aMk = m.markets.find((x) => x.selection.includes('Win') && x.selection.includes(m.awayTeam));
+
+    if (!hMk || !dMk || !aMk) return m;
+
+    const newMarkets = [...m.markets];
+
+    // Synthesize 1X if missing
+    if (!has1X) {
+      const domain1X = Math.min(0.99, Math.round(((hMk.domainProb ?? hMk.ensembleProb) + (dMk.domainProb ?? dMk.ensembleProb)) * 1000) / 1000);
+      const ml1X = Math.min(0.99, Math.round(((hMk.trainedMlProb ?? hMk.ensembleProb) + (dMk.trainedMlProb ?? dMk.ensembleProb)) * 1000) / 1000);
+      const consensus1XProb = Math.min(0.99, Math.round(((hMk.consensusProb ?? hMk.ensembleProb) + (dMk.consensusProb ?? dMk.ensembleProb)) * 1000) / 1000);
+      const retail1X = Math.round((1 / ((1 / hMk.sportyBetOdds) + (1 / dMk.sportyBetOdds))) * 100) / 100;
+      const pinnacle1X = Math.round((1 / ((1 / hMk.pinnacleOdds) + (1 / dMk.pinnacleOdds))) * 100) / 100;
+      const ev1X = Math.round((consensus1XProb * retail1X - 1.0) * 1000) / 10;
+
+      newMarkets.push({
+        marketType: '1X2',
+        selection: `${m.homeTeam} or Draw (1X)`,
+        sportyBetOdds: retail1X,
+        pinnacleOdds: pinnacle1X,
+        ensembleProb: consensus1XProb,
+        domainProb: domain1X,
+        trainedMlProb: ml1X,
+        consensusProb: consensus1XProb,
+        modelDelta: Math.round(Math.abs(domain1X - ml1X) * 1000) / 1000,
+        consensusLevel: Math.abs(domain1X - ml1X) < 0.05 ? 'STRONG_AGREEMENT' : Math.abs(domain1X - ml1X) < 0.10 ? 'MODERATE' : 'DIVERGENCE',
+        evPercent: ev1X,
+        recommendedStakePercent: 0.02,
+        models: [
+          { modelId: 'dixon_coles', modelName: 'Dixon-Coles Joint Matrix', probability: domain1X, uncertainty: 0.015 },
+          { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: ml1X, uncertainty: 0.018 },
+        ],
+      });
+    }
+
+    // Synthesize 2X if missing
+    if (!has2X) {
+      const domain2X = Math.min(0.99, Math.round(((aMk.domainProb ?? aMk.ensembleProb) + (dMk.domainProb ?? dMk.ensembleProb)) * 1000) / 1000);
+      const ml2X = Math.min(0.99, Math.round(((aMk.trainedMlProb ?? aMk.ensembleProb) + (dMk.trainedMlProb ?? dMk.ensembleProb)) * 1000) / 1000);
+      const consensus2XProb = Math.min(0.99, Math.round(((aMk.consensusProb ?? aMk.ensembleProb) + (dMk.consensusProb ?? dMk.ensembleProb)) * 1000) / 1000);
+      const retail2X = Math.round((1 / ((1 / aMk.sportyBetOdds) + (1 / dMk.sportyBetOdds))) * 100) / 100;
+      const pinnacle2X = Math.round((1 / ((1 / aMk.pinnacleOdds) + (1 / dMk.pinnacleOdds))) * 100) / 100;
+      const ev2X = Math.round((consensus2XProb * retail2X - 1.0) * 1000) / 10;
+
+      newMarkets.push({
+        marketType: '1X2',
+        selection: `${m.awayTeam} or Draw (2X)`,
+        sportyBetOdds: retail2X,
+        pinnacleOdds: pinnacle2X,
+        ensembleProb: consensus2XProb,
+        domainProb: domain2X,
+        trainedMlProb: ml2X,
+        consensusProb: consensus2XProb,
+        modelDelta: Math.round(Math.abs(domain2X - ml2X) * 1000) / 1000,
+        consensusLevel: Math.abs(domain2X - ml2X) < 0.05 ? 'STRONG_AGREEMENT' : Math.abs(domain2X - ml2X) < 0.10 ? 'MODERATE' : 'DIVERGENCE',
+        evPercent: ev2X,
+        recommendedStakePercent: 0.02,
+        models: [
+          { modelId: 'dixon_coles', modelName: 'Dixon-Coles Joint Matrix', probability: domain2X, uncertainty: 0.015 },
+          { modelId: 'trained_xgboost', modelName: 'Trained XGBoost ML', probability: ml2X, uncertainty: 0.018 },
+        ],
+      });
+    }
+
+    return {
+      ...m,
+      markets: newMarkets,
+    };
+  });
+}
+
+/**
  * Evaluates all match markets and player props dynamically against current strategy and pipeline.
  */
 export function evaluateOpportunities(
@@ -51,8 +137,9 @@ export function evaluateOpportunities(
   riskMode: 'safe' | 'risky' | 'value' = config.strategyMode || 'safe'
 ): SlateStatistics {
   const strategy = STRATEGY_MODES[riskMode] || STRATEGY_MODES.safe;
+  const normalizedMatches = ensureDoubleChanceMarkets(matches);
 
-  const matchMarkets: OpportunityItem[] = (matches || []).flatMap((m) =>
+  const matchMarkets: OpportunityItem[] = normalizedMatches.flatMap((m) =>
     (m.markets || []).map((mk) => {
       const stakePct = strategy.maxStakePercent;
       // 1X2 canonical decomposition coherence check
