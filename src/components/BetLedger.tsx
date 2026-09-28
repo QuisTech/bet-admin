@@ -14,6 +14,7 @@ import {
   Info,
   Cloud,
   CloudOff,
+  Zap,
 } from 'lucide-react';
 import type { LoggedBet, BetOutcome, BankrollConfig } from '../types';
 import {
@@ -28,6 +29,7 @@ import {
 } from '../services/ledgerService';
 import { isFirebaseConfigured, getFirebaseStatus } from '../services/firebaseService';
 import { EquityCurveChart } from './EquityCurveChart';
+import { OneXBetSyncModal } from './OneXBetSyncModal';
 
 interface BetLedgerProps {
   config: BankrollConfig;
@@ -46,6 +48,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
 
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'WON' | 'LOST'>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isOneXBetSyncOpen, setIsOneXBetSyncOpen] = useState(false);
 
   // New Bet Form State
   const [newMatch, setNewMatch] = useState('');
@@ -186,6 +189,14 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span>Deduplicate</span>
+            </button>
+            <button
+              onClick={() => setIsOneXBetSyncOpen(true)}
+              title="1-Click Bookmarklet & 1xBet Slip Importer"
+              className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 fill-current" />
+              <span>⚡ 1xBet Sync</span>
             </button>
             <button
               onClick={() => setIsAddModalOpen(true)}
@@ -632,6 +643,15 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
           </div>
         </div>
       )}
+
+      {/* 1xBet Auto-Sync & Bookmarklet Modal */}
+      <OneXBetSyncModal
+        isOpen={isOneXBetSyncOpen}
+        onClose={() => setIsOneXBetSyncOpen(false)}
+        onImportComplete={() => {
+          setBets(getLoggedBets());
+        }}
+      />
     </div>
   );
 };
