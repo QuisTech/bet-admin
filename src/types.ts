@@ -14,12 +14,23 @@ export interface SupportedLeague {
 export const SUPPORTED_LEAGUES: SupportedLeague[] = [
   { id: 'soccer_uefa_nations_league', name: 'UEFA Nations League', flag: '🇪🇺', country: 'Europe', tempo: 2.65 },
   { id: 'soccer_epl', name: 'Premier League', flag: '🇬🇧', country: 'England', tempo: 2.78 },
+  { id: 'soccer_england_championship', name: 'English Championship', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', country: 'England', tempo: 2.68 },
   { id: 'soccer_spain_la_liga', name: 'La Liga', flag: '🇪🇸', country: 'Spain', tempo: 2.52 },
   { id: 'soccer_italy_serie_a', name: 'Serie A', flag: '🇮🇹', country: 'Italy', tempo: 2.64 },
   { id: 'soccer_germany_bundesliga', name: 'Bundesliga', flag: '🇩🇪', country: 'Germany', tempo: 3.16 },
   { id: 'soccer_france_ligue_one', name: 'Ligue 1', flag: '🇫🇷', country: 'France', tempo: 2.60 },
   { id: 'soccer_uefa_champs_league', name: 'Champions League', flag: '🏆', country: 'Europe', tempo: 2.95 },
+  { id: 'soccer_uefa_europa_league', name: 'Europa League', flag: '🇪🇺', country: 'Europe', tempo: 2.85 },
+  { id: 'soccer_uefa_europa_conference_league', name: 'Conference League', flag: '🇪🇺', country: 'Europe', tempo: 2.80 },
+  { id: 'soccer_netherlands_eredivisie', name: 'Dutch Eredivisie', flag: '🇳🇱', country: 'Netherlands', tempo: 3.10 },
+  { id: 'soccer_portugal_primeira_liga', name: 'Primeira Liga', flag: '🇵🇹', country: 'Portugal', tempo: 2.58 },
+  { id: 'soccer_turkey_super_league', name: 'Turkish Super Lig', flag: '🇹🇷', country: 'Turkey', tempo: 2.72 },
   { id: 'soccer_usa_mls', name: 'Major League Soccer (MLS)', flag: '🇺🇸', country: 'USA', tempo: 3.05 },
+  { id: 'soccer_brazil_campeonato', name: 'Brasileirão Serie A', flag: '🇧🇷', country: 'Brazil', tempo: 2.45 },
+  { id: 'soccer_saudi_arabia_pro_league', name: 'Saudi Pro League', flag: '🇸🇦', country: 'Saudi Arabia', tempo: 2.90 },
+  { id: 'soccer_spain_segunda_division', name: 'La Liga 2 (Segunda)', flag: '🇪🇸', country: 'Spain', tempo: 2.38 },
+  { id: 'soccer_italy_serie_b', name: 'Italian Serie B', flag: '🇮🇹', country: 'Italy', tempo: 2.42 },
+  { id: 'soccer_germany_bundesliga2', name: 'German 2. Bundesliga', flag: '🇩🇪', country: 'Germany', tempo: 3.05 },
   { id: 'soccer_england_league1', name: 'EFL League One', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', country: 'England', tempo: 2.70 },
 ];
 

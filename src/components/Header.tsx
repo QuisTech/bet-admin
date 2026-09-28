@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, Trophy } from 'lucide-react';
+import { Globe, Trophy, Calculator } from 'lucide-react';
 import type { BankrollConfig } from '../types';
 import { SUPPORTED_LEAGUES } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
@@ -11,6 +11,7 @@ interface HeaderProps {
   averageEV?: number;
   brierScore?: number;
   onOpenSettings?: () => void;
+  onOpenClvCalculator?: () => void;
   isOddsLive?: boolean;
   isFplLive?: boolean;
   selectedLeagueId: string;
@@ -24,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   averageEV = 0,
   brierScore = 0.174,
   onOpenSettings,
+  onOpenClvCalculator,
   isOddsLive = false,
   isFplLive = false,
   selectedLeagueId,
@@ -162,6 +164,23 @@ export const Header: React.FC<HeaderProps> = ({
                     isFplLive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
                   }`}
                 />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Universal CLV Calculator */}
+          <div className="flex flex-col w-full sm:w-auto">
+            <span className="text-[10px] uppercase tracking-widest text-slate-400 text-left sm:text-right font-medium">
+              Arbitrary CLV
+            </span>
+            <div className="flex items-center gap-1.5 mt-1">
+              <button
+                onClick={onOpenClvCalculator}
+                className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-black rounded-lg bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/40 transition-all cursor-pointer shadow-[0_0_10px_rgba(16,185,129,0.15)]"
+                title="Check CLV, fair line, and EV for any match or retail odds on earth"
+              >
+                <Calculator className="w-3.5 h-3.5" />
+                <span>Check Any Game CLV</span>
               </button>
             </div>
           </div>

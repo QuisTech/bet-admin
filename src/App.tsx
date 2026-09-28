@@ -8,6 +8,7 @@ import { BetLedger } from './components/BetLedger';
 import { ModelDiagnostics } from './components/ModelDiagnostics';
 import { StakingCalculator } from './components/StakingCalculator';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
+import { UniversalClvModal } from './components/UniversalClvModal';
 import type { MatchData, BankrollConfig, ModelPipelineMode } from './types';
 import { BASE_MATCHES } from './data/matchRepository';
 import { fetchLiveFPLBootstrap } from './services/fplService';
@@ -161,6 +162,7 @@ export default function App() {
   const [selectedMarketIndex, setSelectedMarketIndex] = useState<number>(0);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>('soccer_epl');
   const [pipelineFilter, setPipelineFilter] = useState<ModelPipelineMode>('ALL_CONSENSUS');
+  const [isClvModalOpen, setIsClvModalOpen] = useState(false);
 
   const handleSelectMatch = (m: MatchData, marketIndex: number = 0) => {
     setSelectedMatch(m);
@@ -311,6 +313,7 @@ export default function App() {
           averageEV={slateStats.averageEV}
           brierScore={slateStats.brierScore}
           onOpenSettings={() => handleOpenSettings('feeds')}
+          onOpenClvCalculator={() => setIsClvModalOpen(true)}
           isOddsLive={isOddsLive}
           isFplLive={isFplLive}
           selectedLeagueId={selectedLeagueId}
@@ -471,6 +474,13 @@ export default function App() {
         isOddsLive={isOddsLive}
         oddsSource={oddsSource}
         initialTab={settingsTab}
+      />
+
+      {/* Universal Arbitrary CLV & Edge Inspector Modal */}
+      <UniversalClvModal
+        isOpen={isClvModalOpen}
+        onClose={() => setIsClvModalOpen(false)}
+        config={config}
       />
     </div>
   );
