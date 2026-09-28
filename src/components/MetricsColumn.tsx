@@ -472,11 +472,17 @@ export const MetricsColumn: React.FC<MetricsColumnProps> = ({
           </div>
           <div className="flex justify-between items-center">
             <span className="text-slate-400">Walk-Forward Out-of-Sample</span>
-            <span className="text-cyan-400 font-mono font-bold text-[11px]">0.2005 (18 Bets)</span>
+            <span className="text-cyan-400 font-mono font-bold text-[11px]">
+              {ledgerStats.settledBets > 0
+                ? `${ledgerStats.brierScore.toFixed(4)} (${ledgerStats.settledBets} Settled)`
+                : '0.1787 (Baseline)'}
+            </span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-slate-400">Historical Ensemble Prior</span>
-            <span className="text-slate-300 font-mono font-bold text-[11px]">0.1720 (Static)</span>
+            <span className="text-slate-300 font-mono font-bold text-[11px]">
+              {(brierScore ?? 0.172).toFixed(4)} (EPL Prior)
+            </span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-slate-400">Platt Scaling Decile ECE</span>

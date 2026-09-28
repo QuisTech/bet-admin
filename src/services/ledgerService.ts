@@ -1120,7 +1120,7 @@ export function calculateLedgerStats(rawBets: LoggedBet[]): LedgerStatistics {
       const actualOutcome = b.outcome === 'WON' ? 1.0 : 0.0;
       return sum + Math.pow(prob - actualOutcome, 2);
     }, 0);
-    brierScore = Math.round((brierSum / settledBets) * 1000) / 1000;
+    brierScore = Math.round((brierSum / settledBets) * 10000) / 10000;
   }
 
   // Drawdown tracking across chronological settled bets
