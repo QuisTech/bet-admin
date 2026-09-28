@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Bookmark,
@@ -48,6 +49,17 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
       bookmarkLinkRef.current.setAttribute('draggable', 'true');
     }
   }, [bookmarkletCode, activeTab, isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
 
   const handleCopyConsole = () => {
     navigator.clipboard.writeText(cleanConsoleScript);
@@ -109,10 +121,10 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-800/80 bg-slate-950/50">
@@ -394,6 +406,7 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

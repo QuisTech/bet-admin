@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FileSpreadsheet,
   TrendingUp,
@@ -49,6 +50,17 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'WON' | 'LOST'>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isOneXBetSyncOpen, setIsOneXBetSyncOpen] = useState(false);
+
+  useEffect(() => {
+    if (isAddModalOpen || isOneXBetSyncOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isAddModalOpen, isOneXBetSyncOpen]);
 
   // New Bet Form State
   const [newMatch, setNewMatch] = useState('');
@@ -533,8 +545,8 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
       </div>
 
       {/* Manual Add Position Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+      {isAddModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="glass-card max-w-md w-full p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <Plus className="w-4 h-4 text-emerald-400" />
@@ -652,7 +664,8 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 1xBet Auto-Sync & Bookmarklet Modal */}
