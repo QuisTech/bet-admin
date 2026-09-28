@@ -87,18 +87,54 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
 
     return ledgerBets.find((b) => {
       const bMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
-      const isMatch = bMatch.includes(home) && bMatch.includes(away);
+      const isMatch =
+        (bMatch.includes(home) && bMatch.includes(away)) ||
+        (home.length > 3 && bMatch.includes(home)) ||
+        (away.length > 3 && bMatch.includes(away));
       if (!isMatch) return false;
 
       const bSel = b.selection.toLowerCase().trim();
       const bRawSel = bSel.split(' (')[0].trim();
 
-      return (
+      // 1. Direct selection match
+      if (
         bSel === sel ||
         bRawSel === rawSel ||
         bSel.includes(rawSel) ||
         rawSel.includes(bRawSel)
-      );
+      ) {
+        return true;
+      }
+
+      // 2. Handle Draw / X matches
+      const isCardDraw = rawSel.includes('draw') || sel.includes('draw') || rawSel === 'x';
+      const isBetDraw = bRawSel.includes('draw') || bSel.includes('draw') || bRawSel === 'x';
+      if (isCardDraw && isBetDraw) return true;
+
+      // 3. Handle 1X matches
+      const isCard1X = rawSel.includes('1x') || sel.includes('1x');
+      const isBet1X = bRawSel.includes('1x') || bSel.includes('1x');
+      if (isCard1X && isBet1X) return true;
+
+      // 4. Handle 2X / X2 matches
+      const isCard2X = rawSel.includes('2x') || rawSel.includes('x2') || sel.includes('2x') || sel.includes('x2');
+      const isBet2X = bRawSel.includes('2x') || bRawSel.includes('x2') || bSel.includes('2x') || bSel.includes('x2');
+      if (isCard2X && isBet2X) return true;
+
+      // 5. Handle generic labels like 'Match Outcome' or 'Value Selection'
+      if (
+        (bSel.includes('match outcome') || bSel.includes('value selection')) &&
+        (opt.type === 'MATCH' || Math.abs(b.priceTaken - (opt.sportyBetOdds || 0)) < 0.6)
+      ) {
+        return true;
+      }
+
+      // 6. Match by price proximity if match is exact and bet is OPEN
+      if (b.outcome === 'OPEN' && Math.abs(b.priceTaken - (opt.sportyBetOdds || 0)) < 0.25) {
+        return true;
+      }
+
+      return false;
     });
   };
 

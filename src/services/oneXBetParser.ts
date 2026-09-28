@@ -363,9 +363,9 @@ export function parse1xBetText(rawText: string): ParsedOneXBetSlip[] {
     let selection = 'Value Selection';
     if (matchName.toLowerCase().includes("players' stats")) {
       selection = 'Anytime Goalscorer / Player Prop';
-    } else if (odds >= 4.5 && odds <= 6.5) {
+    } else if (odds >= 2.6 && odds <= 4.8) {
       selection = 'Draw (1X2)';
-    } else if (odds >= 1.6 && odds <= 1.95) {
+    } else if (odds >= 1.35 && odds <= 2.15) {
       selection = 'Double Chance (1X)';
     } else {
       selection = 'Match Outcome (1X2)';
@@ -615,7 +615,7 @@ export function getOneXBetCleanScript(projectId: string = 'bet-admin-8d3fc'): st
         dateDisplay: dateStr || new Date().toLocaleDateString('en-GB'),
         league: leagueFallback || 'Sportsbook Market',
         match: matchFallback || 'Football Match',
-        selection: matchFallback.toLowerCase().includes("players' stats") ? 'Anytime Goalscorer' : oddsFallback >= 4.5 && oddsFallback <= 6.5 ? 'Draw (1X2)' : 'Match Outcome (1X2)',
+        selection: matchFallback.toLowerCase().includes("players' stats") ? 'Anytime Goalscorer' : (oddsFallback >= 2.6 && oddsFallback <= 4.8 ? 'Draw (1X2)' : oddsFallback >= 1.35 && oddsFallback <= 2.15 ? 'Double Chance (1X)' : 'Match Outcome (1X2)'),
         marketType: matchFallback.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2',
         bookmaker: '1xBet',
         priceTaken: oddsFallback,
