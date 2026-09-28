@@ -267,7 +267,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
               stats.netProfit >= 0 ? 'text-emerald-400' : 'text-amber-400'
             }`}
           >
-            {stats.netProfit >= 0 ? '+' : ''}
+            {stats.netProfit < 0 ? '-' : stats.netProfit > 0 ? '+' : ''}
             {sym}
             {Math.abs(stats.netProfit).toLocaleString()}
           </div>
