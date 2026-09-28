@@ -360,6 +360,8 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
                                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                 : s.outcome === 'LOST'
                                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                : s.outcome === 'CASHOUT'
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                                 : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                             }`}
                           >

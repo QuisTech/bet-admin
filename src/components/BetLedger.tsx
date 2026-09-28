@@ -16,6 +16,7 @@ import {
   Cloud,
   CloudOff,
   Zap,
+  DollarSign,
 } from 'lucide-react';
 import type { LoggedBet, BetOutcome, BankrollConfig } from '../types';
 import {
@@ -47,7 +48,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
     return unsub;
   }, []);
 
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'WON' | 'LOST'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'WON' | 'LOST' | 'CASHOUT'>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isOneXBetSyncOpen, setIsOneXBetSyncOpen] = useState(false);
 
@@ -81,6 +82,7 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
       if (statusFilter === 'OPEN') return b.outcome === 'OPEN';
       if (statusFilter === 'WON') return b.outcome === 'WON';
       if (statusFilter === 'LOST') return b.outcome === 'LOST';
+      if (statusFilter === 'CASHOUT') return b.outcome === 'CASHOUT';
       return true;
     });
   }, [bets, statusFilter]);
@@ -362,6 +364,18 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
           >
             Lost ({stats.lossCount})
           </button>
+          {stats.cashoutCount > 0 && (
+            <button
+              onClick={() => setStatusFilter('CASHOUT')}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                statusFilter === 'CASHOUT'
+                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Cashed Out ({stats.cashoutCount})
+            </button>
+          )}
         </div>
 
         <div className="text-right text-[11px] font-mono text-slate-500">
@@ -459,6 +473,23 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
                     <td className="py-3 px-3 text-right">
                       {b.outcome === 'OPEN' ? (
                         <span className="text-amber-400 text-[11px] font-bold">Pending</span>
+                      ) : b.outcome === 'CASHOUT' ? (
+                        <div>
+                          <div
+                            className={`font-bold ${
+                              net > 0
+                                ? 'text-purple-400'
+                                : net === 0
+                                ? 'text-slate-400'
+                                : 'text-purple-300'
+                            }`}
+                          >
+                            {net > 0 ? `+${sym}${net.toLocaleString()}` : `${sym}${net.toLocaleString()}`}
+                          </div>
+                          <div className="text-[10px] text-purple-400/80 font-medium">
+                            Cashed Out • Ret: {sym}{payoutVal.toLocaleString()}
+                          </div>
+                        </div>
                       ) : (
                         <div>
                           <div
@@ -503,6 +534,17 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
                           }`}
                         >
                           <XCircle className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleOutcomeChange(b.id, 'CASHOUT')}
+                          title="Mark as Cashed Out / Sold"
+                          className={`p-1 rounded cursor-pointer transition-colors ${
+                            b.outcome === 'CASHOUT'
+                              ? 'bg-purple-500 text-white font-bold'
+                              : 'text-slate-400 hover:text-purple-400'
+                          }`}
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleOutcomeChange(b.id, 'OPEN')}

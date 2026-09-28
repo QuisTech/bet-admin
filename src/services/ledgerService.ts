@@ -628,7 +628,7 @@ export function sanitizeBet(raw: any): LoggedBet {
     stake,
     payout,
     outcome:
-      raw.outcome === 'WON' || raw.outcome === 'LOST' || raw.outcome === 'PUSH'
+      raw.outcome === 'WON' || raw.outcome === 'LOST' || raw.outcome === 'PUSH' || raw.outcome === 'CASHOUT'
         ? raw.outcome
         : 'OPEN',
     clvPercent: clv,
@@ -807,6 +807,8 @@ export function updateBetOutcome(
       payout = customPayout !== undefined ? customPayout : Math.round(b.stake * b.priceTaken);
     } else if (outcome === 'PUSH') {
       payout = b.stake;
+    } else if (outcome === 'CASHOUT') {
+      payout = customPayout !== undefined ? customPayout : Math.round(b.stake * 0.94);
     }
     modifiedBet = {
       ...b,
@@ -972,6 +974,7 @@ export interface LedgerStatistics {
   winCount: number;
   lossCount: number;
   pushCount: number;
+  cashoutCount: number;
   hitRatePercent: number;
   expectedHitRatePercent: number;
   avgCLVPercent: number;
@@ -998,6 +1001,7 @@ export function calculateLedgerStats(rawBets: LoggedBet[]): LedgerStatistics {
   const winCount = settled.filter((b) => b.outcome === 'WON').length;
   const lossCount = settled.filter((b) => b.outcome === 'LOST').length;
   const pushCount = settled.filter((b) => b.outcome === 'PUSH').length;
+  const cashoutCount = settled.filter((b) => b.outcome === 'CASHOUT').length;
 
   const hitRatePercent =
     settledBets > 0 ? Math.round((winCount / settledBets) * 1000) / 10 : 0;
@@ -1062,6 +1066,7 @@ export function calculateLedgerStats(rawBets: LoggedBet[]): LedgerStatistics {
     winCount,
     lossCount,
     pushCount,
+    cashoutCount,
     hitRatePercent,
     expectedHitRatePercent,
     avgCLVPercent,

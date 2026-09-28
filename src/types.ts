@@ -106,7 +106,7 @@ export interface BacktestMetric {
   brierScore: number;
 }
 
-export type BetOutcome = 'WON' | 'LOST' | 'PUSH' | 'OPEN';
+export type BetOutcome = 'WON' | 'LOST' | 'PUSH' | 'OPEN' | 'CASHOUT';
 
 export interface LoggedBet {
   id: string;

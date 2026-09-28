@@ -28,6 +28,11 @@ export function parse1xBetHTML(html: string): ParsedOneXBetSlip[] {
   const slips: ParsedOneXBetSlip[] = [];
   if (!html) return slips;
 
+  // Check if this is an official 1xBet statement / email export
+  if (html.includes('cupHisNew') || html.includes('cupHis') || html.includes('journalResult')) {
+    return parse1xBetEmailHTML(html);
+  }
+
   // Split by coupon row or table item
   const blocks = html.split(/class="[^"]*bets-history-coupon-row/i).slice(1);
 
@@ -71,7 +76,7 @@ export function parse1xBetHTML(html: string): ParsedOneXBetSlip[] {
       outcome = 'WON';
     } else if (/Sold|Cashed/i.test(rawStatus)) {
       status = 'Sold';
-      outcome = 'WON';
+      outcome = 'CASHOUT';
     } else {
       status = 'Unsettled';
       outcome = 'OPEN';
@@ -102,7 +107,7 @@ export function parse1xBetHTML(html: string): ParsedOneXBetSlip[] {
     const potentialWin = winM ? parseFloat(winM[1].replace(/,/g, '')) : 0;
 
     if (status === 'Sold') {
-      payout = potentialWin > 0 ? potentialWin : Math.round(stake * 0.94 * 100) / 100;
+      payout = potentialWin > 0 ? potentialWin : Math.round(stake * (odds < 1.0 ? odds : 0.94) * 100) / 100;
     } else if (status === 'Win') {
       payout = potentialWin > 0 ? potentialWin : Math.round(stake * odds * 100) / 100;
     }
@@ -138,10 +143,115 @@ export function parse1xBetHTML(html: string): ParsedOneXBetSlip[] {
 }
 
 /**
- * Universal Parser that accepts either raw HTML or plain copied text from 1xBet.
+ * Parses official 1xBet Email Statement HTML (contains cupHisNew / hisCof / hisName).
+ */
+export function parse1xBetEmailHTML(rawHtml: string): ParsedOneXBetSlip[] {
+  const slips: ParsedOneXBetSlip[] = [];
+  if (!rawHtml) return slips;
+
+  const blocks = rawHtml.split('<div class="cupHisNew ');
+
+  for (let i = 1; i < blocks.length; i++) {
+    const b = blocks[i];
+    const idMatch = b.match(/№(\d+)/);
+    const timeMatch = b.match(/<time>(.*?)<\/time>/);
+    const nameMatch = b.match(/class="hisName"[^>]*>([\s\S]*?)<\/label>/);
+    const oddsMatch = b.match(/class="hisCof"[^>]*>\s*([\d\.]+)\s*<\/div>/);
+    
+    const betMatch = b.match(/<td[^>]*class="ce"[^>]*>\s*([0-9.,]+)\s*NGN\s*<\/td>/);
+    const winMatch = b.match(/<td[^>]*class="ce"[^>]*>\s*<b>(.*?)<\/b>\s*<\/td>/);
+    const selMatch = b.match(/<td[^>]*class="ce"[^>]*rowspan="2"[^>]*>\s*([\s\S]*?)\s*<\/td>/i);
+
+    const slipId = idMatch ? idMatch[1] : '';
+    if (!slipId) continue;
+
+    const rawTime = timeMatch ? timeMatch[1].trim() : '';
+    const dateStr = rawTime.replace(/\./g, '/').replace(/\s*\|\s*/, ' ').trim();
+
+    let fullTitle = nameMatch ? nameMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+    let league = 'Sportsbook Market';
+    let matchName = fullTitle;
+    if (fullTitle.includes('.')) {
+      const parts = fullTitle.split('.');
+      if (parts.length >= 2) {
+        const remaining = parts.slice(1).join('.').trim();
+        const leagues = ['UEFA Nations League', 'Premier League', 'MLS', 'League One', 'Friendlies'];
+        for (const l of leagues) {
+          if (remaining.includes(l)) {
+            league = l;
+            matchName = remaining.replace(l, '').trim();
+            break;
+          }
+        }
+      }
+    }
+    matchName = matchName.replace(/\s*-\s*/g, ' vs ').replace(/^vs\s+/, '').trim();
+
+    const currentOdds = oddsMatch ? parseFloat(oddsMatch[1]) : 0;
+    const stake = betMatch ? parseFloat(betMatch[1].replace(/,/g, '')) : 0;
+    const winText = winMatch ? winMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+    const rawSel = selMatch ? selMatch[1].replace(/<[^>]+>/g, ' ').trim() : '';
+
+    let selection = 'Match Outcome (1X2)';
+    if (rawSel === 'X') selection = 'Draw (1X2)';
+    else if (rawSel === 'W1') selection = 'Home Win (1X2)';
+    else if (rawSel === '1X') selection = 'Double Chance (1X)';
+    else if (rawSel.toLowerCase().includes('score a goal')) selection = 'Anytime Goalscorer';
+    else if (rawSel) selection = rawSel;
+
+    let status: 'Win' | 'Loss' | 'Unsettled' | 'Sold' | 'OPEN' = 'Unsettled';
+    let outcome: BetOutcome = 'OPEN';
+    let payout = 0;
+
+    // Check if Cashout / Sold:
+    // In 1xBet email, sold bets have odds < 1.0 (e.g. 0.94, 0.75, 0.92) or winText is empty / "NGN"
+    if (currentOdds > 0 && currentOdds < 1.0) {
+      status = 'Sold';
+      outcome = 'CASHOUT';
+      payout = Math.round(stake * currentOdds * 100) / 100;
+    } else if (winText.includes('Loss') || b.includes('background: #ec3636') || b.includes('background: #EC3636')) {
+      status = 'Loss';
+      outcome = 'LOST';
+      payout = 0;
+    } else if (winText.includes('NGN') && parseFloat(winText)) {
+      status = 'Win';
+      outcome = 'WON';
+      payout = parseFloat(winText.replace(/[^0-9.]/g, '')) || Math.round(stake * currentOdds * 100) / 100;
+    } else if (b.includes('unsettled')) {
+      status = 'Unsettled';
+      outcome = 'OPEN';
+      payout = 0;
+    }
+
+    slips.push({
+      id: slipId,
+      date: dateStr,
+      match: matchName,
+      league,
+      selection,
+      odds: currentOdds,
+      stake,
+      potentialWin: payout,
+      status,
+      outcome,
+      payout,
+    });
+  }
+
+  return slips;
+}
+
+/**
+ * Universal Parser that accepts either raw HTML (website or email statement) or plain copied text from 1xBet.
  */
 export function parse1xBetInput(input: string): ParsedOneXBetSlip[] {
   if (!input) return [];
+
+  // Check if input is 1xBet Email Statement HTML (contains cupHisNew)
+  if (input.includes('cupHisNew')) {
+    const emailSlips = parse1xBetEmailHTML(input);
+    if (emailSlips.length > 0) return emailSlips;
+  }
 
   // Check if input is HTML (contains HTML tags or 1xBet DOM attributes)
   if (input.includes('<div') || input.includes('data-test=') || input.includes('bets-history-')) {
@@ -205,8 +315,8 @@ export function parse1xBetText(rawText: string): ParsedOneXBetSlip[] {
 
     if (/Sold|Cashed/i.test(last3Lines) || /Sold|Cashed/i.test(chunk)) {
       status = 'Sold';
-      outcome = 'WON';
-      payout = potentialWin > 0 ? potentialWin : Math.round(stake * 0.94 * 100) / 100;
+      outcome = 'CASHOUT';
+      payout = potentialWin > 0 ? potentialWin : Math.round(stake * (odds < 1.0 ? odds : 0.94) * 100) / 100;
     } else if (/\bLoss\b/i.test(last3Lines)) {
       status = 'Loss';
       outcome = 'LOST';
@@ -324,7 +434,7 @@ export function convertParsedSlipsToLoggedBets(slips: any[]): LoggedBet[] {
         : Math.round((1 / odds) * 1000) / 1000;
 
     const outcome =
-      s.outcome === 'WON' || s.outcome === 'LOST' || s.outcome === 'PUSH'
+      s.outcome === 'WON' || s.outcome === 'LOST' || s.outcome === 'PUSH' || s.outcome === 'CASHOUT'
         ? s.outcome
         : 'OPEN';
 
