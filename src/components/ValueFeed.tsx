@@ -16,6 +16,8 @@ import {
   Calculator,
   Target,
   BookmarkPlus,
+  RotateCcw,
+  Plus,
 } from 'lucide-react';
 import type { MatchData, BankrollConfig, ModelPipelineMode, LoggedBet } from '../types';
 import { STRATEGY_MODES } from '../models/strategyMode';
@@ -85,43 +87,74 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     const home = opt.match.homeTeam.toLowerCase().trim();
     const away = opt.match.awayTeam.toLowerCase().trim();
 
-    return ledgerBets.find((b) => {
+    // Prioritize OPEN bets first, then most recent bets
+    const sorted = [...ledgerBets].sort((a, b) => {
+      if (a.outcome === 'OPEN' && b.outcome !== 'OPEN') return -1;
+      if (b.outcome === 'OPEN' && a.outcome !== 'OPEN') return 1;
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+
+    return sorted.find((b) => {
       const bMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
-      const isMatch =
-        (bMatch.includes(home) && bMatch.includes(away)) ||
-        (home.length > 3 && bMatch.includes(home)) ||
-        (away.length > 3 && bMatch.includes(away));
+      // Ensure match contains BOTH home and away teams
+      const isMatch = bMatch.includes(home) && bMatch.includes(away);
       if (!isMatch) return false;
+
+      // Do not pair Player Props to Match Outcome lines
+      if (opt.type === 'MATCH' && b.marketType === 'PROPS') return false;
+      if (opt.type === 'PROPS' && b.marketType !== 'PROPS') return false;
 
       const bSel = b.selection.toLowerCase().trim();
       const bRawSel = bSel.split(' (')[0].trim();
 
-      // 1. Direct selection match
+      // Avoid matching '1x2' with '1x'
+      const cleanSelNo1X2 = sel.replace(/1x2/gi, '');
+      const cleanRawSelNo1X2 = rawSel.replace(/1x2/gi, '');
+      const cleanBSelNo1X2 = bSel.replace(/1x2/gi, '');
+      const cleanBRawSelNo1X2 = bRawSel.replace(/1x2/gi, '');
+
+      // 1. Direct exact selection match
+      if (bSel === sel || bRawSel === rawSel) {
+        return true;
+      }
+
+      // 2. Handle Draw (pure draw, not double chance 'or draw')
+      const isCardDraw = (rawSel === 'draw' || rawSel === 'the draw' || rawSel === 'x' || (rawSel.includes('draw') && !rawSel.includes('or') && !rawSel.includes('/')));
+      const isBetDraw = (bRawSel === 'draw' || bRawSel === 'the draw' || bRawSel === 'x' || (bRawSel.includes('draw') && !bRawSel.includes('or') && !bRawSel.includes('/')));
+      if (isCardDraw && isBetDraw) return true;
+      if (isCardDraw !== isBetDraw && (isCardDraw || isBetDraw)) return false;
+
+      // 3. Handle 1X matches (exclude 1X2!)
+      const isCard1X = cleanRawSelNo1X2.includes('1x') || cleanSelNo1X2.includes('1x') || sel.includes('double chance (1x)') || (sel.includes('or draw') && sel.includes(home));
+      const isBet1X = cleanBRawSelNo1X2.includes('1x') || cleanBSelNo1X2.includes('1x') || bSel.includes('double chance (1x)') || (bSel.includes('or draw') && bSel.includes(home));
+      if (isCard1X && isBet1X) return true;
+      if (isCard1X !== isBet1X && (isCard1X || isBet1X)) return false;
+
+      // 4. Handle 2X / X2 matches
+      const isCard2X = rawSel.includes('2x') || rawSel.includes('x2') || sel.includes('2x') || sel.includes('x2') || (sel.includes('or draw') && sel.includes(away));
+      const isBet2X = bRawSel.includes('2x') || bRawSel.includes('x2') || bSel.includes('2x') || bSel.includes('x2') || (bSel.includes('or draw') && bSel.includes(away));
+      if (isCard2X && isBet2X) return true;
+      if (isCard2X !== isBet2X && (isCard2X || isBet2X)) return false;
+
+      // 5. Handle Home Win / W1
+      const isCardHome = !isCard1X && (rawSel.includes('home') || rawSel.includes('w1') || rawSel.includes(home));
+      const isBetHome = !isBet1X && (bRawSel.includes('home') || bSel.includes('home') || bRawSel.includes('w1') || bSel.includes('w1'));
+      if (isCardHome && isBetHome) return true;
+
+      // 6. Handle Away Win / W2
+      const isCardAway = !isCard2X && (rawSel.includes('away') || rawSel.includes('w2') || rawSel.includes(away));
+      const isBetAway = !isBet2X && (bRawSel.includes('away') || bSel.includes('away') || bRawSel.includes('w2') || bSel.includes('w2'));
+      if (isCardAway && isBetAway) return true;
+
+      // 7. Substring match only if long enough and not conflicting
       if (
-        bSel === sel ||
-        bRawSel === rawSel ||
-        bSel.includes(rawSel) ||
-        rawSel.includes(bRawSel)
+        (rawSel.length > 4 && bRawSel.includes(rawSel)) ||
+        (bRawSel.length > 4 && rawSel.includes(bRawSel))
       ) {
         return true;
       }
 
-      // 2. Handle Draw / X matches
-      const isCardDraw = rawSel.includes('draw') || sel.includes('draw') || rawSel === 'x';
-      const isBetDraw = bRawSel.includes('draw') || bSel.includes('draw') || bRawSel === 'x';
-      if (isCardDraw && isBetDraw) return true;
-
-      // 3. Handle 1X matches
-      const isCard1X = rawSel.includes('1x') || sel.includes('1x');
-      const isBet1X = bRawSel.includes('1x') || bSel.includes('1x');
-      if (isCard1X && isBet1X) return true;
-
-      // 4. Handle 2X / X2 matches
-      const isCard2X = rawSel.includes('2x') || rawSel.includes('x2') || sel.includes('2x') || sel.includes('x2');
-      const isBet2X = bRawSel.includes('2x') || bRawSel.includes('x2') || bSel.includes('2x') || bSel.includes('x2');
-      if (isCard2X && isBet2X) return true;
-
-      // 5. Handle generic labels like 'Match Outcome' or 'Value Selection'
+      // 8. Handle generic labels like 'Match Outcome' or 'Value Selection' (only if same selection context)
       if (
         (bSel.includes('match outcome') || bSel.includes('value selection')) &&
         (opt.type === 'MATCH' || Math.abs(b.priceTaken - (opt.sportyBetOdds || 0)) < 0.6)
@@ -129,7 +162,7 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
         return true;
       }
 
-      // 6. Match by price proximity if match is exact and bet is OPEN
+      // 9. Match by price proximity if match is exact and bet is OPEN
       if (b.outcome === 'OPEN' && Math.abs(b.priceTaken - (opt.sportyBetOdds || 0)) < 0.25) {
         return true;
       }
@@ -240,7 +273,8 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
     customSelection?: string,
     customMarketType?: string,
     customModelProb?: number,
-    customPinnacleOdds?: number
+    customPinnacleOdds?: number,
+    allowReStakeOrScale: boolean = false
   ) => {
     const odds = customOddsVal ?? opt.sportyBetOdds;
     const ev = customEV ?? opt.evPercent;
@@ -253,10 +287,13 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
       : (opt.pinnacleOdds > 1.0 ? opt.pinnacleOdds : odds);
 
     const existingPosition = getMatchedPosition(opt, selection);
-    if (existingPosition && existingPosition.outcome === 'OPEN') {
-      alert(`⚠️ You are already in position for this match (${existingPosition.selection} • ${currSym}${existingPosition.stake.toLocaleString()} @ ${existingPosition.priceTaken.toFixed(2)}).`);
+    if (!allowReStakeOrScale && existingPosition && existingPosition.outcome === 'OPEN') {
+      alert(`⚠️ You are already in position for this match (${existingPosition.selection} • ${currSym}${existingPosition.stake.toLocaleString()} @ ${existingPosition.priceTaken.toFixed(2)}). Click "Add" if you want to scale into this position.`);
       return;
     }
+
+    const isReStake = existingPosition && existingPosition.outcome !== 'OPEN';
+    const isScaleIn = existingPosition && existingPosition.outcome === 'OPEN';
 
     addLoggedBet({
       league: opt.match.league,
@@ -272,7 +309,9 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
       stake: stake,
       payout: 0,
       outcome: 'OPEN',
-      notes: `Logged from +EV Feed (${strategy.name} mode, EV ${ev > 0 ? '+' : ''}${ev.toFixed(1)}%)`,
+      notes: `Logged from +EV Feed (${strategy.name} mode, EV ${ev > 0 ? '+' : ''}${ev.toFixed(1)}%)${
+        isReStake ? ' [Re-staked]' : isScaleIn ? ' [Scaled In]' : ''
+      }`,
     });
 
     const activeKey = `${opt.id}_${selection}`;
@@ -614,37 +653,56 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         <div className="flex items-center justify-center gap-1.5">
                           {(() => {
                             const tableMatched = getMatchedPosition(opt);
+                            const isTableCashout = tableMatched && (
+                              tableMatched.outcome === 'CASHOUT' ||
+                              tableMatched.notes?.toLowerCase().includes('cashout') ||
+                              tableMatched.notes?.toLowerCase().includes('sold') ||
+                              (tableMatched.payout > 0 && tableMatched.payout < tableMatched.stake)
+                            );
+
                             if (tableMatched) {
                               if (tableMatched.outcome === 'OPEN') {
                                 return (
-                                  <span
-                                    className="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-500 text-slate-950 flex items-center gap-1 shadow-[0_0_10px_rgba(16,185,129,0.35)] cursor-default"
-                                    title={`Active in Ledger: ${currSym}${tableMatched.stake.toLocaleString()} @ ${tableMatched.priceTaken.toFixed(2)}`}
-                                  >
-                                    <Check className="w-3 h-3 stroke-[3]" />
-                                    In Position
-                                  </span>
-                                );
-                              }
-                              if (tableMatched.outcome === 'WON') {
-                                return (
-                                  <span
-                                    className="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/40 flex items-center gap-1"
-                                    title={`Won: +${currSym}${(tableMatched.payout - tableMatched.stake).toLocaleString()}`}
-                                  >
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                    Won
-                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <span
+                                      className="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-500 text-slate-950 flex items-center gap-1 shadow-[0_0_10px_rgba(16,185,129,0.35)] cursor-default"
+                                      title={`Active in Ledger: ${currSym}${tableMatched.stake.toLocaleString()} @ ${tableMatched.priceTaken.toFixed(2)}`}
+                                    >
+                                      <Check className="w-3 h-3 stroke-[3]" />
+                                      In Pos
+                                    </span>
+                                    <button
+                                      onClick={() => handleLogPosition(opt, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true)}
+                                      className="px-1.5 py-1 rounded-lg text-[9px] font-bold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 cursor-pointer transition"
+                                      title="Scale into or add stake"
+                                    >
+                                      +Add
+                                    </button>
+                                  </div>
                                 );
                               }
                               return (
-                                <span
-                                  className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-800 flex items-center gap-1"
-                                  title={`Lost: -${currSym}${tableMatched.stake.toLocaleString()}`}
-                                >
-                                  <XCircle className="w-3 h-3 text-rose-400/80" />
-                                  Lost
-                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center gap-0.5 ${
+                                      tableMatched.outcome === 'WON'
+                                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30'
+                                        : isTableCashout
+                                        ? 'bg-amber-950 text-amber-300 border border-amber-500/30'
+                                        : 'bg-slate-900 text-slate-400 border border-slate-800'
+                                    }`}
+                                  >
+                                    {tableMatched.outcome === 'WON' ? 'Won' : isTableCashout ? 'Sold' : 'Lost'}
+                                  </span>
+                                  <button
+                                    onClick={() => handleLogPosition(opt, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true)}
+                                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/15 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/40 flex items-center gap-0.5 transition cursor-pointer"
+                                    title="Re-stake on this match"
+                                  >
+                                    <RotateCcw className="w-2.5 h-2.5" />
+                                    Re-stake
+                                  </button>
+                                </div>
                               );
                             }
 
@@ -826,12 +884,17 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         ) : cardMatched.outcome === 'WON' ? (
                           <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-black shadow-[0_0_12px_rgba(16,185,129,0.2)]">
                             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                            <span>🏆 WON (+{currSym}{(cardMatched.payout - cardMatched.stake).toLocaleString()} Profit)</span>
+                            <span>🏆 Past: Won (+{currSym}{(cardMatched.payout - cardMatched.stake).toLocaleString()}) • Open to Re-stake</span>
+                          </div>
+                        ) : (cardMatched.outcome === 'CASHOUT' || cardMatched.notes?.toLowerCase().includes('cashout') || cardMatched.notes?.toLowerCase().includes('sold') || (cardMatched.payout > 0 && cardMatched.payout < cardMatched.stake)) ? (
+                          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[10px] font-bold">
+                            <RotateCcw className="w-3 h-3 text-amber-400" />
+                            <span>Past: Cashed Out ({currSym}{cardMatched.payout.toLocaleString()} returned) • Open to Re-stake</span>
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 text-[10px] font-bold">
+                          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 text-[10px] font-bold">
                             <XCircle className="w-3 h-3 text-rose-400/80" />
-                            <span>Settled: Lost (-{currSym}{cardMatched.stake.toLocaleString()})</span>
+                            <span>Past: Lost (-{currSym}{cardMatched.stake.toLocaleString()}) • Open to Re-stake</span>
                           </div>
                         )
                       )}
@@ -1348,9 +1411,9 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                   Detailed Model Breakdown
                 </button>
 
-                <div className="flex items-center gap-2">
-                  {cardMatched ? (
-                    cardMatched.outcome === 'OPEN' ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {cardMatched && cardMatched.outcome === 'OPEN' ? (
+                    <>
                       <button
                         onClick={() => onSelectMatch(opt.match, activeMarketIdx)}
                         className="px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_12px_rgba(16,185,129,0.35)] transition cursor-pointer"
@@ -1359,23 +1422,93 @@ export const ValueFeed: React.FC<ValueFeedProps> = ({
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
                         <span>In Position ({currSym}{cardMatched.stake.toLocaleString()})</span>
                       </button>
-                    ) : cardMatched.outcome === 'WON' ? (
-                      <div
-                        className="px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 bg-emerald-950 text-emerald-400 border border-emerald-500/40"
-                        title="Position settled as a WIN"
+                      <button
+                        onClick={() =>
+                          handleLogPosition(
+                            opt,
+                            effectiveOdds,
+                            effectiveEV,
+                            effectiveStakeAmount,
+                            activeSelection,
+                            activeMarket?.marketType,
+                            activeModelProb,
+                            activePinnacleOdds,
+                            true // allow additional stake
+                          )
+                        }
+                        className="px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
+                        title="Scale into or add more stake to this position"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Settled: Won</span>
-                      </div>
-                    ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add</span>
+                      </button>
+                    </>
+                  ) : cardMatched && cardMatched.outcome !== 'OPEN' ? (
+                    <>
+                      {/* Historical Pill */}
                       <div
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-slate-900 text-slate-400 border border-slate-800"
-                        title="Position settled as a LOSS"
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                          cardMatched.outcome === 'WON'
+                            ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/30'
+                            : (cardMatched.outcome === 'CASHOUT' || cardMatched.notes?.toLowerCase().includes('cashout') || cardMatched.notes?.toLowerCase().includes('sold') || (cardMatched.payout > 0 && cardMatched.payout < cardMatched.stake))
+                            ? 'bg-amber-950/60 text-amber-300 border border-amber-500/30'
+                            : 'bg-slate-900/80 text-slate-400 border border-slate-800'
+                        }`}
+                        title={`Previous position on this market settled (${cardMatched.outcome})`}
                       >
-                        <XCircle className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Settled: Lost</span>
+                        {cardMatched.outcome === 'WON' ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Past: Won</span>
+                          </>
+                        ) : (cardMatched.outcome === 'CASHOUT' || cardMatched.notes?.toLowerCase().includes('cashout') || cardMatched.notes?.toLowerCase().includes('sold') || (cardMatched.payout > 0 && cardMatched.payout < cardMatched.stake)) ? (
+                          <>
+                            <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Past: Cashed Out</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Past: Lost</span>
+                          </>
+                        )}
                       </div>
-                    )
+
+                      {/* Re-stake Button */}
+                      <button
+                        onClick={() =>
+                          handleLogPosition(
+                            opt,
+                            effectiveOdds,
+                            effectiveEV,
+                            effectiveStakeAmount,
+                            activeSelection,
+                            activeMarket?.marketType,
+                            activeModelProb,
+                            activePinnacleOdds,
+                            true // allow re-stake
+                          )
+                        }
+                        className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                          loggedIds[opt.id] || loggedIds[`${opt.id}_${activeSelection}`]
+                            ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_12px_rgba(16,185,129,0.4)]'
+                            : 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/50 hover:shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                        }`}
+                        title="Re-stake on this match with the current recommended Kelly sizing"
+                      >
+                        {loggedIds[opt.id] || loggedIds[`${opt.id}_${activeSelection}`] ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            Re-staked!
+                          </>
+                        ) : (
+                          <>
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            + Re-stake ({currSym}{effectiveStakeAmount.toLocaleString()})
+                          </>
+                        )}
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() =>

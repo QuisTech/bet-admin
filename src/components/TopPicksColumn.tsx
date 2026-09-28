@@ -98,10 +98,10 @@ export const TopPicksColumn: React.FC<TopPicksColumnProps> = ({
             const away = item.match.awayTeam.toLowerCase().trim();
             const heldPosition = ledgerBets.find((b) => {
               const bMatch = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
-              const isMatch = (bMatch.includes(home) && bMatch.includes(away)) ||
-                              (home.length > 3 && bMatch.includes(home)) ||
-                              (away.length > 3 && bMatch.includes(away));
-              return isMatch && b.outcome === 'OPEN';
+              const isMatch = bMatch.includes(home) && bMatch.includes(away);
+              if (!isMatch || b.outcome !== 'OPEN') return false;
+              if (b.marketType === 'PROPS') return false;
+              return true;
             });
 
             return (
