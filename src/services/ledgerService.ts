@@ -498,42 +498,45 @@ export const INITIAL_SEED_BETS: LoggedBet[] = [
   },
 ];
 
-const OFFICIAL_SLIPS_SYNC_KEY = 'bet_admin_official_slips_synced_v5';
+/**
+ * Reconciles any legacy draft positions with official 1xBet verified slips.
+ * If a match already exists in official slips, the official 1xBet slip replaces the draft.
+ */
+export function reconcileWithOfficialSlips(bets: LoggedBet[]): LoggedBet[] {
+  const officialSlips = INITIAL_SEED_BETS.filter((s) => !isBetDeleted(s));
+  const officialMatches = new Set(
+    officialSlips.map((s) => s.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim())
+  );
+  const officialIds = new Set(officialSlips.map((s) => s.id));
+
+  // Keep any user-added bets that are genuinely outside the official 19 slips
+  const nonOfficialBets = (bets || []).filter((b) => {
+    if (!b || !b.match || isBetDeleted(b)) return false;
+    if (officialIds.has(b.id)) return false;
+    const norm = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
+    // If it matches an official match name, but has a non-official ID (e.g. 'seed-bet-' or 'bet-'), discard the draft!
+    if (officialMatches.has(norm)) return false;
+    return true;
+  });
+
+  const merged = [...officialSlips, ...nonOfficialBets];
+  const clean = deduplicateBets(merged);
+  clean.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return clean;
+}
 
 export function upgradeLedgerToOfficialSlips(): void {
   try {
     if (typeof localStorage === 'undefined') return;
-    const synced = localStorage.getItem(OFFICIAL_SLIPS_SYNC_KEY);
-    if (synced === 'true') return;
-
-    // Load current bets
     const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
     const existing: LoggedBet[] = raw ? JSON.parse(raw) : [];
+    const reconciled = reconcileWithOfficialSlips(existing);
 
-    // Map each official slip by its normalized match name and its official slip ID
-    const officialMatches = new Set(
-      INITIAL_SEED_BETS.map((s) => s.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim())
-    );
-
-    // Keep any user-added bets that are NOT one of these 19 official matches
-    const nonOfficialUserBets = Array.isArray(existing)
-      ? existing.filter((b) => {
-          const norm = b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim();
-          return !officialMatches.has(norm) && !isBetDeleted(b);
-        })
-      : [];
-
-    // Merge: all 19 official slips + any other non-official bets
-    const merged = [...INITIAL_SEED_BETS, ...nonOfficialUserBets].filter((b) => !isBetDeleted(b));
-    const clean = deduplicateBets(merged);
-    clean.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(clean));
-    localStorage.setItem(OFFICIAL_SLIPS_SYNC_KEY, 'true');
-    notifyLedgerUpdated(clean);
+    localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
+    notifyLedgerUpdated(reconciled);
 
     if (isFirebaseConfigured()) {
-      syncAllLocalBetsToFirestore(clean).catch(() => {});
+      syncAllLocalBetsToFirestore(reconciled).catch(() => {});
     }
   } catch (e) {
     console.warn('Error upgrading ledger to official slips:', e);
@@ -597,14 +600,14 @@ export function removeDuplicateBets(): { cleaned: LoggedBet[]; removedCount: num
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LEDGER_STORAGE_KEY) : null;
     const current: LoggedBet[] = raw ? JSON.parse(raw) : INITIAL_SEED_BETS;
-    const clean = deduplicateBets(current);
+    const clean = reconcileWithOfficialSlips(current);
     const removedCount = current.length - clean.length;
     if (removedCount > 0 && typeof localStorage !== 'undefined') {
       localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(clean));
     }
     return { cleaned: clean, removedCount };
   } catch {
-    const clean = deduplicateBets(INITIAL_SEED_BETS);
+    const clean = reconcileWithOfficialSlips(INITIAL_SEED_BETS);
     return { cleaned: clean, removedCount: 0 };
   }
 }
@@ -612,47 +615,31 @@ export function removeDuplicateBets(): { cleaned: LoggedBet[]; removedCount: num
 export function getLoggedBets(): LoggedBet[] {
   try {
     if (typeof localStorage === 'undefined') {
-      return deduplicateBets(INITIAL_SEED_BETS).filter((b) => !isBetDeleted(b));
+      return reconcileWithOfficialSlips(INITIAL_SEED_BETS);
     }
     const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
     if (!raw) {
-      const cleanSeeds = deduplicateBets(INITIAL_SEED_BETS).filter((b) => !isBetDeleted(b));
-      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(cleanSeeds));
-      return cleanSeeds;
+      const reconciled = reconcileWithOfficialSlips(INITIAL_SEED_BETS);
+      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
+      return reconciled;
     }
     const parsed: LoggedBet[] = JSON.parse(raw);
     if (!Array.isArray(parsed)) {
-      return deduplicateBets(INITIAL_SEED_BETS).filter((b) => !isBetDeleted(b));
+      const reconciled = reconcileWithOfficialSlips(INITIAL_SEED_BETS);
+      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
+      return reconciled;
     }
 
-    // Ensure official bet slips (such as 87840835081) are merged if missing and not deleted
-    const merged = parsed.filter((b) => !isBetDeleted(b));
-    for (const seed of INITIAL_SEED_BETS) {
-      if (isBetDeleted(seed)) continue;
-      const exists = merged.some((b) => 
-        b.id === seed.id || 
-        (b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() === seed.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() &&
-         Math.abs(b.priceTaken - seed.priceTaken) < 0.02 &&
-         b.stake === seed.stake)
-      );
-      if (!exists) {
-        merged.push(seed);
-      }
+    // Reconcile and prune any legacy draft duplicates
+    const reconciled = reconcileWithOfficialSlips(parsed);
+    if (reconciled.length !== parsed.length) {
+      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
     }
 
-    // Deduplicate entire list
-    const deduplicated = deduplicateBets(merged).filter((b) => !isBetDeleted(b));
-    deduplicated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    // Update storage if duplicates were removed or seed was merged
-    if (deduplicated.length !== parsed.length) {
-      localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(deduplicated));
-    }
-
-    return deduplicated;
+    return reconciled;
   } catch (e) {
     console.error('Failed to read ledger from localStorage:', e);
-    return deduplicateBets(INITIAL_SEED_BETS).filter((b) => !isBetDeleted(b));
+    return reconcileWithOfficialSlips(INITIAL_SEED_BETS);
   }
 }
 
@@ -828,26 +815,30 @@ export function initLedgerSync(
     unsubFirestore = subscribeToFirestoreBets((remoteBets) => {
       if (!isSubscribed) return;
 
+      if (!remoteBets || remoteBets.length === 0) {
+        // Cloud collection is currently empty; keep local authoritative slips
+        return;
+      }
+
       // 1. Filter out any bets that were explicitly deleted by the user
-      const validRemote = (remoteBets || []).filter((b) => !isBetDeleted(b));
+      const validRemote = remoteBets.filter((b) => !isBetDeleted(b));
 
       // 2. If remote has any bets that should have been deleted, purge them from Firestore
-      (remoteBets || []).forEach((b) => {
+      remoteBets.forEach((b) => {
         if (isBetDeleted(b) && b.id) {
           deleteBetFromFirestore(b.id, { match: b.match, selection: b.selection }).catch(() => {});
         }
       });
 
-      // 3. Deduplicate remote bets
-      const deduplicated = deduplicateBets(validRemote);
-      deduplicated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      // 3. Reconcile with official slips to prevent draft duplicates
+      const reconciled = reconcileWithOfficialSlips(validRemote);
 
       // 4. Accept cloud truth into local cache (WITHOUT re-uploading missing bets)
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(deduplicated));
+        localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(reconciled));
       }
 
-      onUpdate(deduplicated);
+      onUpdate(reconciled);
     });
   }
 
