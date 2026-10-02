@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, Component, type ErrorInfo, type ReactNode } from 'react';
-import { Calculator } from 'lucide-react';
+import { Calculator, Layers } from 'lucide-react';
 import { Header } from './components/Header';
 import { MetricsColumn } from './components/MetricsColumn';
 import { TopPicksColumn } from './components/TopPicksColumn';
@@ -10,6 +10,8 @@ import { ModelDiagnostics } from './components/ModelDiagnostics';
 import { StakingCalculator } from './components/StakingCalculator';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 import { UniversalClvModal, type UniversalClvInitialData } from './components/UniversalClvModal';
+import { BatchSlateModal } from './components/BatchSlateModal';
+import type { ParsedOddsMatch } from './services/oddsTextParser';
 import type { MatchData, BankrollConfig, ModelPipelineMode } from './types';
 import { BASE_MATCHES } from './data/matchRepository';
 import { fetchLiveFPLBootstrap } from './services/fplService';
@@ -165,6 +167,8 @@ export default function App() {
   const [pipelineFilter, setPipelineFilter] = useState<ModelPipelineMode>('ALL_CONSENSUS');
   const [isClvModalOpen, setIsClvModalOpen] = useState(false);
   const [clvInitialData, setClvInitialData] = useState<UniversalClvInitialData | null>(null);
+  const [isBatchSlateOpen, setIsBatchSlateOpen] = useState(false);
+  const [importedSlateMatches, setImportedSlateMatches] = useState<ParsedOddsMatch[]>([]);
 
   const handleSelectMatch = (m: MatchData, marketIndex: number = 0) => {
     setSelectedMatch(m);
@@ -297,6 +301,24 @@ export default function App() {
         } catch (e) {
           console.error('Failed to parse #clv hash:', e);
         }
+      } else if (hash.startsWith('#importSlate=')) {
+        try {
+          const rawJson = decodeURIComponent(hash.substring('#importSlate='.length));
+          const data = JSON.parse(rawJson);
+          if (Array.isArray(data) && data.length > 0) {
+            const parsed: ParsedOddsMatch[] = data.map((item: any) => ({
+              matchName: item.match,
+              homeOdds: parseFloat(item.h),
+              drawOdds: parseFloat(item.d),
+              awayOdds: parseFloat(item.a),
+            }));
+            setImportedSlateMatches(parsed);
+            setIsBatchSlateOpen(true);
+            window.location.hash = '';
+          }
+        } catch (e) {
+          console.error('Failed to parse #importSlate hash:', e);
+        }
       }
     };
 
@@ -396,14 +418,22 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-3 justify-between md:justify-end">
+              <div className="flex items-center gap-2 justify-between md:justify-end flex-wrap">
+                <button
+                  onClick={() => setIsBatchSlateOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/40 hover:bg-emerald-500/25 text-emerald-300 hover:text-white text-[11px] font-black transition cursor-pointer shadow-sm"
+                  title="Batch Slate Scanner - Scan 20 to 50 games from OddsPortal at once"
+                >
+                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>⚡ Batch Slate Scanner</span>
+                </button>
                 <button
                   onClick={() => setIsClvModalOpen(true)}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/40 text-emerald-400 hover:text-white text-[11px] font-bold transition cursor-pointer shadow-sm"
                   title="Universal CLV & Fair Line Calculator - Check any game on earth"
                 >
                   <Calculator className="w-3 h-3 text-emerald-400" />
-                  <span>Check Any Game CLV</span>
+                  <span>Single CLV</span>
                 </button>
                 <div className="text-right text-[11px] font-mono text-slate-400">
                   <span className="text-emerald-400 font-bold">{slateStats.activeSignalCount}</span>{' '}
@@ -513,6 +543,14 @@ export default function App() {
         }}
         config={config}
         initialData={clvInitialData}
+      />
+
+      {/* Whole-Page Batch Slate Scanner Modal */}
+      <BatchSlateModal
+        isOpen={isBatchSlateOpen}
+        onClose={() => setIsBatchSlateOpen(false)}
+        config={config}
+        initialMatches={importedSlateMatches}
       />
     </div>
   );
