@@ -9,7 +9,7 @@ import { BetLedger } from './components/BetLedger';
 import { ModelDiagnostics } from './components/ModelDiagnostics';
 import { StakingCalculator } from './components/StakingCalculator';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
-import { UniversalClvModal } from './components/UniversalClvModal';
+import { UniversalClvModal, type UniversalClvInitialData } from './components/UniversalClvModal';
 import type { MatchData, BankrollConfig, ModelPipelineMode } from './types';
 import { BASE_MATCHES } from './data/matchRepository';
 import { fetchLiveFPLBootstrap } from './services/fplService';
@@ -164,6 +164,7 @@ export default function App() {
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>('soccer_epl');
   const [pipelineFilter, setPipelineFilter] = useState<ModelPipelineMode>('ALL_CONSENSUS');
   const [isClvModalOpen, setIsClvModalOpen] = useState(false);
+  const [clvInitialData, setClvInitialData] = useState<UniversalClvInitialData | null>(null);
 
   const handleSelectMatch = (m: MatchData, marketIndex: number = 0) => {
     setSelectedMatch(m);
@@ -278,6 +279,23 @@ export default function App() {
           }
         } catch (e) {
           console.error('Failed to import slips from hash:', e);
+        }
+      } else if (hash.startsWith('#clv=')) {
+        try {
+          const rawJson = decodeURIComponent(hash.substring('#clv='.length));
+          const data = JSON.parse(rawJson);
+          setClvInitialData({
+            matchName: data.match,
+            homeOdds: data.h,
+            drawOdds: data.d,
+            awayOdds: data.a,
+            retailOdds: data.retail,
+            targetWay: data.target ?? 2,
+          });
+          setIsClvModalOpen(true);
+          window.location.hash = '';
+        } catch (e) {
+          console.error('Failed to parse #clv hash:', e);
         }
       }
     };
@@ -489,8 +507,12 @@ export default function App() {
       {/* Universal Arbitrary CLV & Edge Inspector Modal */}
       <UniversalClvModal
         isOpen={isClvModalOpen}
-        onClose={() => setIsClvModalOpen(false)}
+        onClose={() => {
+          setIsClvModalOpen(false);
+          setClvInitialData(null);
+        }}
         config={config}
+        initialData={clvInitialData}
       />
     </div>
   );
