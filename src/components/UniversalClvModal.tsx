@@ -13,6 +13,7 @@ import {
   Bookmark,
   ChevronDown,
   ChevronUp,
+  Terminal,
 } from 'lucide-react';
 import type { BankrollConfig } from '../types';
 import { calculateShinDevig } from '../models/shinDevig';
@@ -21,6 +22,7 @@ import { addLoggedBet } from '../services/ledgerService';
 import {
   parseOddsPortalText,
   generateOddsPortalBookmarklet,
+  getOddsPortalCleanScript,
   type ParsedOddsMatch,
 } from '../services/oddsTextParser';
 
@@ -79,15 +81,25 @@ export const UniversalClvModal: React.FC<UniversalClvModalProps> = ({
   // Bookmarklet drawer state
   const [showBookmarkletGuide, setShowBookmarkletGuide] = useState(false);
   const [copiedBookmarklet, setCopiedBookmarklet] = useState(false);
+  const [copiedConsole, setCopiedConsole] = useState(false);
   const bookmarkletAnchorRef = useRef<HTMLAnchorElement>(null);
 
   const [loggedSuccess, setLoggedSuccess] = useState(false);
 
   const sym = config.currency === 'USD' ? '$' : '₦';
 
-  // Bookmarklet JS URI
+  // Bookmarklet & Console JS Scripts
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://bet-admin-iota.vercel.app';
   const bookmarkletCode = useMemo(() => generateOddsPortalBookmarklet(appOrigin), [appOrigin]);
+  const cleanConsoleScript = useMemo(() => getOddsPortalCleanScript(appOrigin), [appOrigin]);
+
+  const handleCopyConsole = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(cleanConsoleScript);
+      setCopiedConsole(true);
+      setTimeout(() => setCopiedConsole(false), 3000);
+    }
+  };
 
   useEffect(() => {
     if (bookmarkletAnchorRef.current) {
@@ -408,18 +420,37 @@ export const UniversalClvModal: React.FC<UniversalClvModalProps> = ({
               </p>
 
               <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleCopyConsole}
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                >
+                  {copiedConsole ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>Console Code Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Terminal className="w-3.5 h-3.5" />
+                      <span>📋 Copy F12 Console Code (Instant)</span>
+                    </>
+                  )}
+                </button>
+
                 <a
                   ref={bookmarkletAnchorRef}
                   href={bookmarkletCode}
                   draggable="true"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs shadow-md transition cursor-grab active:cursor-grabbing border border-cyan-300"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-bold text-xs shadow-sm transition cursor-grab active:cursor-grabbing"
                   title="Drag me to your browser Bookmarks Bar!"
                   onClick={(e) => {
                     e.preventDefault();
                     handleCopyBookmarklet();
                   }}
                 >
-                  <span>⚡ Grab OddsPortal CLV</span>
+                  <Bookmark className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Drag Bookmarklet</span>
                 </a>
 
                 <button
@@ -430,7 +461,7 @@ export const UniversalClvModal: React.FC<UniversalClvModalProps> = ({
                   {copiedBookmarklet ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Copied URL!</span>
+                      <span className="text-emerald-400">Copied Bookmark URL!</span>
                     </>
                   ) : (
                     <>
@@ -441,11 +472,21 @@ export const UniversalClvModal: React.FC<UniversalClvModalProps> = ({
                 </button>
               </div>
 
-              <div className="text-[10px] text-slate-400 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
-                <div className="font-bold text-slate-200">How to install in 5 seconds:</div>
-                <div>1. Drag the cyan button above directly to your browser's Bookmarks Bar (or click Copy Bookmark URL ➔ Add Bookmark ➔ Paste into URL).</div>
-                <div>2. On OddsPortal, click <strong>⚡ Grab OddsPortal CLV</strong>.</div>
-                <div>3. Done! It automatically captures the match and loads into Bet Admin.</div>
+              <div className="text-[10px] text-slate-400 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+                <div className="font-bold text-emerald-400">⚡ Method A (F12 Console - Easiest & 100% Reliable):</div>
+                <div className="text-slate-300">
+                  1. Click <strong className="text-white">Copy F12 Console Code</strong> above.
+                  <br />
+                  2. On your OddsPortal tab, press <kbd className="px-1 py-0.5 bg-slate-800 rounded font-mono text-slate-200">F12</kbd> (or Right-click ➔ Inspect ➔ Console).
+                  <br />
+                  3. Paste (<kbd className="px-1 py-0.5 bg-slate-800 rounded font-mono text-slate-200">Ctrl + V</kbd>) and press <kbd className="px-1 py-0.5 bg-slate-800 rounded font-mono text-slate-200">Enter</kbd>.
+                  <br />
+                  4. The OddsPortal CLV widget appears on the page with a 1-click button to open Bet Admin!
+                </div>
+                <div className="font-bold text-cyan-400 pt-1">🔖 Method B (Bookmarklet):</div>
+                <div className="text-slate-400">
+                  Drag the cyan button above into your Bookmarks bar, or create a bookmark and paste the URL into it.
+                </div>
               </div>
             </div>
           )}

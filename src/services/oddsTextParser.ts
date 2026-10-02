@@ -75,11 +75,6 @@ export function parseOddsPortalText(raw: string): ParsedOddsMatch[] {
   }
 
   // Pattern 2: Line by line scanning
-  // Common format when copying from OddsPortal / Excel:
-  // Line 1: Team A vs Team B (or [20:45 Team A - Team B])
-  // Line 2: 2.74
-  // Line 3: 3.59
-  // Line 4: 2.45
   const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
   let currentTitle = '';
@@ -113,7 +108,6 @@ export function parseOddsPortalText(raw: string): ParsedOddsMatch[] {
             break;
           }
           if (/[A-Za-z]/.test(nextLine)) {
-            // Reached another text line, break
             break;
           }
         }
@@ -150,7 +144,6 @@ export function parseOddsPortalText(raw: string): ParsedOddsMatch[] {
   }
 
   // Fallback Pattern 4: Just extract 3 consecutive decimal numbers anywhere in text
-  // e.g. "2.74 3.59 2.45"
   const allNumbers = raw.match(/\b\d{1,2}\.\d{2,3}\b/g);
   if (allNumbers && allNumbers.length >= 3) {
     matches.push({
@@ -165,94 +158,108 @@ export function parseOddsPortalText(raw: string): ParsedOddsMatch[] {
 }
 
 /**
+ * Pure, clean JavaScript script to run in the OddsPortal DevTools Console (F12).
+ * Contains no %20 or URI-encoded artifacts.
+ */
+export function getOddsPortalCleanScript(appUrl: string = 'https://bet-admin-iota.vercel.app'): string {
+  return `(function() {
+  try {
+    var doc = document;
+    var title = '';
+    var h = 0, d = 0, a = 0;
+
+    // 1. Detect match title on Oddsportal
+    var h1 = doc.querySelector('h1') || doc.querySelector('[data-testid="game-details"]');
+    if (h1) {
+      title = h1.innerText.replace(/\\n/g, ' - ').trim();
+    } else {
+      title = doc.title.split('|')[0].split('-')[0].trim();
+    }
+
+    // 2. Scan for Pinnacle row or consensus 1X2 odds
+    var rows = Array.from(doc.querySelectorAll('tr, div[class*="flex"], div[class*="row"]'));
+    var pinnacleRow = rows.find(function(r) {
+      return r.innerText && r.innerText.toLowerCase().includes('pinnacle');
+    });
+
+    var targetRow = pinnacleRow || doc.body;
+    var numbers = (targetRow.innerText || '').match(/\\b\\d{1,2}\\.\\d{2,3}\\b/g) || [];
+
+    // If on target row we found at least 3 odds
+    if (numbers.length >= 3) {
+      h = parseFloat(numbers[0]);
+      d = parseFloat(numbers[1]);
+      a = parseFloat(numbers[2]);
+    } else {
+      // Fallback: search anywhere in selection or document body
+      var sel = window.getSelection ? window.getSelection().toString() : '';
+      var selNums = sel.match(/\\b\\d{1,2}\\.\\d{2,3}\\b/g) || [];
+      if (selNums.length >= 3) {
+        h = parseFloat(selNums[0]);
+        d = parseFloat(selNums[1]);
+        a = parseFloat(selNums[2]);
+      }
+    }
+
+    if (h <= 1.0 || d <= 1.0 || a <= 1.0) {
+      alert('⚠️ Could not automatically detect 3-way odds on this view. Please highlight/select the 3 odds numbers on the page with your mouse, then re-run this script!');
+      return;
+    }
+
+    var payload = {
+      match: title || 'OddsPortal Match',
+      h: h,
+      d: d,
+      a: a
+    };
+
+    var jsonStr = JSON.stringify(payload);
+    var textToCopy = (title ? title + '\\n' : '') + h + ' ' + d + ' ' + a;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textToCopy);
+    }
+
+    // Existing toast cleanup
+    var oldToast = doc.getElementById('bh-odds-toast');
+    if (oldToast) oldToast.remove();
+
+    // Show floating card on OddsPortal page
+    var toast = doc.createElement('div');
+    toast.id = 'bh-odds-toast';
+    toast.style.cssText = 'position:fixed;top:24px;right:24px;z-index:9999999;background:#022c22;border:2px solid #10b981;color:#ecfdf5;padding:18px 22px;border-radius:18px;box-shadow:0 20px 50px rgba(0,0,0,0.85);font-family:system-ui,-apple-system,sans-serif;font-size:13px;max-width:380px;line-height:1.4;';
+    toast.innerHTML = '<div style="font-weight:900;color:#34d399;font-size:15px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">⚡ OddsPortal CLV Captured!</div>' +
+      '<div style="color:#e2e8f0;margin-bottom:10px;"><strong>' + (title || 'Match') + '</strong><br>' +
+      '<span style="font-family:monospace;font-size:12px;">1: <b style="color:#38bdf8;">' + h + '</b> | X: <b style="color:#38bdf8;">' + d + '</b> | 2: <b style="color:#38bdf8;">' + a + '</b></span></div>' +
+      '<div style="font-size:11px;color:#94a3b8;margin-bottom:14px;">✅ Copied to clipboard! Ready for Bet Admin.</div>' +
+      '<div style="display:flex;gap:10px;">' +
+      '<button id="bh-open-btn" style="flex:1;background:#10b981;color:#022c22;border:none;padding:10px 14px;border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;box-shadow:0 4px 12px rgba(16,185,129,0.3);">🚀 Open in Bet Admin</button>' +
+      '<button id="bh-close-btn" style="background:#1e293b;color:#cbd5e1;border:none;padding:10px 14px;border-radius:10px;font-size:12px;cursor:pointer;">✕</button>' +
+      '</div>';
+
+    doc.body.appendChild(toast);
+
+    doc.getElementById('bh-close-btn').onclick = function() { toast.remove(); };
+    doc.getElementById('bh-open-btn').onclick = function() {
+      var host = '${appUrl}';
+      window.open(host + '/#clv=' + encodeURIComponent(jsonStr), '_blank');
+      toast.remove();
+    };
+
+    setTimeout(function() { if (toast && toast.parentNode) toast.remove(); }, 12000);
+  } catch (e) {
+    alert('Error parsing OddsPortal: ' + e.message);
+  }
+})();`;
+}
+
+/**
  * Generate 1-Click OddsPortal Bookmarklet
  * Extracts current match, Pinnacle lines (or consensus 1X2), and sends to Bet Admin.
+ * Notice: Keeps plain JS syntax without %20 escaping so browsers don't throw syntax errors.
  */
 export function generateOddsPortalBookmarklet(appUrl: string = 'https://bet-admin-iota.vercel.app'): string {
-  const code = `(function() {
-    try {
-      var doc = document;
-      var title = '';
-      var h = 0, d = 0, a = 0;
-
-      // 1. Detect match title on Oddsportal
-      var h1 = doc.querySelector('h1') || doc.querySelector('[data-testid="game-details"]');
-      if (h1) {
-        title = h1.innerText.replace(/\\n/g, ' - ').trim();
-      } else {
-        title = doc.title.split('|')[0].split('-')[0].trim();
-      }
-
-      // 2. Scan for Pinnacle row or consensus 1X2 odds
-      var rows = Array.from(doc.querySelectorAll('tr, div[class*="flex"], div[class*="row"]'));
-      var pinnacleRow = rows.find(function(r) {
-        return r.innerText && r.innerText.toLowerCase().includes('pinnacle');
-      });
-
-      var targetRow = pinnacleRow || doc.body;
-      var numbers = (targetRow.innerText || '').match(/\\b\\d{1,2}\\.\\d{2,3}\\b/g) || [];
-
-      // If on target row we found at least 3 odds
-      if (numbers.length >= 3) {
-        h = parseFloat(numbers[0]);
-        d = parseFloat(numbers[1]);
-        a = parseFloat(numbers[2]);
-      } else {
-        // Fallback: search anywhere in viewport/selection
-        var sel = window.getSelection ? window.getSelection().toString() : '';
-        var selNums = sel.match(/\\b\\d{1,2}\\.\\d{2,3}\\b/g) || [];
-        if (selNums.length >= 3) {
-          h = parseFloat(selNums[0]);
-          d = parseFloat(selNums[1]);
-          a = parseFloat(selNums[2]);
-        }
-      }
-
-      if (h <= 1.0 || d <= 1.0 || a <= 1.0) {
-        alert('⚠️ Could not automatically detect 3-way odds. Please select/highlight the odds numbers on OddsPortal first, then click this bookmark!');
-        return;
-      }
-
-      var payload = {
-        match: title || 'OddsPortal Match',
-        h: h,
-        d: d,
-        a: a
-      };
-
-      var jsonStr = JSON.stringify(payload);
-      var textToCopy = (title ? title + '\\n' : '') + h + ' ' + d + ' ' + a;
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(textToCopy);
-      }
-
-      // Show toast on page
-      var toast = doc.createElement('div');
-      toast.style.cssText = 'position:fixed;top:20px;right:20px;z-index:999999;background:#022c22;border:2px solid #10b981;color:#ecfdf5;padding:16px 20px;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.8);font-family:system-ui,sans-serif;font-size:13px;max-width:360px;';
-      toast.innerHTML = '<div style="font-weight:900;color:#34d399;font-size:15px;margin-bottom:6px;">⚡ OddsPortal CLV Grabbed!</div>' +
-        '<div style="color:#e2e8f0;margin-bottom:8px;"><strong>' + (title || 'Match') + '</strong><br>1: <b style=\"color:#38bdf8;\">' + h + '</b> | X: <b style=\"color:#38bdf8;\">' + d + '</b> | 2: <b style=\"color:#38bdf8;\">' + a + '</b></div>' +
-        '<div style="font-size:11px;color:#94a3b8;margin-bottom:12px;">✅ Copied to clipboard! Ready to paste into Bet Admin.</div>' +
-        '<div style="display:flex;gap:8px;">' +
-        '<button id="bh-open-btn" style="flex:1;background:#10b981;color:#022c22;border:none;padding:8px 12px;border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;">🚀 Open Inspector</button>' +
-        '<button id="bh-close-btn" style="background:#1e293b;color:#cbd5e1;border:none;padding:8px 12px;border-radius:10px;font-size:12px;cursor:pointer;">✕</button>' +
-        '</div>';
-
-      doc.body.appendChild(toast);
-
-      doc.getElementById('bh-close-btn').onclick = function() { toast.remove(); };
-      doc.getElementById('bh-open-btn').onclick = function() {
-        var host = '${appUrl}';
-        window.open(host + '/#clv=' + encodeURIComponent(jsonStr), '_blank');
-        toast.remove();
-      };
-
-      setTimeout(function() { if (toast && toast.parentNode) toast.remove(); }, 8000);
-    } catch (e) {
-      alert('Error parsing OddsPortal: ' + e.message);
-    }
-  })();`;
-
-  const compact = code.replace(/\s+/g, ' ').trim();
-  return `javascript:${encodeURI(compact)}`;
+  const scriptBody = getOddsPortalCleanScript(appUrl);
+  const compact = scriptBody.replace(/\s+/g, ' ').trim();
+  return `javascript:${compact}`;
 }
