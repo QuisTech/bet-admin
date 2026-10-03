@@ -45,6 +45,16 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
     const unsub = initLedgerSync((syncedBets) => {
       setBets(syncedBets);
     });
+
+    // Proactively pull latest positions from Cloud Firestore on mount
+    refreshLedgerFromCloud()
+      .then((fresh) => {
+        if (fresh && fresh.length > 0) {
+          setBets(fresh);
+        }
+      })
+      .catch(() => {});
+
     return unsub;
   }, []);
 

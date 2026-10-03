@@ -364,35 +364,97 @@ export function subscribeToFirestoreBets(
   }
 }
 
+function parseFirestoreRestDoc(docObj: any): LoggedBet | null {
+  if (!docObj || !docObj.fields) return null;
+  const f = docObj.fields;
+  const docId = docObj.name ? docObj.name.split('/').pop() : '';
+  if (!docId || docId === BANKROLL_DOC_ID || docId.startsWith('odds_cache_')) return null;
+
+  const match = f.match?.stringValue;
+  if (!match) return null;
+
+  const price = f.priceTaken?.doubleValue ?? f.priceTaken?.integerValue ?? 2.0;
+  const pin = f.pinnacleLineAtBet?.doubleValue ?? f.pinnacleLineAtBet?.integerValue ?? Math.max(1.05, Math.round((price / 1.05) * 100) / 100);
+  const pinClose = f.pinnacleClosingLine?.doubleValue ?? f.pinnacleClosingLine?.integerValue ?? pin;
+  const prob = f.modelProb?.doubleValue ?? f.modelProb?.integerValue ?? (price > 0 ? Math.round((1 / price) * 1000) / 1000 : 0.5);
+  const ev = f.modelEV?.doubleValue ?? f.modelEV?.integerValue ?? 5.0;
+  const stake = f.stake?.doubleValue ?? f.stake?.integerValue ?? 0;
+  const payout = f.payout?.doubleValue ?? f.payout?.integerValue ?? 0;
+  const clv = f.clvPercent?.doubleValue ?? f.clvPercent?.integerValue ?? (pinClose > 0 ? Math.round(((price / pinClose) - 1.0) * 1000) / 10 : 0);
+
+  return {
+    id: f.id?.stringValue || docId,
+    timestamp: f.timestamp?.stringValue || new Date().toISOString(),
+    dateDisplay: f.dateDisplay?.stringValue || '',
+    league: f.league?.stringValue || 'Sportsbook Market',
+    match,
+    selection: f.selection?.stringValue || 'Match Outcome (1X2)',
+    marketType: f.marketType?.stringValue || '1X2',
+    bookmaker: f.bookmaker?.stringValue || '1xBet',
+    priceTaken: price,
+    pinnacleLineAtBet: pin,
+    pinnacleClosingLine: pinClose,
+    modelProb: prob,
+    modelEV: ev,
+    stake,
+    payout,
+    outcome: (f.outcome?.stringValue as any) || 'OPEN',
+    clvPercent: clv,
+    notes: f.notes?.stringValue || '',
+  };
+}
+
 /**
  * Fetches all active bet positions from Cloud Firestore once.
+ * Incorporates a resilient HTTP REST fallback if WebChannel / Firestore client is blocked.
  */
 export async function fetchFirestoreBets(): Promise<LoggedBet[]> {
+  const config = getSavedFirebaseConfig();
   const db = getFirebaseDb();
-  if (!db) return [];
+  let bets: LoggedBet[] = [];
 
-  try {
-    const colRef = collection(db, POSITIONS_COLLECTION);
-    const snap = await getDocs(colRef);
-    const bets: LoggedBet[] = [];
-    snap.forEach((docSnap) => {
-      // Exclude system configs and caches
-      if (docSnap.id === BANKROLL_DOC_ID || docSnap.id.startsWith('odds_cache_')) return;
-      const data = docSnap.data() as LoggedBet;
-      if (data && data.match) {
-        bets.push({
-          ...data,
-          id: data.id || docSnap.id,
-        });
-      }
-    });
-    // Sort descending by timestamp
-    bets.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    return bets;
-  } catch (e) {
-    console.error('Failed to fetch bets from Firestore:', e);
-    return [];
+  // 1. Try Firebase JS SDK
+  if (db) {
+    try {
+      const colRef = collection(db, POSITIONS_COLLECTION);
+      const snap = await getDocs(colRef);
+      snap.forEach((docSnap) => {
+        // Exclude system configs and caches
+        if (docSnap.id === BANKROLL_DOC_ID || docSnap.id.startsWith('odds_cache_')) return;
+        const data = docSnap.data() as LoggedBet;
+        if (data && data.match) {
+          bets.push({
+            ...data,
+            id: data.id || docSnap.id,
+          });
+        }
+      });
+    } catch (e) {
+      console.warn('Firebase JS SDK getDocs failed, attempting HTTP REST fallback:', e);
+    }
   }
+
+  // 2. If SDK returned empty or failed, use HTTP REST API fallback
+  if (bets.length === 0 && config && config.projectId) {
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/(default)/documents/${POSITIONS_COLLECTION}?pageSize=300${config.apiKey ? `&key=${config.apiKey}` : ''}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        const docs = json.documents || [];
+        for (const d of docs) {
+          const parsed = parseFirestoreRestDoc(d);
+          if (parsed) bets.push(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Firestore REST API fallback failed:', e);
+    }
+  }
+
+  // Sort descending by timestamp
+  bets.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return bets;
 }
 
 /**

@@ -18,7 +18,7 @@ import { fetchLiveFPLBootstrap } from './services/fplService';
 import { fetchLiveOddsFeed } from './services/oddsService';
 import { evaluateOpportunities } from './models/opportunityEngine';
 import { convertParsedSlipsToLoggedBets } from './services/oneXBetParser';
-import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated, resetLedgerToSeed } from './services/ledgerService';
+import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated, resetLedgerToSeed, refreshLedgerFromCloud } from './services/ledgerService';
 import {
   isFirebaseConfigured,
   syncAllLocalBetsToFirestore,
@@ -284,6 +284,10 @@ export default function App() {
         } catch (e) {
           console.error('Failed to import slips from hash:', e);
         }
+      } else if (hash.startsWith('#refresh') || hash.startsWith('#tab=ledger')) {
+        setTab('ledger');
+        refreshLedgerFromCloud().catch(() => {});
+        window.location.hash = '';
       } else if (hash.startsWith('#clv=')) {
         try {
           const rawJson = decodeURIComponent(hash.substring('#clv='.length));

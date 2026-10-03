@@ -40,8 +40,9 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
   const [importSuccess, setImportSuccess] = useState<number | null>(null);
 
   const bookmarkLinkRef = useRef<HTMLAnchorElement>(null);
-  const bookmarkletCode = generateOneXBetBookmarklet('bet-admin-8d3fc');
-  const cleanConsoleScript = getOneXBetCleanScript('bet-admin-8d3fc');
+  const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://bet-admin-iota.vercel.app';
+  const bookmarkletCode = generateOneXBetBookmarklet('bet-admin-8d3fc', appOrigin);
+  const cleanConsoleScript = getOneXBetCleanScript('bet-admin-8d3fc', appOrigin);
 
   useEffect(() => {
     if (bookmarkLinkRef.current) {

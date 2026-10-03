@@ -250,6 +250,29 @@ export function parse1xBetEmailHTML(rawHtml: string): ParsedOneXBetSlip[] {
 export function parse1xBetInput(input: string): ParsedOneXBetSlip[] {
   if (!input) return [];
 
+  // Check if input is JSON (e.g. copied from sync bookmarklet or cloud export)
+  const trimmed = input.trim();
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsedJson = JSON.parse(trimmed);
+      if (Array.isArray(parsedJson) && parsedJson.length > 0 && parsedJson[0].id) {
+        return parsedJson.map((item: any) => ({
+          id: String(item.id),
+          date: item.dateDisplay || item.date || '',
+          match: (item.match || 'Football Match').replace(/\s*-\s*/g, ' vs '),
+          league: item.league || 'Sportsbook Market',
+          selection: item.selection || 'Match Outcome (1X2)',
+          odds: parseFloat(item.priceTaken || item.odds) || 2.0,
+          stake: parseFloat(item.stake) || 0,
+          potentialWin: parseFloat(item.payout) || 0,
+          status: item.outcome === 'WON' ? 'Win' : item.outcome === 'LOST' ? 'Loss' : item.outcome === 'CASHOUT' ? 'Sold' : 'OPEN',
+          outcome: item.outcome || 'OPEN',
+          payout: parseFloat(item.payout) || 0,
+        }));
+      }
+    } catch {}
+  }
+
   // Check if input is 1xBet Email Statement HTML (contains cupHisNew)
   if (input.includes('cupHisNew')) {
     const emailSlips = parse1xBetEmailHTML(input);
@@ -470,7 +493,10 @@ export function convertParsedSlipsToLoggedBets(slips: any[]): LoggedBet[] {
 /**
  * Returns clean, unencoded JavaScript for running in browser Developer Tools Console.
  */
-export function getOneXBetCleanScript(projectId: string = 'bet-admin-8d3fc'): string {
+export function getOneXBetCleanScript(
+  projectId: string = 'bet-admin-8d3fc',
+  appOrigin: string = 'https://bet-admin-iota.vercel.app'
+): string {
   return `(function() {
   var existing = document.getElementById('bh-sync-overlay');
   if (existing) existing.remove();
@@ -710,12 +736,12 @@ export function getOneXBetCleanScript(projectId: string = 'bet-admin-8d3fc'): st
         });
         synced++;
       }
-      statusEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">✅ All ' + synced + ' slips saved to Cloud! Refresh Bet Horizon.</span>';
+      statusEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">✅ All ' + synced + ' slips saved to Cloud!</span><br><a href="${appOrigin}/#refresh=1" target="_blank" style="display:inline-block;margin-top:8px;padding:6px 12px;background:#0284c7;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:12px;">📊 Open Bet Horizon Ledger ↗</a>';
       btn.innerText = '✅ Synced Successfully!';
       btn.style.background = '#059669';
     } catch (err) {
       statusEl.innerHTML = '<span style="color:#ef4444;">⚠️ Cloud push blocked by browser. Opening Bet Horizon to complete sync...</span>';
-      window.open('https://bet-admin.vercel.app/#import1x=' + encodeURIComponent(JSON.stringify(slips)), '_blank');
+      window.open('${appOrigin}/#import1x=' + encodeURIComponent(JSON.stringify(slips)), '_blank');
       btn.innerText = 'Opened Bet Horizon!';
       btn.disabled = false;
     }
@@ -726,8 +752,11 @@ export function getOneXBetCleanScript(projectId: string = 'bet-admin-8d3fc'): st
 /**
  * Generates the 1-click JavaScript bookmarklet string that runs on 1xbet.com.
  */
-export function generateOneXBetBookmarklet(projectId: string = 'bet-admin-8d3fc'): string {
-  const scriptBody = getOneXBetCleanScript(projectId);
+export function generateOneXBetBookmarklet(
+  projectId: string = 'bet-admin-8d3fc',
+  appOrigin: string = 'https://bet-admin-iota.vercel.app'
+): string {
+  const scriptBody = getOneXBetCleanScript(projectId, appOrigin);
   const compact = scriptBody.replace(/\s+/g, ' ').trim();
   return `javascript:${encodeURI(compact)}`;
 }

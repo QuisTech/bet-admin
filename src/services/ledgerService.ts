@@ -41,8 +41,8 @@ export function recordDeletedBet(b: Partial<LoggedBet>): void {
 
 export function isBetDeleted(b: Partial<LoggedBet>): boolean {
   if (!b) return false;
-  // Official verified 1xBet slips (starting with '87') must NEVER be deleted
-  if (b.id && b.id.startsWith('87')) return false;
+  // Official verified 1xBet slips (starting with '87', '88' or 10-12 digit IDs) must NEVER be deleted
+  if (b.id && (b.id.startsWith('87') || b.id.startsWith('88') || /^\d{10,12}$/.test(b.id))) return false;
 
   if (b.selection === 'Early Cashout / Market Position') return true;
   if (b.match && b.match.toLowerCase().includes('azerbaijan')) return true;
@@ -73,6 +73,8 @@ export function purgeGhostBets(): void {
             const unblocked = parsedDel.filter(
               (sig: string) =>
                 !sig.startsWith('87') &&
+                !sig.startsWith('88') &&
+                !/^\d{10,12}$/.test(sig) &&
                 !sig.toLowerCase().includes('hull')
             );
             localStorage.setItem(DELETED_BETS_STORAGE_KEY, JSON.stringify(unblocked));
@@ -117,7 +119,217 @@ if (typeof window !== 'undefined') {
  * Official 1xBet Positions: Exactly matches user's 19 executed slips from 1xBet history (24/09/2026 - 28/09/2026).
  */
 export const INITIAL_SEED_BETS: LoggedBet[] = [
-  // 1. Germany vs Greece (27/09/2026, 19:44)
+  // 1. Barton Town vs Chorley (03/10/2026, 02:05)
+  {
+    id: '88201401303',
+    timestamp: '2026-10-03T01:25:33.433Z',
+    dateDisplay: '03/10/2026 / 02:05',
+    league: 'England. FA Cup',
+    match: 'Barton Town vs Chorley',
+    selection: 'Match Outcome (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 6.9,
+    pinnacleLineAtBet: 6.57,
+    pinnacleClosingLine: 6.57,
+    modelProb: 0.145,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88201401303',
+  },
+  // 2. Truro City vs Cirencester Town (03/10/2026, 02:03)
+  {
+    id: '88201362223',
+    timestamp: '2026-10-03T01:25:33.433Z',
+    dateDisplay: '03/10/2026 / 02:03',
+    league: 'England. FA Cup',
+    match: 'Truro City vs Cirencester Town',
+    selection: 'Match Outcome (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 16.0,
+    pinnacleLineAtBet: 15.24,
+    pinnacleClosingLine: 15.24,
+    modelProb: 0.063,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88201362223',
+  },
+  // 3. Tadley Calleva vs Dartford (03/10/2026, 02:01)
+  {
+    id: '88201326535',
+    timestamp: '2026-10-03T01:25:33.433Z',
+    dateDisplay: '03/10/2026 / 02:01',
+    league: 'England. FA Cup',
+    match: 'Tadley Calleva vs Dartford',
+    selection: 'Match Outcome (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 8.7,
+    pinnacleLineAtBet: 8.29,
+    pinnacleClosingLine: 8.29,
+    modelProb: 0.115,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88201326535',
+  },
+  // 4. ESM Kolea vs El Bayadh (03/10/2026, 01:59)
+  {
+    id: '88201284491',
+    timestamp: '2026-10-03T01:25:33.433Z',
+    dateDisplay: '03/10/2026 / 01:59',
+    league: 'Algeria. Ligue 2',
+    match: 'ESM Kolea vs El Bayadh',
+    selection: 'Match Outcome (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 3.505,
+    pinnacleLineAtBet: 3.34,
+    pinnacleClosingLine: 3.34,
+    modelProb: 0.285,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88201284491',
+  },
+  // 5. Salisbury vs Dulwich Hamlet (03/10/2026, 01:57)
+  {
+    id: '88201235257',
+    timestamp: '2026-10-03T01:25:33.433Z',
+    dateDisplay: '03/10/2026 / 01:57',
+    league: 'England. FA Cup',
+    match: 'Salisbury vs Dulwich Hamlet',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 5.02,
+    pinnacleLineAtBet: 4.78,
+    pinnacleClosingLine: 4.78,
+    modelProb: 0.199,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88201235257',
+  },
+  // 6. Kufstein vs SC Imst (03/10/2026, 01:54)
+  {
+    id: '88201176145',
+    timestamp: '2026-10-03T01:25:33.434Z',
+    dateDisplay: '03/10/2026 / 01:54',
+    league: 'Austria. Regionalliga West',
+    match: 'Kufstein vs SC Imst',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 5.28,
+    pinnacleLineAtBet: 5.03,
+    pinnacleClosingLine: 5.03,
+    modelProb: 0.189,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88201176145',
+  },
+  // 7. Iceland vs Bulgaria (03/10/2026, 01:45)
+  {
+    id: '88200991899',
+    timestamp: '2026-10-03T01:25:33.434Z',
+    dateDisplay: '03/10/2026 / 01:45',
+    league: 'UEFA Nations League',
+    match: 'Iceland vs Bulgaria',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 4.55,
+    pinnacleLineAtBet: 4.33,
+    pinnacleClosingLine: 4.33,
+    modelProb: 0.22,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88200991899',
+  },
+  // 8. Weymouth vs South East Dons (03/10/2026, 01:44)
+  {
+    id: '88200980399',
+    timestamp: '2026-10-03T01:25:33.434Z',
+    dateDisplay: '03/10/2026 / 01:44',
+    league: 'England. FA Cup',
+    match: 'Weymouth vs South East Dons',
+    selection: 'Draw (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 6.19,
+    pinnacleLineAtBet: 5.90,
+    pinnacleClosingLine: 5.90,
+    modelProb: 0.162,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88200980399',
+  },
+  // 9. Belarus vs San Marino (03/10/2026, 01:34)
+  {
+    id: '88200758257',
+    timestamp: '2026-10-03T01:25:33.434Z',
+    dateDisplay: '03/10/2026 / 01:34',
+    league: 'UEFA Nations League',
+    match: 'Belarus vs San Marino',
+    selection: 'Match Outcome (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 33.0,
+    pinnacleLineAtBet: 31.43,
+    pinnacleClosingLine: 31.43,
+    modelProb: 0.03,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88200758257',
+  },
+  // 10. Spain vs Czech Republic (03/10/2026, 01:32)
+  {
+    id: '88200708677',
+    timestamp: '2026-10-03T01:25:33.434Z',
+    dateDisplay: '03/10/2026 / 01:32',
+    league: 'UEFA Nations League',
+    match: 'Spain vs Czech Republic',
+    selection: 'Match Outcome (1X2)',
+    marketType: '1X2',
+    bookmaker: '1xBet',
+    priceTaken: 37.0,
+    pinnacleLineAtBet: 35.24,
+    pinnacleClosingLine: 35.24,
+    modelProb: 0.027,
+    modelEV: 5.0,
+    stake: 30,
+    payout: 0,
+    outcome: 'OPEN',
+    clvPercent: 5.0,
+    notes: 'Bet slip № 88200708677',
+  },
+  // 11. Germany vs Greece (27/09/2026, 19:44)
   {
     id: '87953275825',
     timestamp: '2026-09-27T18:44:00Z',
