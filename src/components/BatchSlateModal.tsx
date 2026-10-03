@@ -131,20 +131,20 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
         fairOddsArr = fairOddsArr.map((o) => Math.round(o * 100) / 100);
       }
 
-      // If user selected a way explicitly, use it; otherwise, pick the outcome with the highest edge!
-      let targetWay: 0 | 1 | 2;
-      if (selectedWays[idx] !== undefined) {
-        targetWay = selectedWays[idx];
-      } else {
-        const edges = [0, 1, 2].map((way) => {
-          const retail = way === 0 ? m.homeOdds : way === 1 ? m.drawOdds : m.awayOdds;
-          const fo = fairOddsArr[way] || retail;
-          return fo > 1.0 ? (retail / fo) - 1.0 : -1;
-        });
-        const maxEdge = Math.max(...edges);
-        const bestWay = edges.indexOf(maxEdge) as 0 | 1 | 2;
-        targetWay = bestWay >= 0 && bestWay <= 2 ? bestWay : 0;
-      }
+      // Calculate the edge for all 3 ways using default market odds
+      const wayEdges = [0, 1, 2].map((way) => {
+        const retail = way === 0 ? m.homeOdds : way === 1 ? m.drawOdds : m.awayOdds;
+        const fo = fairOddsArr[way] || retail;
+        return fo > 1.0 ? Math.round(((retail / fo) - 1.0) * 1000) / 10 : -100;
+      });
+
+      const maxEdge = Math.max(...wayEdges);
+      const bestWayIndex = wayEdges.indexOf(maxEdge);
+      const bestWay = (bestWayIndex >= 0 && bestWayIndex <= 2 ? bestWayIndex : 0) as 0 | 1 | 2;
+      const hasAnyPositiveEdge = maxEdge > 0;
+
+      // Current selected target way: User override, or default to best edge
+      const targetWay = selectedWays[idx] !== undefined ? selectedWays[idx] : bestWay;
 
       const fairOdds = fairOddsArr[targetWay] || (targetWay === 0 ? m.homeOdds : targetWay === 1 ? m.drawOdds : m.awayOdds);
       const fairProb = fairProbArr[targetWay] || (1 / fairOdds);
@@ -154,7 +154,7 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
       const userPrice = parseFloat(retailOddsMap[idx]);
       const priceTaken = !isNaN(userPrice) && userPrice > 1.0 ? userPrice : defaultRetail;
 
-      // CLV Edge %
+      // CLV Edge % for the CURRENT selection
       const clvPercent = fairOdds > 1.0
         ? Math.round(((priceTaken / fairOdds) - 1.0) * 1000) / 10
         : 0;
@@ -170,6 +170,10 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
         index: idx,
         match: m,
         targetWay,
+        bestWay,
+        wayEdges,
+        maxEdge,
+        hasAnyPositiveEdge,
         fairOdds,
         fairProb,
         margin,
@@ -183,17 +187,19 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
     });
   }, [matches, selectedWays, retailOddsMap, config, loggedIndices]);
 
-  // Filtered views with sorting (Highest Edge First by default)
+  // Filtered views with STABLE sorting
   const filteredItems = useMemo(() => {
     let items = [...evaluatedSlate];
     if (filterMode === 'edgeOnly') {
-      items = items.filter((item) => item.clvPercent > 0);
+      // Include any match that has at least one positive edge (never vanishes on user click!)
+      items = items.filter((item) => item.hasAnyPositiveEdge || item.clvPercent > 0);
     } else if (filterMode === 'subZero') {
-      items = items.filter((item) => item.clvPercent <= 0);
+      items = items.filter((item) => !item.hasAnyPositiveEdge && item.clvPercent <= 0);
     }
 
     if (sortBy === 'edgeDesc') {
-      items.sort((a, b) => b.clvPercent - a.clvPercent);
+      // Sort stably by the match's top edge so the card never teleports or jumps under the mouse
+      items.sort((a, b) => b.maxEdge - a.maxEdge);
     } else if (sortBy === 'kellyDesc') {
       items.sort((a, b) => b.kelly.stakeNGN - a.kelly.stakeNGN);
     }
@@ -201,7 +207,7 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
   }, [evaluatedSlate, filterMode, sortBy]);
 
   const positiveEdgeCount = useMemo(() => {
-    return evaluatedSlate.filter((item) => item.clvPercent > 0).length;
+    return evaluatedSlate.filter((item) => item.hasAnyPositiveEdge).length;
   }, [evaluatedSlate]);
 
   const totalPositiveStake = useMemo(() => {
@@ -608,31 +614,60 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
                         <span className="text-slate-600">•</span>
                         <span>Margin: {item.margin}%</span>
                       </div>
+
+                      {/* Best value indicator / helper if sub-zero selected */}
+                      {item.targetWay !== item.bestWay && item.hasAnyPositiveEdge && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedWays((prev) => ({
+                                ...prev,
+                                [item.index]: item.bestWay,
+                              }))
+                            }
+                            className="text-[11px] text-amber-300 hover:text-amber-200 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md font-bold flex items-center gap-1.5 transition cursor-pointer"
+                          >
+                            <span>⚡ Value play is on <b>{item.bestWay === 0 ? 'Home (1)' : item.bestWay === 1 ? 'Draw (X)' : 'Away (2)'}</b> (+{item.maxEdge}%). Click to switch!</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Target Selection & Price Input */}
                     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                       {/* 1 X 2 Target Selector */}
                       <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-bold">
-                        {(['1', 'X', '2'] as const).map((wayLabel, wayIdx) => (
-                          <button
-                            key={wayLabel}
-                            type="button"
-                            onClick={() =>
-                              setSelectedWays((prev) => ({
-                                ...prev,
-                                [item.index]: wayIdx as 0 | 1 | 2,
-                              }))
-                            }
-                            className={`px-2 py-1 rounded transition cursor-pointer ${
-                              item.targetWay === wayIdx
-                                ? 'bg-cyan-500 text-slate-950 font-black'
-                                : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            {wayLabel}
-                          </button>
-                        ))}
+                        {(['1', 'X', '2'] as const).map((wayLabel, wayIdx) => {
+                          const isSelected = item.targetWay === wayIdx;
+                          const isBest = item.bestWay === wayIdx && item.hasAnyPositiveEdge;
+                          const edgeForWay = item.wayEdges[wayIdx];
+                          return (
+                            <button
+                              key={wayLabel}
+                              type="button"
+                              onClick={() =>
+                                setSelectedWays((prev) => ({
+                                  ...prev,
+                                  [item.index]: wayIdx as 0 | 1 | 2,
+                                }))
+                              }
+                              className={`px-2 py-1 rounded transition cursor-pointer flex items-center gap-1 ${
+                                isSelected
+                                  ? isPositive
+                                    ? 'bg-emerald-400 text-slate-950 font-black shadow'
+                                    : 'bg-rose-500 text-white font-black'
+                                  : isBest
+                                  ? 'text-emerald-400 border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                              title={`${wayLabel}: ${edgeForWay > 0 ? '+' : ''}${edgeForWay}% CLV Edge`}
+                            >
+                              <span>{wayLabel}</span>
+                              {isBest && <span className="text-[10px]">⚡</span>}
+                            </button>
+                          );
+                        })}
                       </div>
 
                       {/* Retail Price Override */}
