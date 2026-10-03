@@ -88,12 +88,14 @@ export function extractMatchesFromDomNode(doc: Document | Element): ParsedOddsMa
     if (!row) continue;
 
     let nums: number[] = [];
-    const oddsEls = row.querySelectorAll('ul li p.font-bold, ul li p, div[class*="default-odds"] p, ul li');
-    for (let j = 0; j < oddsEls.length; j++) {
-      const val = ((oddsEls[j] as HTMLElement).innerText || '').trim();
-      if (/^\d{1,2}\.\d{2,3}$/.test(val)) {
-        nums.push(parseFloat(val));
-        if (nums.length === 3) break;
+    const lis = Array.from(row.querySelectorAll('ul > li'));
+    if (lis.length >= 3) {
+      for (let j = 0; j < lis.length; j++) {
+        const val = ((lis[j] as HTMLElement).innerText || '').trim();
+        const mVal = val.match(/\b\d{1,2}\.\d{2,3}\b/);
+        if (mVal) {
+          nums.push(parseFloat(mVal[0]));
+        }
       }
     }
 
@@ -489,13 +491,14 @@ export function getWholePageOddsPortalScript(appUrl: string = 'https://bet-admin
       if (!row) continue;
 
       var nums = [];
-      // Look for bold paragraphs or list items with decimal numbers in row
-      var oddsEls = row.querySelectorAll('ul li p.font-bold, ul li p, div[class*="default-odds"] p, ul li');
-      for (var j = 0; j < oddsEls.length; j++) {
-        var val = (oddsEls[j].innerText || '').trim();
-        if (/^\\d{1,2}\\.\\d{2,3}$/.test(val)) {
-          nums.push(parseFloat(val));
-          if (nums.length === 3) break;
+      var lis = Array.from(row.querySelectorAll('ul > li'));
+      if (lis.length >= 3) {
+        for (var j = 0; j < lis.length; j++) {
+          var val = (lis[j].innerText || '').trim();
+          var mVal = val.match(/\\b\\d{1,2}\\.\\d{2,3}\\b/);
+          if (mVal) {
+            nums.push(parseFloat(mVal[0]));
+          }
         }
       }
 
