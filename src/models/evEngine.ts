@@ -31,7 +31,7 @@ export function calculateKellyStake(
   modelProb: number,
   odds: number,
   config: BankrollConfig
-): { stakeNGN: number; stakePercent: number } {
+): { stakeNGN: number; stakePercent: number; isMinStakeApplied?: boolean } {
   const b = odds - 1.0;
   const q = 1.0 - modelProb;
   const kellyFull = (modelProb * b - q) / b;
@@ -45,10 +45,19 @@ export function calculateKellyStake(
 
   // Cap at maximum safe per-bet percentage (e.g. 2% max per bet)
   const finalStakePercent = Math.min(fractionalKelly, config.maxStakePercent);
-  const stakeNGN = Math.round(config.totalBankrollNGN * finalStakePercent);
+  let stakeNGN = Math.round(config.totalBankrollNGN * finalStakePercent);
+
+  // 1xBet platform minimum stake floor: ₦30 (or $1 for USD)
+  const minFloor = config.currency === 'USD' ? 1 : 30;
+  let isMinStakeApplied = false;
+  if (stakeNGN > 0 && stakeNGN < minFloor) {
+    stakeNGN = minFloor;
+    isMinStakeApplied = true;
+  }
 
   return {
     stakeNGN,
     stakePercent: Math.round(finalStakePercent * 1000) / 10,
+    isMinStakeApplied,
   };
 }
