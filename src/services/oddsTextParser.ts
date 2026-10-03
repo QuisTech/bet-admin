@@ -17,6 +17,7 @@ export interface ParsedOddsMatch {
  */
 export function cleanMatchName(raw: string): string {
   return raw
+    .replace(/^(\d{1,3}['’]?|HT|FT|LIVE)\s*(?:vs|-)?\s*/i, '') // strip leading live match minute like "2' vs "
     .replace(/\[\d{1,2}:\d{2}\s*/g, '') // strip markdown timestamp "[20:45"
     .replace(/\(.*?\)/g, '')            // strip markdown url link "(https://...)"
     .replace(/[\[\]]/g, '')             // strip brackets
@@ -32,6 +33,9 @@ export function extractMatchesFromDomNode(doc: Document | Element): ParsedOddsMa
   const matches: ParsedOddsMatch[] = [];
   const seen = new Set<string>();
 
+  const isClock = (s: string) =>
+    !s || s.length < 3 || /^\d{1,3}['’]?$/.test(s) || /^\d{1,2}\+\d{1,2}['’]?$/.test(s) || /^(HT|FT|LIVE|OT|ET|P)$/i.test(s);
+
   // Primary Selector: Modern OddsPortal H2H Match Links
   const links = Array.from(doc.querySelectorAll('a[href*="/h2h/"], a[href*="/football/h2h/"], a[href*="/basketball/h2h/"], a[href*="/tennis/h2h/"]'));
   for (let i = 0; i < links.length; i++) {
@@ -46,17 +50,17 @@ export function extractMatchesFromDomNode(doc: Document | Element): ParsedOddsMa
     let team2 = '';
 
     // 1. Check for group-hover or truncate team name paragraphs inside the anchor
-    const teamPs = Array.from(a.querySelectorAll('p[class*="group-hover"], p[class*="truncate"], p.font-primary'))
+    const teamPs = Array.from(a.querySelectorAll('p[class*="group-hover"], p[class*="truncate"]'))
       .map(el => (el as HTMLElement).innerText?.trim() || '')
-      .filter(txt => txt.length > 0 && !/^\d{1,2}:\d{2}$/.test(txt) && txt !== '-' && !txt.includes(':'));
+      .filter(txt => !isClock(txt) && !/^\d{1,2}:\d{2}$/.test(txt) && txt !== '-' && !txt.includes(':'));
 
     if (teamPs.length >= 2) {
       team1 = teamPs[0];
       team2 = teamPs[1];
     }
 
-    // 2. Fallback: check img alt attributes
-    if (!team1 || !team2) {
+    // 2. Fallback: check img alt attributes (images NEVER contain live match clocks)
+    if (isClock(team1) || isClock(team2)) {
       const imgs = Array.from(a.querySelectorAll('img[alt]'))
         .map(img => ((img as HTMLImageElement).alt || '').trim())
         .filter(alt => alt.length > 1 && !alt.toLowerCase().includes('logo') && !alt.toLowerCase().includes('icon') && !alt.toLowerCase().includes('sport'));
@@ -67,7 +71,7 @@ export function extractMatchesFromDomNode(doc: Document | Element): ParsedOddsMa
     }
 
     // 3. Fallback: parse from href: e.g. /football/h2h/kano-pillars-8fXi1zgC/sporting-lagos-8Unjxadi/
-    if (!team1 || !team2) {
+    if (isClock(team1) || isClock(team2)) {
       const href = a.getAttribute('href') || '';
       const m = href.match(/\/h2h\/([^/#?]+)\/([^/#?]+)/);
       if (m) {
@@ -79,7 +83,7 @@ export function extractMatchesFromDomNode(doc: Document | Element): ParsedOddsMa
       }
     }
 
-    if (!team1 || !team2) continue;
+    if (isClock(team1) || isClock(team2)) continue;
 
     const matchTitle = `${team1} vs ${team2}`;
 
@@ -445,32 +449,37 @@ export function getWholePageOddsPortalScript(appUrl: string = 'https://bet-admin
 
       var team1 = '', team2 = '';
 
-      // Check group-hover team name paragraphs inside the anchor
-      var teamPs = Array.from(a.querySelectorAll('p[class*="group-hover"], p[class*="truncate"], p.font-primary'))
-        .filter(function(p) {
-          var txt = (p.innerText || '').trim();
-          return txt.length > 0 && !/^\\d{1,2}:\\d{2}$/.test(txt) && txt !== '-' && !txt.includes(':');
+      var isClock = function(s) {
+        return !s || s.length < 3 || /^\\d{1,3}['’]?$/.test(s) || /^\\d{1,2}\\+\\d{1,2}['’]?$/.test(s) || /^(HT|FT|LIVE|OT|ET|P)$/i.test(s);
+      };
+
+      // Check group-hover team name paragraphs inside the anchor (exclude live clocks)
+      var teamPs = Array.from(a.querySelectorAll('p[class*="group-hover"], p[class*="truncate"]'))
+        .map(function(el) { return (el.innerText || '').trim(); })
+        .filter(function(txt) {
+          return !isClock(txt) && !/^\\d{1,2}:\\d{2}$/.test(txt) && txt !== '-' && !txt.includes(':');
         });
 
       if (teamPs.length >= 2) {
-        team1 = teamPs[0].innerText.trim();
-        team2 = teamPs[1].innerText.trim();
+        team1 = teamPs[0];
+        team2 = teamPs[1];
       }
 
-      // Fallback: check img alt attributes
-      if (!team1 || !team2) {
-        var imgs = Array.from(a.querySelectorAll('img[alt]')).filter(function(img) {
-          var alt = (img.alt || '').trim();
-          return alt.length > 1 && !alt.toLowerCase().includes('logo') && !alt.toLowerCase().includes('icon') && !alt.toLowerCase().includes('sport');
-        });
+      // Fallback: check img alt attributes (images never have live match minutes)
+      if (isClock(team1) || isClock(team2)) {
+        var imgs = Array.from(a.querySelectorAll('img[alt]'))
+          .map(function(img) { return (img.alt || '').trim(); })
+          .filter(function(alt) {
+            return alt.length > 1 && !alt.toLowerCase().includes('logo') && !alt.toLowerCase().includes('icon') && !alt.toLowerCase().includes('sport');
+          });
         if (imgs.length >= 2) {
-          team1 = imgs[0].alt.trim();
-          team2 = imgs[1].alt.trim();
+          team1 = imgs[0];
+          team2 = imgs[1];
         }
       }
 
       // Fallback: parse from href: e.g. /football/h2h/kano-pillars-8fXi1zgC/sporting-lagos-8Unjxadi/
-      if (!team1 || !team2) {
+      if (isClock(team1) || isClock(team2)) {
         var href = a.getAttribute('href') || '';
         var m = href.match(/\\/h2h\\/([^\\/#?]+)\\/([^\\/#?]+)/);
         if (m) {
@@ -482,7 +491,7 @@ export function getWholePageOddsPortalScript(appUrl: string = 'https://bet-admin
         }
       }
 
-      if (!team1 || !team2) continue;
+      if (isClock(team1) || isClock(team2)) continue;
 
       var matchTitle = team1 + ' vs ' + team2;
 
