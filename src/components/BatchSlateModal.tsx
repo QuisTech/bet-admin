@@ -47,7 +47,8 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
   const [selectedWays, setSelectedWays] = useState<Record<number, 0 | 1 | 2>>({});
   const [retailOddsMap, setRetailOddsMap] = useState<Record<number, string>>({});
   const [filterMode, setFilterMode] = useState<'all' | 'edgeOnly' | 'subZero'>('edgeOnly');
-  const [sortBy, setSortBy] = useState<'edgeDesc' | 'kellyDesc' | 'original'>('edgeDesc');
+  const [targetOutcomeFilter, setTargetOutcomeFilter] = useState<'any' | 0 | 1 | 2>('any');
+  const [sortBy, setSortBy] = useState<'edgeDesc' | 'homeEdge' | 'drawEdge' | 'awayEdge' | 'oddsAsc' | 'oddsDesc' | 'kellyDesc' | 'original'>('edgeDesc');
   const [maxOddsCap, setMaxOddsCap] = useState<number>(5.0);
   const [loggedIndices, setLoggedIndices] = useState<Record<number, boolean>>({});
   const [bulkLoggedSuccess, setBulkLoggedSuccess] = useState(false);
@@ -160,8 +161,21 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
       const maxEdge = wayEdges[bestWay];
       const hasAnyPositiveEdge = maxEdge > 0;
 
-      // Current selected target way: User override, or default to best edge
-      const targetWay = selectedWays[idx] !== undefined ? selectedWays[idx] : bestWay;
+      // Current selected target way: User explicit click override, or global outcome filter (1/X/2), or sort mode, or best edge
+      let targetWay: 0 | 1 | 2;
+      if (selectedWays[idx] !== undefined) {
+        targetWay = selectedWays[idx];
+      } else if (targetOutcomeFilter !== 'any') {
+        targetWay = targetOutcomeFilter;
+      } else if (sortBy === 'homeEdge') {
+        targetWay = 0;
+      } else if (sortBy === 'drawEdge') {
+        targetWay = 1;
+      } else if (sortBy === 'awayEdge') {
+        targetWay = 2;
+      } else {
+        targetWay = bestWay;
+      }
 
       const fairOdds = fairOddsArr[targetWay] || (targetWay === 0 ? m.homeOdds : targetWay === 1 ? m.drawOdds : m.awayOdds);
       const fairProb = fairProbArr[targetWay] || (1 / fairOdds);
@@ -202,45 +216,87 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
         isLogged: !!loggedIndices[idx],
       };
     });
-  }, [matches, selectedWays, retailOddsMap, config, loggedIndices, maxOddsCap]);
+  }, [matches, selectedWays, retailOddsMap, config, loggedIndices, maxOddsCap, targetOutcomeFilter, sortBy]);
 
   // Filtered views with STABLE sorting
   const filteredItems = useMemo(() => {
     let items = [...evaluatedSlate];
 
-    // Filter by Max Odds Cap:
-    if (maxOddsCap !== 999) {
-      items = items.filter((item) => {
-        if (filterMode === 'edgeOnly') {
-          return item.priceTaken <= maxOddsCap && item.clvPercent > 0;
-        }
-        return item.priceTaken <= maxOddsCap;
-      });
+    // Filter by target outcome if user clicked 1, X, or 2 filter pill
+    if (targetOutcomeFilter !== 'any') {
+      if (filterMode === 'edgeOnly') {
+        items = items.filter((item) => item.wayEdges[targetOutcomeFilter] > 0);
+      } else if (filterMode === 'subZero') {
+        items = items.filter((item) => item.wayEdges[targetOutcomeFilter] <= 0);
+      }
     } else {
       if (filterMode === 'edgeOnly') {
-        items = items.filter((item) => item.hasAnyPositiveEdge || item.clvPercent > 0);
+        if (sortBy === 'homeEdge') {
+          items = items.filter((item) => item.wayEdges[0] > 0);
+        } else if (sortBy === 'drawEdge') {
+          items = items.filter((item) => item.wayEdges[1] > 0);
+        } else if (sortBy === 'awayEdge') {
+          items = items.filter((item) => item.wayEdges[2] > 0);
+        } else {
+          items = items.filter((item) => item.hasAnyPositiveEdge || item.clvPercent > 0);
+        }
       } else if (filterMode === 'subZero') {
-        items = items.filter((item) => !item.hasAnyPositiveEdge && item.clvPercent <= 0);
+        if (sortBy === 'homeEdge') {
+          items = items.filter((item) => item.wayEdges[0] <= 0);
+        } else if (sortBy === 'drawEdge') {
+          items = items.filter((item) => item.wayEdges[1] <= 0);
+        } else if (sortBy === 'awayEdge') {
+          items = items.filter((item) => item.wayEdges[2] <= 0);
+        } else {
+          items = items.filter((item) => !item.hasAnyPositiveEdge && item.clvPercent <= 0);
+        }
       }
+    }
+
+    // Filter by Max Odds Cap:
+    if (maxOddsCap !== 999) {
+      items = items.filter((item) => item.priceTaken <= maxOddsCap);
     }
 
     if (sortBy === 'edgeDesc') {
       items.sort((a, b) => b.clvPercent - a.clvPercent);
+    } else if (sortBy === 'homeEdge') {
+      items.sort((a, b) => b.wayEdges[0] - a.wayEdges[0]);
+    } else if (sortBy === 'drawEdge') {
+      items.sort((a, b) => b.wayEdges[1] - a.wayEdges[1]);
+    } else if (sortBy === 'awayEdge') {
+      items.sort((a, b) => b.wayEdges[2] - a.wayEdges[2]);
+    } else if (sortBy === 'oddsAsc') {
+      items.sort((a, b) => a.priceTaken - b.priceTaken);
+    } else if (sortBy === 'oddsDesc') {
+      items.sort((a, b) => b.priceTaken - a.priceTaken);
     } else if (sortBy === 'kellyDesc') {
       items.sort((a, b) => b.kelly.stakeNGN - a.kelly.stakeNGN);
     }
     return items;
-  }, [evaluatedSlate, filterMode, sortBy, maxOddsCap]);
+  }, [evaluatedSlate, filterMode, sortBy, maxOddsCap, targetOutcomeFilter]);
 
   const positiveEdgeCount = useMemo(() => {
-    return evaluatedSlate.filter((item) => item.clvPercent > 0 && (maxOddsCap === 999 || item.priceTaken <= maxOddsCap)).length;
-  }, [evaluatedSlate, maxOddsCap]);
+    return evaluatedSlate.filter((item) => {
+      let edge = item.clvPercent;
+      if (targetOutcomeFilter !== 'any') {
+        edge = item.wayEdges[targetOutcomeFilter];
+      } else if (sortBy === 'homeEdge') {
+        edge = item.wayEdges[0];
+      } else if (sortBy === 'drawEdge') {
+        edge = item.wayEdges[1];
+      } else if (sortBy === 'awayEdge') {
+        edge = item.wayEdges[2];
+      }
+      return edge > 0 && (maxOddsCap === 999 || item.priceTaken <= maxOddsCap);
+    }).length;
+  }, [evaluatedSlate, maxOddsCap, targetOutcomeFilter, sortBy]);
 
   const totalPositiveStake = useMemo(() => {
-    return evaluatedSlate
+    return filteredItems
       .filter((item) => item.clvPercent > 0 && !item.isLogged)
       .reduce((sum, item) => sum + item.kelly.stakeNGN, 0);
-  }, [evaluatedSlate]);
+  }, [filteredItems]);
 
   // Log single bet to ledger
   const handleLogSingle = (item: (typeof evaluatedSlate)[0]) => {
@@ -276,7 +332,7 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
 
   // Bulk log all positive edge bets
   const handleLogAllPositive = () => {
-    const positiveItems = evaluatedSlate.filter((item) => item.clvPercent > 0 && !item.isLogged);
+    const positiveItems = filteredItems.filter((item) => item.clvPercent > 0 && !item.isLogged);
     if (positiveItems.length === 0) return;
 
     positiveItems.forEach((item) => {
@@ -498,16 +554,97 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
               </button>
             </div>
 
+            {/* 1 / X / 2 Outcome Filter Pills */}
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">Side:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetOutcomeFilter('any');
+                  setSortBy('edgeDesc');
+                }}
+                className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                  targetOutcomeFilter === 'any' && sortBy !== 'homeEdge' && sortBy !== 'drawEdge' && sortBy !== 'awayEdge'
+                    ? 'bg-emerald-500 text-slate-950 font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Auto-detect best edge across 1, X, or 2"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetOutcomeFilter(0);
+                  setSortBy('homeEdge');
+                }}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                  targetOutcomeFilter === 0 || sortBy === 'homeEdge'
+                    ? 'bg-cyan-500 text-slate-950 font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Sort & filter by Home Win (1) value plays"
+              >
+                <span>1</span>
+                <span className="text-[9px] opacity-75">Home</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetOutcomeFilter(1);
+                  setSortBy('drawEdge');
+                }}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                  targetOutcomeFilter === 1 || sortBy === 'drawEdge'
+                    ? 'bg-cyan-500 text-slate-950 font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Sort & filter by Draw (X) value plays"
+              >
+                <span>X</span>
+                <span className="text-[9px] opacity-75">Draw</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetOutcomeFilter(2);
+                  setSortBy('awayEdge');
+                }}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                  targetOutcomeFilter === 2 || sortBy === 'awayEdge'
+                    ? 'bg-cyan-500 text-slate-950 font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Sort & filter by Away Win (2) value plays"
+              >
+                <span>2</span>
+                <span className="text-[9px] opacity-75">Away</span>
+              </button>
+            </div>
+
             {/* Sort Dropdown */}
             <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs">
               <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sort:</span>
               <select
+                id="slate-sort-select"
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
+                onChange={(e) => {
+                  const val = e.target.value as any;
+                  setSortBy(val);
+                  if (val === 'homeEdge') setTargetOutcomeFilter(0);
+                  else if (val === 'drawEdge') setTargetOutcomeFilter(1);
+                  else if (val === 'awayEdge') setTargetOutcomeFilter(2);
+                  else if (val === 'edgeDesc') setTargetOutcomeFilter('any');
+                }}
                 className="bg-transparent text-emerald-400 font-bold text-xs outline-none cursor-pointer"
               >
-                <option value="edgeDesc" className="bg-slate-950 text-slate-200">🔥 Highest Edge First</option>
+                <option value="edgeDesc" className="bg-slate-950 text-slate-200">🔥 Highest Edge First (Best Value)</option>
+                <option value="homeEdge" className="bg-slate-950 text-slate-200">🏠 Home (1) Edge First</option>
+                <option value="drawEdge" className="bg-slate-950 text-slate-200">🤝 Draw (X) Edge First</option>
+                <option value="awayEdge" className="bg-slate-950 text-slate-200">✈️ Away (2) Edge First</option>
+                <option value="oddsAsc" className="bg-slate-950 text-slate-200">🎯 Lowest Odds First (Safer)</option>
+                <option value="oddsDesc" className="bg-slate-950 text-slate-200">🚀 Highest Odds First (Longshots)</option>
                 <option value="kellyDesc" className="bg-slate-950 text-slate-200">💰 Highest Stake First</option>
                 <option value="original" className="bg-slate-950 text-slate-200">📄 Original Schedule</option>
               </select>
@@ -606,10 +743,10 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {/* Rank Badge */}
-                        {isPositive && sortBy === 'edgeDesc' && (
+                        {isPositive && (sortBy === 'edgeDesc' || sortBy === 'homeEdge' || sortBy === 'drawEdge' || sortBy === 'awayEdge') && (
                           rankIdx === 0 ? (
                             <span className="px-2 py-0.5 rounded-md bg-amber-500/25 border border-amber-400/50 text-amber-300 text-[10px] font-black font-mono shadow-[0_0_10px_rgba(245,158,11,0.25)] flex items-center gap-1">
-                              🥇 #1 Top Edge Play
+                              🥇 #1 Top {sortBy === 'homeEdge' ? 'Home (1)' : sortBy === 'drawEdge' ? 'Draw (X)' : sortBy === 'awayEdge' ? 'Away (2)' : 'Edge'} Play
                             </span>
                           ) : rankIdx === 1 ? (
                             <span className="px-2 py-0.5 rounded-md bg-cyan-500/25 border border-cyan-400/50 text-cyan-300 text-[10px] font-black font-mono flex items-center gap-1">
@@ -658,7 +795,7 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
                       </div>
 
                       {/* Best value indicator / helper if sub-zero selected */}
-                      {item.targetWay !== item.bestWay && item.hasAnyPositiveEdge && (
+                      {item.targetWay !== item.bestWay && item.hasAnyPositiveEdge && (targetOutcomeFilter === 'any' || item.clvPercent <= 0) && (
                         <div className="pt-1">
                           <button
                             type="button"
