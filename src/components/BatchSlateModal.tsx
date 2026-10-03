@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowUpDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { BankrollConfig } from '../types';
 import { calculateShinDevig } from '../models/shinDevig';
@@ -47,6 +48,7 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
   const [retailOddsMap, setRetailOddsMap] = useState<Record<number, string>>({});
   const [filterMode, setFilterMode] = useState<'all' | 'edgeOnly' | 'subZero'>('edgeOnly');
   const [sortBy, setSortBy] = useState<'edgeDesc' | 'kellyDesc' | 'original'>('edgeDesc');
+  const [maxOddsCap, setMaxOddsCap] = useState<number>(5.0);
   const [loggedIndices, setLoggedIndices] = useState<Record<number, boolean>>({});
   const [bulkLoggedSuccess, setBulkLoggedSuccess] = useState(false);
 
@@ -138,9 +140,24 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
         return fo > 1.0 ? Math.round(((retail / fo) - 1.0) * 1000) / 10 : -100;
       });
 
-      const maxEdge = Math.max(...wayEdges);
-      const bestWayIndex = wayEdges.indexOf(maxEdge);
-      const bestWay = (bestWayIndex >= 0 && bestWayIndex <= 2 ? bestWayIndex : 0) as 0 | 1 | 2;
+      // Best way prioritizing realistic odds (within maxOddsCap)
+      const validWays = [0, 1, 2].filter((way) => {
+        const retail = way === 0 ? m.homeOdds : way === 1 ? m.drawOdds : m.awayOdds;
+        return maxOddsCap === 999 || retail <= maxOddsCap;
+      });
+
+      let bestWay: 0 | 1 | 2 = 0;
+      if (validWays.length > 0) {
+        const validEdges = validWays.map((w) => wayEdges[w]);
+        const maxValidEdge = Math.max(...validEdges);
+        const bestValidIndex = validWays[validEdges.indexOf(maxValidEdge)];
+        bestWay = (bestValidIndex >= 0 && bestValidIndex <= 2 ? bestValidIndex : 0) as 0 | 1 | 2;
+      } else {
+        const maxEdge = Math.max(...wayEdges);
+        bestWay = (wayEdges.indexOf(maxEdge) as 0 | 1 | 2) || 0;
+      }
+
+      const maxEdge = wayEdges[bestWay];
       const hasAnyPositiveEdge = maxEdge > 0;
 
       // Current selected target way: User override, or default to best edge
@@ -185,30 +202,39 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
         isLogged: !!loggedIndices[idx],
       };
     });
-  }, [matches, selectedWays, retailOddsMap, config, loggedIndices]);
+  }, [matches, selectedWays, retailOddsMap, config, loggedIndices, maxOddsCap]);
 
   // Filtered views with STABLE sorting
   const filteredItems = useMemo(() => {
     let items = [...evaluatedSlate];
-    if (filterMode === 'edgeOnly') {
-      // Include any match that has at least one positive edge (never vanishes on user click!)
-      items = items.filter((item) => item.hasAnyPositiveEdge || item.clvPercent > 0);
-    } else if (filterMode === 'subZero') {
-      items = items.filter((item) => !item.hasAnyPositiveEdge && item.clvPercent <= 0);
+
+    // Filter by Max Odds Cap:
+    if (maxOddsCap !== 999) {
+      items = items.filter((item) => {
+        if (filterMode === 'edgeOnly') {
+          return item.priceTaken <= maxOddsCap && item.clvPercent > 0;
+        }
+        return item.priceTaken <= maxOddsCap;
+      });
+    } else {
+      if (filterMode === 'edgeOnly') {
+        items = items.filter((item) => item.hasAnyPositiveEdge || item.clvPercent > 0);
+      } else if (filterMode === 'subZero') {
+        items = items.filter((item) => !item.hasAnyPositiveEdge && item.clvPercent <= 0);
+      }
     }
 
     if (sortBy === 'edgeDesc') {
-      // Sort stably by the match's top edge so the card never teleports or jumps under the mouse
-      items.sort((a, b) => b.maxEdge - a.maxEdge);
+      items.sort((a, b) => b.clvPercent - a.clvPercent);
     } else if (sortBy === 'kellyDesc') {
       items.sort((a, b) => b.kelly.stakeNGN - a.kelly.stakeNGN);
     }
     return items;
-  }, [evaluatedSlate, filterMode, sortBy]);
+  }, [evaluatedSlate, filterMode, sortBy, maxOddsCap]);
 
   const positiveEdgeCount = useMemo(() => {
-    return evaluatedSlate.filter((item) => item.hasAnyPositiveEdge).length;
-  }, [evaluatedSlate]);
+    return evaluatedSlate.filter((item) => item.clvPercent > 0 && (maxOddsCap === 999 || item.priceTaken <= maxOddsCap)).length;
+  }, [evaluatedSlate, maxOddsCap]);
 
   const totalPositiveStake = useMemo(() => {
     return evaluatedSlate
@@ -484,6 +510,22 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
                 <option value="edgeDesc" className="bg-slate-950 text-slate-200">🔥 Highest Edge First</option>
                 <option value="kellyDesc" className="bg-slate-950 text-slate-200">💰 Highest Stake First</option>
                 <option value="original" className="bg-slate-950 text-slate-200">📄 Original Schedule</option>
+              </select>
+            </div>
+
+            {/* Odds Cap Selector */}
+            <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Odds Filter:</span>
+              <select
+                value={maxOddsCap}
+                onChange={(e) => setMaxOddsCap(parseFloat(e.target.value))}
+                className="bg-transparent text-cyan-300 font-bold text-xs outline-none cursor-pointer"
+              >
+                <option value={5.0} className="bg-slate-950 text-slate-200">🎯 ≤ 5.0 (Realistic Plays)</option>
+                <option value={3.5} className="bg-slate-950 text-slate-200">🛡️ ≤ 3.5 (Lower Variance)</option>
+                <option value={2.5} className="bg-slate-950 text-slate-200">⚡ ≤ 2.5 (Favorites Only)</option>
+                <option value={999} className="bg-slate-950 text-slate-200">🚀 No Cap (Include 20.0+ Longshots)</option>
               </select>
             </div>
 
