@@ -13,6 +13,7 @@ import {
   ClipboardPaste,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
 } from 'lucide-react';
 import type { BankrollConfig } from '../types';
 import { calculateShinDevig } from '../models/shinDevig';
@@ -44,7 +45,8 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
   const [retailBookmaker, setRetailBookmaker] = useState('1xBet');
   const [selectedWays, setSelectedWays] = useState<Record<number, 0 | 1 | 2>>({});
   const [retailOddsMap, setRetailOddsMap] = useState<Record<number, string>>({});
-  const [filterMode, setFilterMode] = useState<'all' | 'edgeOnly' | 'subZero'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'edgeOnly' | 'subZero'>('edgeOnly');
+  const [sortBy, setSortBy] = useState<'edgeDesc' | 'kellyDesc' | 'original'>('edgeDesc');
   const [loggedIndices, setLoggedIndices] = useState<Record<number, boolean>>({});
   const [bulkLoggedSuccess, setBulkLoggedSuccess] = useState(false);
 
@@ -116,20 +118,36 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
   // Evaluate each match across Shin De-Vig
   const evaluatedSlate = useMemo(() => {
     return matches.map((m, idx) => {
-      const targetWay = selectedWays[idx] ?? 0; // Default to Home Win (0)
-
-      let fairOdds = targetWay === 0 ? m.homeOdds : targetWay === 1 ? m.drawOdds : m.awayOdds;
-      let fairProb = 1 / fairOdds;
+      let fairOddsArr = [m.homeOdds, m.drawOdds, m.awayOdds];
+      let fairProbArr = [1 / m.homeOdds, 1 / m.drawOdds, 1 / m.awayOdds];
       let margin = 0;
 
       try {
         const shin = calculateShinDevig([m.homeOdds, m.drawOdds, m.awayOdds]);
-        fairOdds = shin.fairOdds[targetWay] || fairOdds;
-        fairProb = shin.fairProbabilities[targetWay] || fairProb;
+        fairOddsArr = shin.fairOdds;
+        fairProbArr = shin.fairProbabilities;
         margin = Math.round(shin.margin * 10) / 10;
       } catch {
-        fairOdds = Math.round(fairOdds * 100) / 100;
+        fairOddsArr = fairOddsArr.map((o) => Math.round(o * 100) / 100);
       }
+
+      // If user selected a way explicitly, use it; otherwise, pick the outcome with the highest edge!
+      let targetWay: 0 | 1 | 2;
+      if (selectedWays[idx] !== undefined) {
+        targetWay = selectedWays[idx];
+      } else {
+        const edges = [0, 1, 2].map((way) => {
+          const retail = way === 0 ? m.homeOdds : way === 1 ? m.drawOdds : m.awayOdds;
+          const fo = fairOddsArr[way] || retail;
+          return fo > 1.0 ? (retail / fo) - 1.0 : -1;
+        });
+        const maxEdge = Math.max(...edges);
+        const bestWay = edges.indexOf(maxEdge) as 0 | 1 | 2;
+        targetWay = bestWay >= 0 && bestWay <= 2 ? bestWay : 0;
+      }
+
+      const fairOdds = fairOddsArr[targetWay] || (targetWay === 0 ? m.homeOdds : targetWay === 1 ? m.drawOdds : m.awayOdds);
+      const fairProb = fairProbArr[targetWay] || (1 / fairOdds);
 
       // Retail Price Taken: User custom override, or fallback to market line
       const defaultRetail = targetWay === 0 ? m.homeOdds : targetWay === 1 ? m.drawOdds : m.awayOdds;
@@ -165,16 +183,22 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
     });
   }, [matches, selectedWays, retailOddsMap, config, loggedIndices]);
 
-  // Filtered views
+  // Filtered views with sorting (Highest Edge First by default)
   const filteredItems = useMemo(() => {
+    let items = [...evaluatedSlate];
     if (filterMode === 'edgeOnly') {
-      return evaluatedSlate.filter((item) => item.clvPercent > 0);
+      items = items.filter((item) => item.clvPercent > 0);
+    } else if (filterMode === 'subZero') {
+      items = items.filter((item) => item.clvPercent <= 0);
     }
-    if (filterMode === 'subZero') {
-      return evaluatedSlate.filter((item) => item.clvPercent <= 0);
+
+    if (sortBy === 'edgeDesc') {
+      items.sort((a, b) => b.clvPercent - a.clvPercent);
+    } else if (sortBy === 'kellyDesc') {
+      items.sort((a, b) => b.kelly.stakeNGN - a.kelly.stakeNGN);
     }
-    return evaluatedSlate;
-  }, [evaluatedSlate, filterMode]);
+    return items;
+  }, [evaluatedSlate, filterMode, sortBy]);
 
   const positiveEdgeCount = useMemo(() => {
     return evaluatedSlate.filter((item) => item.clvPercent > 0).length;
@@ -442,6 +466,21 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
               </button>
             </div>
 
+            {/* Sort Dropdown */}
+            <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs">
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-transparent text-emerald-400 font-bold text-xs outline-none cursor-pointer"
+              >
+                <option value="edgeDesc" className="bg-slate-950 text-slate-200">🔥 Highest Edge First</option>
+                <option value="kellyDesc" className="bg-slate-950 text-slate-200">💰 Highest Stake First</option>
+                <option value="original" className="bg-slate-950 text-slate-200">📄 Original Schedule</option>
+              </select>
+            </div>
+
             {/* Target Bookmaker */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
@@ -501,7 +540,7 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
           </div>
         ) : (
           <div className="space-y-2.5 max-h-[58vh] overflow-y-auto pr-1">
-            {filteredItems.map((item) => {
+            {filteredItems.map((item, rankIdx) => {
               const isPositive = item.clvPercent > 0;
               return (
                 <div
@@ -517,9 +556,30 @@ export const BatchSlateModal: React.FC<BatchSlateModalProps> = ({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     {/* Match & Odds Info */}
                     <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Rank Badge */}
+                        {isPositive && sortBy === 'edgeDesc' && (
+                          rankIdx === 0 ? (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500/25 border border-amber-400/50 text-amber-300 text-[10px] font-black font-mono shadow-[0_0_10px_rgba(245,158,11,0.25)] flex items-center gap-1">
+                              🥇 #1 Top Edge Play
+                            </span>
+                          ) : rankIdx === 1 ? (
+                            <span className="px-2 py-0.5 rounded-md bg-cyan-500/25 border border-cyan-400/50 text-cyan-300 text-[10px] font-black font-mono flex items-center gap-1">
+                              🥈 #2 Top Play
+                            </span>
+                          ) : rankIdx === 2 ? (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/25 border border-emerald-400/50 text-emerald-300 text-[10px] font-black font-mono flex items-center gap-1">
+                              🥉 #3 Top Play
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 text-[10px] font-mono font-bold">
+                              #{rankIdx + 1}
+                            </span>
+                          )
+                        )}
+
                         <span className="font-black text-xs sm:text-sm text-slate-100">
-                          {item.index + 1}. {item.match.matchName}
+                          {item.match.matchName}
                         </span>
                         {item.isLogged ? (
                           <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center gap-1 font-mono">
