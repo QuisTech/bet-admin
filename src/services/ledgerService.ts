@@ -7,6 +7,12 @@ import {
   syncAllLocalBetsToFirestore,
   fetchFirestoreBets,
 } from './firebaseService';
+import {
+  normalizeMatchName,
+  isSameMatch,
+  extractDatePart,
+  correlateAndMerge,
+} from './oneXBetParser';
 
 const LEDGER_STORAGE_KEY = 'bet_admin_logged_positions';
 const DELETED_BETS_STORAGE_KEY = 'bet_admin_deleted_bets';
@@ -871,15 +877,20 @@ export function sanitizeBet(raw: any): LoggedBet {
       ? raw.payout
       : parseFloat(raw.payout) || 0;
 
-  const pin =
-    typeof raw.pinnacleLineAtBet === 'number' && !isNaN(raw.pinnacleLineAtBet) && raw.pinnacleLineAtBet > 0
-      ? raw.pinnacleLineAtBet
-      : Math.max(1.05, Math.round((price / 1.05) * 100) / 100);
+  const hasRealPin =
+    typeof raw.pinnacleLineAtBet === 'number' && !isNaN(raw.pinnacleLineAtBet) && raw.pinnacleLineAtBet > 1.0;
+  const pin = hasRealPin
+    ? raw.pinnacleLineAtBet
+    : typeof raw.pinnacleClosingLine === 'number' && raw.pinnacleClosingLine > 1.0
+    ? raw.pinnacleClosingLine
+    : price;
 
   const clv =
     typeof raw.clvPercent === 'number' && !isNaN(raw.clvPercent)
       ? raw.clvPercent
-      : Math.round(((price / pin) - 1.0) * 1000) / 10;
+      : hasRealPin
+      ? Math.round(((price / pin) - 1.0) * 1000) / 10
+      : undefined;
 
   const prob =
     typeof raw.modelProb === 'number' && !isNaN(raw.modelProb) && raw.modelProb > 0
@@ -902,7 +913,10 @@ export function sanitizeBet(raw: any): LoggedBet {
         ? raw.pinnacleClosingLine
         : pin,
     modelProb: prob,
-    modelEV: typeof raw.modelEV === 'number' && !isNaN(raw.modelEV) ? raw.modelEV : 5.0,
+    modelEV:
+      typeof raw.modelEV === 'number' && !isNaN(raw.modelEV)
+        ? raw.modelEV
+        : (clv !== undefined ? clv : 0),
     stake,
     payout:
       raw.id === '87771093985' && (payout === 0 || raw.outcome === 'OPEN')
@@ -945,30 +959,27 @@ export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
       continue;
     }
 
-    // 2. Canonical normalization
-    const normMatch = b.match
-      .toLowerCase()
-      .replace(/\s*-\s*/g, ' vs ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
+    const normMatch = normalizeMatchName(b.match);
     const normSel = (b.selection || 'Value Selection')
       .toLowerCase()
       .replace(/\s+/g, ' ')
       .trim();
 
-    // Clean datePart: strip commas, slashes, extract DD/MM/YYYY
-    const datePart = b.dateDisplay
-      ? b.dateDisplay.replace(/[^0-9/]/g, ' ').trim().split(/\s+/)[0]
-      : b.timestamp
-      ? b.timestamp.substring(0, 10)
-      : '';
+    const datePart = extractDatePart(b.dateDisplay, b.timestamp);
+    const matchDateKey = `${normMatch}|${datePart}`;
 
     // If an official verified slip is already recorded for this match & date,
-    // discard any unverified temporary draft (bet-...) for the same match
-    const matchDateKey = `${normMatch}|${datePart}`;
-    if (b.id && b.id.startsWith('bet-') && seenMatchDates.has(matchDateKey)) {
-      continue;
+    // do NOT just discard the draft! MERGE the draft's original Pinnacle lines and authentic CLV into the official slip!
+    if (b.id && b.id.startsWith('bet-')) {
+      const matchIdx = result.findIndex(
+        (r) =>
+          isSameMatch(r.match, b.match) &&
+          (!datePart || !extractDatePart(r.dateDisplay, r.timestamp) || datePart === extractDatePart(r.dateDisplay, r.timestamp))
+      );
+      if (matchIdx >= 0) {
+        result[matchIdx] = correlateAndMerge(result[matchIdx], b);
+        continue;
+      }
     }
 
     // Primary signature: match + selection + stake + priceTaken + datePart
@@ -977,6 +988,16 @@ export function deduplicateBets(bets: LoggedBet[]): LoggedBet[] {
     const matchSig = `${normMatch}|${b.stake}|${b.priceTaken.toFixed(2)}|${datePart}`;
 
     if (seenSignatures.has(primarySig) || seenSignatures.has(matchSig)) {
+      if (b.id && b.id.startsWith('bet-')) {
+        const sigIdx = result.findIndex(
+          (r) =>
+            isSameMatch(r.match, b.match) &&
+            Math.abs(r.priceTaken - b.priceTaken) < 0.05
+        );
+        if (sigIdx >= 0) {
+          result[sigIdx] = correlateAndMerge(result[sigIdx], b);
+        }
+      }
       continue;
     }
 

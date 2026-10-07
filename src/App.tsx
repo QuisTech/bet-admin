@@ -17,7 +17,11 @@ import { BASE_MATCHES } from './data/matchRepository';
 import { fetchLiveFPLBootstrap } from './services/fplService';
 import { fetchLiveOddsFeed } from './services/oddsService';
 import { evaluateOpportunities } from './models/opportunityEngine';
-import { convertParsedSlipsToLoggedBets } from './services/oneXBetParser';
+import {
+  convertParsedSlipsToLoggedBets,
+  findCorrelatedBet,
+  correlateAndMerge,
+} from './services/oneXBetParser';
 import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated, resetLedgerToSeed, refreshLedgerFromCloud } from './services/ledgerService';
 import {
   isFirebaseConfigured,
@@ -234,42 +238,21 @@ export default function App() {
           const rawJson = decodeURIComponent(hash.substring('#import1x='.length));
           const importedSlips = JSON.parse(rawJson);
           if (Array.isArray(importedSlips) && importedSlips.length > 0) {
-            const newBets = convertParsedSlipsToLoggedBets(importedSlips);
             const existing = getLoggedBets();
+            const newBets = convertParsedSlipsToLoggedBets(importedSlips, existing);
             const merged = [...existing];
             for (const nb of newBets) {
-              const cleanDate = (d?: string) => (d ? d.replace(/[^0-9/]/g, ' ').trim().split(/\s+/)[0] : '');
-              const idx = merged.findIndex(
-                (b) =>
-                  b.id === nb.id ||
-                  (b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() ===
-                    nb.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() &&
-                    cleanDate(b.dateDisplay) === cleanDate(nb.dateDisplay))
-              );
+              const matched = findCorrelatedBet(nb, merged);
+              const idx = matched ? merged.findIndex((b) => b.id === matched.id) : -1;
               if (idx >= 0) {
                 const old = merged[idx];
                 const oldId = old.id;
-                merged[idx] = {
-                  ...old,
-                  ...nb,
-                  id: nb.id || old.id,
-                  modelProb: old.modelProb && old.modelProb !== Math.round((1 / (old.priceTaken || 2.0)) * 1000) / 1000 ? old.modelProb : nb.modelProb,
-                  modelEV: typeof old.modelEV === 'number' && old.modelEV !== 5.0 ? old.modelEV : nb.modelEV,
-                  pinnacleLineAtBet: old.pinnacleLineAtBet || nb.pinnacleLineAtBet,
-                  pinnacleClosingLine: old.pinnacleClosingLine || nb.pinnacleClosingLine,
-                  clvPercent: typeof old.clvPercent === 'number' && old.clvPercent !== 5.0 ? old.clvPercent : nb.clvPercent,
-                  selection: old.selection && old.selection !== 'Value Selection' && old.selection !== 'Match Outcome (1X2)' ? old.selection : (nb.selection || old.selection),
-                  outcome: nb.outcome,
-                  payout: nb.payout,
-                  priceTaken: nb.priceTaken || old.priceTaken,
-                  stake: nb.stake || old.stake,
-                  notes: old.notes && !old.notes.includes(nb.id) ? `${old.notes} • Slip № ${nb.id}` : (nb.notes || old.notes),
-                };
+                merged[idx] = correlateAndMerge(nb, old);
                 if (oldId && oldId !== nb.id && oldId.startsWith('bet-') && isFirebaseConfigured()) {
                   deleteBetFromFirestore(oldId).catch(() => {});
                 }
               } else {
-                merged.push(nb);
+                merged.unshift(nb);
               }
             }
             saveLoggedBets(merged);

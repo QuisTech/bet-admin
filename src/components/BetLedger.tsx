@@ -434,11 +434,11 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
                 const price = typeof b.priceTaken === 'number' && !isNaN(b.priceTaken) ? b.priceTaken : 2.0;
                 const prob = typeof b.modelProb === 'number' && !isNaN(b.modelProb) ? b.modelProb : 0.5;
                 const clv = typeof b.clvPercent === 'number' && !isNaN(b.clvPercent) ? b.clvPercent : null;
-                const pinRef = typeof b.pinnacleClosingLine === 'number' && !isNaN(b.pinnacleClosingLine)
+                const pinRef = typeof b.pinnacleClosingLine === 'number' && !isNaN(b.pinnacleClosingLine) && b.pinnacleClosingLine > 1.0
                   ? b.pinnacleClosingLine
-                  : typeof b.pinnacleLineAtBet === 'number' && !isNaN(b.pinnacleLineAtBet)
+                  : typeof b.pinnacleLineAtBet === 'number' && !isNaN(b.pinnacleLineAtBet) && b.pinnacleLineAtBet > 1.0
                   ? b.pinnacleLineAtBet
-                  : 2.0;
+                  : null;
                 const stakeVal = typeof b.stake === 'number' && !isNaN(b.stake) ? b.stake : 0;
                 const payoutVal = typeof b.payout === 'number' && !isNaN(b.payout) ? b.payout : 0;
                 const net = payoutVal - stakeVal;
@@ -485,9 +485,11 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
                             {clv >= 0 ? '+' : ''}
                             {clv.toFixed(1)}%
                           </span>
-                          <div className="text-[9px] text-slate-500 mt-0.5">
-                            vs {pinRef.toFixed(2)}
-                          </div>
+                          {pinRef !== null && (
+                            <div className="text-[9px] text-slate-500 mt-0.5">
+                              vs {pinRef.toFixed(2)}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <span className="text-slate-600">—</span>

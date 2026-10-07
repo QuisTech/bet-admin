@@ -412,10 +412,260 @@ export function parse1xBetText(rawText: string): ParsedOneXBetSlip[] {
   return slips;
 }
 
+const LEDGER_STORAGE_KEY = 'bet_admin_logged_positions';
+
+/**
+ * Normalizes a team or match string for reliable correlation between
+ * 1xBet DOM formats and Bet Horizon logged match names.
+ */
+export function normalizeMatchName(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .toLowerCase()
+    .replace(/players'?\s*stats\s*/gi, '')
+    .replace(/\s*-\s*/g, ' vs ')
+    .replace(/\s+v\s+/g, ' vs ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Checks if two match names refer to the same match.
+ * Supports exact normalized match, reversed match, or team-token inclusion.
+ */
+export function isSameMatch(matchA: string, matchB: string): boolean {
+  const normA = normalizeMatchName(matchA);
+  const normB = normalizeMatchName(matchB);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+
+  const partsA = normA.split(/\s+vs\s+/).map((p) => p.trim()).filter(Boolean);
+  const partsB = normB.split(/\s+vs\s+/).map((p) => p.trim()).filter(Boolean);
+
+  if (partsA.length === 2 && partsB.length === 2) {
+    const [hA, aA] = partsA;
+    const [hB, aB] = partsB;
+    if ((hA === hB && aA === aB) || (hA === aB && aA === hB)) return true;
+
+    const homeMatch = hA.includes(hB) || hB.includes(hA);
+    const awayMatch = aA.includes(aB) || aB.includes(aA);
+    if (homeMatch && awayMatch) return true;
+  }
+
+  // Fallback: check if major words overlap
+  const wordsA = normA.split(' ').filter((w) => w.length > 2 && w !== 'vs' && w !== 'u21');
+  const wordsB = normB.split(' ').filter((w) => w.length > 2 && w !== 'vs' && w !== 'u21');
+  if (wordsA.length > 0 && wordsB.length > 0) {
+    const overlap = wordsA.filter((w) => wordsB.includes(w));
+    if (overlap.length >= Math.min(wordsA.length, wordsB.length)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Normalizes date to DD/MM/YYYY
+ */
+export function extractDatePart(dateStr?: string, timestamp?: string): string {
+  if (dateStr) {
+    const dMatch = dateStr.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+    if (dMatch) {
+      const d = dMatch[1].padStart(2, '0');
+      const m = dMatch[2].padStart(2, '0');
+      let y = dMatch[3];
+      if (y.length === 2) y = '20' + y;
+      return `${d}/${m}/${y}`;
+    }
+  }
+  if (timestamp) {
+    try {
+      const dt = new Date(timestamp);
+      if (!isNaN(dt.getTime())) {
+        return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return '';
+}
+
+/**
+ * Searches an array of existing bets to find the matching pre-staked record
+ * for an incoming 1xBet slip.
+ */
+export function findCorrelatedBet(
+  slip: {
+    id?: string;
+    match?: string;
+    odds?: number;
+    priceTaken?: number;
+    stake?: number;
+    date?: string;
+    dateDisplay?: string;
+    timestamp?: string;
+  },
+  existingBets: LoggedBet[]
+): LoggedBet | undefined {
+  if (!existingBets || existingBets.length === 0) return undefined;
+
+  const slipId = slip.id ? String(slip.id).trim() : '';
+  const slipOdds =
+    typeof slip.odds === 'number' && !isNaN(slip.odds)
+      ? slip.odds
+      : typeof slip.priceTaken === 'number' && !isNaN(slip.priceTaken)
+      ? slip.priceTaken
+      : 0;
+  const slipStake = typeof slip.stake === 'number' && !isNaN(slip.stake) ? slip.stake : 0;
+  const slipDate = extractDatePart(slip.dateDisplay || slip.date, slip.timestamp);
+
+  // 1. Direct ID match
+  if (slipId) {
+    const exactId = existingBets.find((b) => b.id === slipId);
+    if (exactId) return exactId;
+  }
+
+  // 2. Strong match: Same match name + compatible date
+  const candidateByMatchAndDate = existingBets.filter((b) => {
+    if (!isSameMatch(b.match, slip.match || '')) return false;
+    const bDate = extractDatePart(b.dateDisplay, b.timestamp);
+    return !slipDate || !bDate || slipDate === bDate;
+  });
+
+  if (candidateByMatchAndDate.length === 1) {
+    return candidateByMatchAndDate[0];
+  } else if (candidateByMatchAndDate.length > 1) {
+    // Disambiguate by odds & stake
+    const exactOddsAndStake = candidateByMatchAndDate.find(
+      (b) =>
+        (slipOdds <= 0 || Math.abs(b.priceTaken - slipOdds) < 0.15) &&
+        (slipStake <= 0 || Math.abs(b.stake - slipStake) < 5)
+    );
+    if (exactOddsAndStake) return exactOddsAndStake;
+
+    const exactOdds = candidateByMatchAndDate.find(
+      (b) => slipOdds > 0 && Math.abs(b.priceTaken - slipOdds) < 0.15
+    );
+    if (exactOdds) return exactOdds;
+
+    return candidateByMatchAndDate[0];
+  }
+
+  // 3. Match by Match Name alone (if unique in existingBets)
+  const candidateByMatchOnly = existingBets.filter((b) => isSameMatch(b.match, slip.match || ''));
+  if (candidateByMatchOnly.length === 1) {
+    return candidateByMatchOnly[0];
+  }
+
+  // 4. Disambiguate by Odds + Stake on the same date (e.g. if match names had completely different languages/abbreviations)
+  if (slipOdds > 0 && slipStake > 0 && slipDate) {
+    const candidateByOddsStakeDate = existingBets.find((b) => {
+      const bDate = extractDatePart(b.dateDisplay, b.timestamp);
+      return (
+        bDate === slipDate &&
+        Math.abs(b.priceTaken - slipOdds) < 0.05 &&
+        Math.abs(b.stake - slipStake) < 2
+      );
+    });
+    if (candidateByOddsStakeDate) return candidateByOddsStakeDate;
+  }
+
+  return undefined;
+}
+
+/**
+ * Merges an incoming 1xBet slip into an existing pre-staked LoggedBet record,
+ * strictly preserving genuine Pinnacle lines, original model probability,
+ * model EV, and authentic CLV edge.
+ */
+export function correlateAndMerge(
+  incoming: Partial<LoggedBet> & { id: string },
+  existing: LoggedBet
+): LoggedBet {
+  // Preserve real Pinnacle line
+  const pin =
+    existing.pinnacleLineAtBet && existing.pinnacleLineAtBet > 1.0
+      ? existing.pinnacleLineAtBet
+      : incoming.pinnacleLineAtBet && incoming.pinnacleLineAtBet > 1.0
+      ? incoming.pinnacleLineAtBet
+      : existing.priceTaken;
+
+  const pinClose =
+    existing.pinnacleClosingLine && existing.pinnacleClosingLine > 1.0
+      ? existing.pinnacleClosingLine
+      : incoming.pinnacleClosingLine && incoming.pinnacleClosingLine > 1.0
+      ? incoming.pinnacleClosingLine
+      : pin;
+
+  const price =
+    incoming.priceTaken && incoming.priceTaken > 1.0 ? incoming.priceTaken : existing.priceTaken;
+
+  // True CLV calculated against genuine Pinnacle line (not hardcoded 5%!)
+  let clv = existing.clvPercent;
+  if (typeof clv !== 'number' || isNaN(clv)) {
+    clv = pinClose > 0 ? Math.round(((price / pinClose) - 1.0) * 1000) / 10 : 0;
+  } else if (incoming.priceTaken && incoming.priceTaken !== existing.priceTaken && pinClose > 0) {
+    clv = Math.round(((price / pinClose) - 1.0) * 1000) / 10;
+  }
+
+  let notes = existing.notes || '';
+  if (incoming.id && !notes.includes(incoming.id)) {
+    notes = notes ? `${notes} • Slip № ${incoming.id}` : `Slip № ${incoming.id}`;
+  }
+  if (incoming.notes && !notes.includes(incoming.notes)) {
+    notes = `${notes} • ${incoming.notes}`;
+  }
+
+  return {
+    ...existing,
+    id: incoming.id || existing.id,
+    dateDisplay: incoming.dateDisplay || existing.dateDisplay,
+    timestamp: incoming.timestamp || existing.timestamp,
+    priceTaken: price,
+    stake: incoming.stake && incoming.stake > 0 ? incoming.stake : existing.stake,
+    payout: typeof incoming.payout === 'number' ? incoming.payout : existing.payout,
+    outcome: incoming.outcome || existing.outcome,
+    pinnacleLineAtBet: pin,
+    pinnacleClosingLine: pinClose,
+    clvPercent: clv,
+    modelProb:
+      existing.modelProb && !isNaN(existing.modelProb)
+        ? existing.modelProb
+        : incoming.modelProb || Math.round((1 / price) * 1000) / 1000,
+    modelEV:
+      typeof existing.modelEV === 'number' && !isNaN(existing.modelEV)
+        ? existing.modelEV
+        : incoming.modelEV || (clv !== undefined ? clv : 0),
+    selection:
+      existing.selection && !['Match Outcome (1X2)', 'Value Selection'].includes(existing.selection)
+        ? existing.selection
+        : incoming.selection || existing.selection,
+    marketType: existing.marketType || incoming.marketType || '1X2',
+    notes,
+  };
+}
+
 /**
  * Converts parsed 1xBet slips into full LoggedBet records ready for Position Ledger.
+ * When existing pre-staked bets are present, correlates and preserves their real Pinnacle lines,
+ * model EV, and true CLV edge rather than substituting an arbitrary +5% dummy fallback.
  */
-export function convertParsedSlipsToLoggedBets(slips: any[]): LoggedBet[] {
+export function convertParsedSlipsToLoggedBets(
+  slips: any[],
+  existingBets?: LoggedBet[]
+): LoggedBet[] {
+  let existing = existingBets;
+  if (!existing && typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(LEDGER_STORAGE_KEY);
+      if (raw) existing = JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+  }
+  existing = existing || [];
+
   return (slips || []).map((s) => {
     let timestamp = new Date().toISOString();
     const dateStr = s.dateDisplay || s.date || '';
@@ -444,25 +694,39 @@ export function convertParsedSlipsToLoggedBets(slips: any[]): LoggedBet[] {
         ? s.payout
         : parseFloat(s.payout) || 0;
 
-    const pinnacleLine =
-      typeof s.pinnacleLineAtBet === 'number' && !isNaN(s.pinnacleLineAtBet) && s.pinnacleLineAtBet > 0
-        ? s.pinnacleLineAtBet
-        : Math.max(1.05, Math.round((odds / 1.05) * 100) / 100);
-
-    const clv =
-      typeof s.clvPercent === 'number' && !isNaN(s.clvPercent)
-        ? s.clvPercent
-        : Math.round(((odds / pinnacleLine) - 1.0) * 1000) / 10;
-
-    const prob =
-      typeof s.modelProb === 'number' && !isNaN(s.modelProb) && s.modelProb > 0
-        ? s.modelProb
-        : Math.round((1 / odds) * 1000) / 1000;
-
     const outcome =
       s.outcome === 'WON' || s.outcome === 'LOST' || s.outcome === 'PUSH' || s.outcome === 'CASHOUT'
         ? s.outcome
         : 'OPEN';
+
+    // 1. Correlate with pre-staked record if exists
+    const matched = findCorrelatedBet(s, existing!);
+    if (matched) {
+      return correlateAndMerge(
+        {
+          id: String(s.id || matched.id),
+          timestamp,
+          dateDisplay: dateStr || matched.dateDisplay,
+          priceTaken: odds,
+          stake: stake > 0 ? stake : matched.stake,
+          payout,
+          outcome,
+          notes: s.notes,
+        },
+        matched
+      );
+    }
+
+    // 2. Uncorrelated slip (placed outside Bet Horizon):
+    // Do NOT invent a fake 5% markup! Keep Pinnacle line only if explicitly provided.
+    const pin =
+      typeof s.pinnacleLineAtBet === 'number' && s.pinnacleLineAtBet > 1.0
+        ? s.pinnacleLineAtBet
+        : odds;
+    const clv =
+      typeof s.clvPercent === 'number' && !isNaN(s.clvPercent)
+        ? s.clvPercent
+        : undefined;
 
     return {
       id: String(s.id || `bet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
@@ -470,36 +734,119 @@ export function convertParsedSlipsToLoggedBets(slips: any[]): LoggedBet[] {
       dateDisplay: dateStr || new Date().toLocaleDateString('en-GB'),
       league: s.league || 'Sportsbook Market',
       match: s.match || 'Football Match',
-      selection: s.selection || 'Match Outcome (1X2)',
-      marketType: s.marketType || (s.match?.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2'),
+      selection:
+        s.selection ||
+        (s.match?.toLowerCase().includes("players' stats")
+          ? 'Anytime Goalscorer'
+          : 'Match Outcome (1X2)'),
+      marketType:
+        s.marketType || (s.match?.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2'),
       bookmaker: s.bookmaker || '1xBet',
       priceTaken: odds,
-      pinnacleLineAtBet: pinnacleLine,
+      pinnacleLineAtBet: pin,
       pinnacleClosingLine:
-        typeof s.pinnacleClosingLine === 'number' && !isNaN(s.pinnacleClosingLine)
-          ? s.pinnacleClosingLine
-          : pinnacleLine,
-      modelProb: prob,
-      modelEV: typeof s.modelEV === 'number' && !isNaN(s.modelEV) ? s.modelEV : Math.round(clv * 10) / 10,
+        typeof s.pinnacleClosingLine === 'number' ? s.pinnacleClosingLine : pin,
+      modelProb:
+        typeof s.modelProb === 'number' && s.modelProb > 0
+          ? s.modelProb
+          : Math.round((1 / odds) * 1000) / 1000,
+      modelEV:
+        typeof s.modelEV === 'number'
+          ? s.modelEV
+          : clv !== undefined
+          ? clv
+          : 0,
       stake,
       payout,
       outcome,
       clvPercent: clv,
-      notes: s.notes || `Bet slip № ${s.id || ''}${s.status === 'Sold' ? ' • Cashed Out / Sold' : ''}`,
+      notes: s.notes || `Bet slip № ${s.id || ''}`,
     };
   });
 }
 
 /**
- * Returns clean, unencoded JavaScript for running in browser Developer Tools Console.
+ * Returns clean, unencoded JavaScript for running in browser Developer Tools Console or Bookmarklet.
+ * Asynchronously pre-fetches cloud positions to correlate pre-staked bets and preserve their authentic
+ * Pinnacle lines, model EV, and CLV edge.
  */
 export function getOneXBetCleanScript(
   projectId: string = 'bet-admin-8d3fc',
   appOrigin: string = 'https://bet-admin-iota.vercel.app'
 ): string {
-  return `(function() {
+  return `(async function() {
   var existing = document.getElementById('bh-sync-overlay');
   if (existing) existing.remove();
+
+  // 1. Fetch existing cloud positions from Firestore to correlate pre-staked bets
+  var cloudBets = [];
+  try {
+    var fetchUrl = 'https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/positions?pageSize=300';
+    var res = await fetch(fetchUrl);
+    if (res.ok) {
+      var data = await res.json();
+      (data.documents || []).forEach(function(d) {
+        var f = d.fields || {};
+        var docId = d.name ? d.name.split('/').pop() : '';
+        if (docId === 'bankroll_snapshot' || docId.indexOf('odds_cache_') === 0) return;
+        cloudBets.push({
+          id: f.id ? f.id.stringValue : docId,
+          docName: d.name,
+          match: f.match ? f.match.stringValue : '',
+          selection: f.selection ? f.selection.stringValue : '',
+          marketType: f.marketType ? f.marketType.stringValue : '1X2',
+          priceTaken: f.priceTaken ? (f.priceTaken.doubleValue || f.priceTaken.integerValue || 0) : 0,
+          pinnacleLineAtBet: f.pinnacleLineAtBet ? (f.pinnacleLineAtBet.doubleValue || f.pinnacleLineAtBet.integerValue) : null,
+          pinnacleClosingLine: f.pinnacleClosingLine ? (f.pinnacleClosingLine.doubleValue || f.pinnacleClosingLine.integerValue) : null,
+          clvPercent: f.clvPercent ? (f.clvPercent.doubleValue || f.clvPercent.integerValue) : null,
+          modelEV: f.modelEV ? (f.modelEV.doubleValue || f.modelEV.integerValue) : null,
+          modelProb: f.modelProb ? (f.modelProb.doubleValue || f.modelProb.integerValue) : null,
+          stake: f.stake ? (f.stake.doubleValue || f.stake.integerValue || 0) : 0,
+          payout: f.payout ? (f.payout.doubleValue || f.payout.integerValue || 0) : 0,
+          outcome: f.outcome ? f.outcome.stringValue : 'OPEN',
+          notes: f.notes ? f.notes.stringValue : '',
+          dateDisplay: f.dateDisplay ? f.dateDisplay.stringValue : ''
+        });
+      });
+    }
+  } catch(e) {
+    console.warn('Bet Horizon: Could not pre-fetch cloud positions for correlation:', e);
+  }
+
+  function norm(str) {
+    if (!str) return '';
+    return str.toLowerCase()
+      .replace(/players'?\\s*stats\\s*/gi, '')
+      .replace(/\\s*-\\s*/g, ' vs ')
+      .replace(/\\s+v\\s+/g, ' vs ')
+      .replace(/[^a-z0-9\\s]/g, ' ')
+      .replace(/\\s+/g, ' ')
+      .trim();
+  }
+
+  function matchSame(a, b) {
+    var na = norm(a);
+    var nb = norm(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    var pa = na.split(/\\s+vs\\s+/);
+    var pb = nb.split(/\\s+vs\\s+/);
+    if (pa.length === 2 && pb.length === 2) {
+      if ((pa[0] === pb[0] && pa[1] === pb[1]) || (pa[0] === pb[1] && pa[1] === pb[0])) return true;
+      if ((pa[0].includes(pb[0]) || pb[0].includes(pa[0])) && (pa[1].includes(pb[1]) || pb[1].includes(pa[1]))) return true;
+    }
+    return false;
+  }
+
+  function findPreStaked(slip) {
+    for (var i = 0; i < cloudBets.length; i++) {
+      var cb = cloudBets[i];
+      if (slip.id && cb.id === slip.id) return cb;
+      if (matchSame(slip.match, cb.match)) return cb;
+      if (slip.priceTaken > 0 && Math.abs(slip.priceTaken - cb.priceTaken) < 0.05 && slip.stake > 0 && Math.abs(slip.stake - cb.stake) < 2) return cb;
+    }
+    return null;
+  }
 
   var slips = [];
 
@@ -555,25 +902,45 @@ export function getOneXBetCleanScript(
         payout = potentialWin > 0 ? potentialWin : Math.round(stake * 0.94 * 100) / 100;
       }
 
+      var matched = findPreStaked({ id: idText, match: matchName, priceTaken: odds, stake: stake });
+      var pinAtBet = matched && matched.pinnacleLineAtBet && matched.pinnacleLineAtBet > 1.0 ? matched.pinnacleLineAtBet : null;
+      var pinClose = matched && matched.pinnacleClosingLine && matched.pinnacleClosingLine > 1.0 ? matched.pinnacleClosingLine : pinAtBet;
+      var finalClv = null;
+      if (matched && typeof matched.clvPercent === 'number' && !isNaN(matched.clvPercent)) {
+        finalClv = matched.clvPercent;
+      } else if (pinClose && pinClose > 1.0 && odds > 0) {
+        finalClv = Math.round(((odds / pinClose) - 1.0) * 1000) / 10;
+      }
+      var finalEv = matched && typeof matched.modelEV === 'number' ? matched.modelEV : (finalClv !== null ? finalClv : null);
+      var finalProb = matched && typeof matched.modelProb === 'number' ? matched.modelProb : (odds > 0 ? Math.round((1 / odds) * 1000) / 1000 : null);
+      var finalSel = matched && matched.selection && !['Match Outcome (1X2)', 'Value Selection'].includes(matched.selection)
+        ? matched.selection
+        : (matchName.toLowerCase().includes("players' stats") ? 'Anytime Goalscorer' : odds >= 4.5 && odds <= 6.5 ? 'Draw (1X2)' : 'Match Outcome (1X2)');
+      var finalLeague = (matched && matched.league) || league;
+      var finalNotes = (matched && matched.notes ? matched.notes + ' • ' : '') + 'Bet slip № ' + idText + (status === 'Sold' ? ' • Cashed Out' : '');
+      var oldDraftId = (matched && matched.id && matched.id !== idText && matched.id.startsWith('bet-')) ? matched.id : null;
+
       slips.push({
         id: idText,
         timestamp: new Date().toISOString(),
         dateDisplay: dateRaw || new Date().toLocaleDateString('en-GB'),
-        league: league,
+        league: finalLeague,
         match: matchName,
-        selection: matchName.toLowerCase().includes("players' stats") ? 'Anytime Goalscorer' : odds >= 4.5 && odds <= 6.5 ? 'Draw (1X2)' : 'Match Outcome (1X2)',
-        marketType: matchName.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2',
+        selection: finalSel,
+        marketType: (matched && matched.marketType) || (matchName.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2'),
         bookmaker: '1xBet',
         priceTaken: odds,
-        pinnacleLineAtBet: Math.max(1.05, Math.round((odds / 1.05) * 100) / 100),
-        pinnacleClosingLine: Math.max(1.05, Math.round((odds / 1.05) * 100) / 100),
-        modelProb: odds > 0 ? Math.round((1 / odds) * 1000) / 1000 : 0.5,
-        modelEV: 5.0,
+        pinnacleLineAtBet: pinAtBet,
+        pinnacleClosingLine: pinClose,
+        modelProb: finalProb,
+        modelEV: finalEv,
         stake: stake,
         payout: payout,
         outcome: outcome,
-        clvPercent: odds > 0 ? Math.round(((odds / Math.max(1.05, odds / 1.05)) - 1.0) * 1000) / 10 : 0,
-        notes: 'Bet slip № ' + idText + (status === 'Sold' ? ' • Cashed Out' : '')
+        clvPercent: finalClv,
+        notes: finalNotes,
+        originalDraftId: oldDraftId,
+        matchedPreStaked: !!matched
       });
     }
   }
@@ -635,25 +1002,44 @@ export function getOneXBetCleanScript(
         }
       }
 
+      var matchedFb = findPreStaked({ id: slipId, match: matchFallback, priceTaken: oddsFallback, stake: stakeFallback });
+      var pinAtBetFb = matchedFb && matchedFb.pinnacleLineAtBet && matchedFb.pinnacleLineAtBet > 1.0 ? matchedFb.pinnacleLineAtBet : null;
+      var pinCloseFb = matchedFb && matchedFb.pinnacleClosingLine && matchedFb.pinnacleClosingLine > 1.0 ? matchedFb.pinnacleClosingLine : pinAtBetFb;
+      var finalClvFb = null;
+      if (matchedFb && typeof matchedFb.clvPercent === 'number' && !isNaN(matchedFb.clvPercent)) {
+        finalClvFb = matchedFb.clvPercent;
+      } else if (pinCloseFb && pinCloseFb > 1.0 && oddsFallback > 0) {
+        finalClvFb = Math.round(((oddsFallback / pinCloseFb) - 1.0) * 1000) / 10;
+      }
+      var finalEvFb = matchedFb && typeof matchedFb.modelEV === 'number' ? matchedFb.modelEV : (finalClvFb !== null ? finalClvFb : null);
+      var finalProbFb = matchedFb && typeof matchedFb.modelProb === 'number' ? matchedFb.modelProb : (oddsFallback > 0 ? Math.round((1 / oddsFallback) * 1000) / 1000 : null);
+      var finalSelFb = matchedFb && matchedFb.selection && !['Match Outcome (1X2)', 'Value Selection'].includes(matchedFb.selection)
+        ? matchedFb.selection
+        : (matchFallback.toLowerCase().includes("players' stats") ? 'Anytime Goalscorer' : (oddsFallback >= 2.6 && oddsFallback <= 4.8 ? 'Draw (1X2)' : 'Match Outcome (1X2)'));
+      var finalLeagueFb = (matchedFb && matchedFb.league) || leagueFallback || 'Sportsbook Market';
+      var oldDraftIdFb = (matchedFb && matchedFb.id && matchedFb.id !== slipId && matchedFb.id.startsWith('bet-')) ? matchedFb.id : null;
+
       slips.push({
         id: slipId,
         timestamp: new Date().toISOString(),
         dateDisplay: dateStr || new Date().toLocaleDateString('en-GB'),
-        league: leagueFallback || 'Sportsbook Market',
+        league: finalLeagueFb,
         match: matchFallback || 'Football Match',
-        selection: matchFallback.toLowerCase().includes("players' stats") ? 'Anytime Goalscorer' : (oddsFallback >= 2.6 && oddsFallback <= 4.8 ? 'Draw (1X2)' : oddsFallback >= 1.35 && oddsFallback <= 2.15 ? 'Double Chance (1X)' : 'Match Outcome (1X2)'),
-        marketType: matchFallback.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2',
+        selection: finalSelFb,
+        marketType: (matchedFb && matchedFb.marketType) || (matchFallback.toLowerCase().includes("players' stats") ? 'PROPS' : '1X2'),
         bookmaker: '1xBet',
         priceTaken: oddsFallback,
-        pinnacleLineAtBet: Math.max(1.05, Math.round((oddsFallback / 1.05) * 100) / 100),
-        pinnacleClosingLine: Math.max(1.05, Math.round((oddsFallback / 1.05) * 100) / 100),
-        modelProb: oddsFallback > 0 ? Math.round((1 / oddsFallback) * 1000) / 1000 : 0.5,
-        modelEV: 5.0,
+        pinnacleLineAtBet: pinAtBetFb,
+        pinnacleClosingLine: pinCloseFb,
+        modelProb: finalProbFb,
+        modelEV: finalEvFb,
         stake: stakeFallback,
         payout: pFallback,
         outcome: oFallback,
-        clvPercent: 5.0,
-        notes: 'Bet slip № ' + slipId + (sFallback === 'Sold' ? ' • Cashed Out' : '')
+        clvPercent: finalClvFb,
+        notes: (matchedFb && matchedFb.notes ? matchedFb.notes + ' • ' : '') + 'Bet slip № ' + slipId + (sFallback === 'Sold' ? ' • Cashed Out' : ''),
+        originalDraftId: oldDraftIdFb,
+        matchedPreStaked: !!matchedFb
       });
     }
   }
@@ -668,14 +1054,17 @@ export function getOneXBetCleanScript(
   box.id = 'bh-sync-overlay';
   box.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999999;background:#090d16;color:#f8fafc;padding:20px;border-radius:18px;border:2px solid #10b981;box-shadow:0 20px 50px rgba(0,0,0,0.85);font-family:sans-serif;width:340px;max-width:90vw;backdrop-filter:blur(10px);';
 
+  var correlatedCount = slips.filter(function(s) { return s.matchedPreStaked; }).length;
+
   box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
     '<div style="font-weight:900;color:#10b981;font-size:14px;letter-spacing:0.5px;">⚡ BET HORIZON SYNC</div>' +
     '<button id="bh-close-btn" style="background:#1e293b;border:none;color:#94a3b8;cursor:pointer;border-radius:6px;width:24px;height:24px;font-weight:bold;">✕</button>' +
     '</div>' +
-    '<div style="font-size:12px;color:#cbd5e1;margin-bottom:12px;">Found <strong style="color:#38bdf8;">' + slips.length + ' bet slips</strong> on this page ready to sync.</div>' +
+    '<div style="font-size:12px;color:#cbd5e1;margin-bottom:8px;">Found <strong style="color:#38bdf8;">' + slips.length + ' bet slips</strong> on this page.</div>' +
+    '<div style="font-size:11px;color:#10b981;margin-bottom:12px;background:rgba(16,185,129,0.1);padding:6px 10px;border-radius:8px;border:1px solid rgba(16,185,129,0.2);">🎯 ' + correlatedCount + ' of ' + slips.length + ' slips matched pre-staked positions! Original CLV preserved.</div>' +
     '<div id="bh-slips-list" style="max-height:160px;overflow-y:auto;background:#020617;border-radius:10px;padding:8px;margin-bottom:14px;font-size:11px;border:1px solid #1e293b;"></div>' +
-    '<div id="bh-status-msg" style="font-size:11px;color:#94a3b8;margin-bottom:12px;text-align:center;">Click below to push directly to your cloud ledger.</div>' +
-    '<button id="bh-sync-btn" style="width:100%;padding:10px;background:#10b981;color:#020617;font-weight:bold;border:none;border-radius:10px;cursor:pointer;font-size:13px;transition:0.2s;">🚀 Sync ' + slips.length + ' Slips to Cloud</button>' +
+    '<div id="bh-status-msg" style="font-size:11px;color:#94a3b8;margin-bottom:12px;text-align:center;">Click below to push correlated slips to your cloud ledger.</div>' +
+    '<button id="bh-sync-btn" style="width:100%;padding:10px;background:#10b981;color:#020617;font-weight:bold;border:none;border-radius:10px;cursor:pointer;font-size:13px;transition:0.2s;">🚀 Sync ' + slips.length + ' Slips (Preserve CLV)</button>' +
     '<button id="bh-copy-btn" style="width:100%;margin-top:6px;padding:8px;background:#1e293b;color:#f8fafc;font-weight:bold;border:none;border-radius:10px;cursor:pointer;font-size:11px;">📋 Copy JSON to Clipboard</button>';
 
   document.body.appendChild(box);
@@ -683,9 +1072,12 @@ export function getOneXBetCleanScript(
   var listEl = document.getElementById('bh-slips-list');
   slips.slice(0, 10).forEach(function(s) {
     var row = document.createElement('div');
-    row.style.cssText = 'display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #0f172a;';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #0f172a;';
     var color = s.outcome === 'WON' ? '#10b981' : s.outcome === 'LOST' ? '#ef4444' : '#38bdf8';
-    row.innerHTML = '<span>' + s.match.substring(0, 20) + '...</span><span style="font-weight:bold;color:' + color + ';">' + s.outcome + ' (₦' + s.stake + ')</span>';
+    var clvTag = typeof s.clvPercent === 'number'
+      ? '<span style="color:#10b981;font-weight:bold;font-size:10px;margin-left:4px;">🎯 ' + (s.clvPercent >= 0 ? '+' : '') + s.clvPercent.toFixed(1) + '%</span>'
+      : '';
+    row.innerHTML = '<div><span>' + s.match.substring(0, 16) + '...</span>' + clvTag + '</div><span style="font-weight:bold;color:' + color + ';">' + s.outcome + ' (₦' + s.stake + ')</span>';
     listEl.appendChild(row);
   });
   if (slips.length > 10) {
@@ -719,6 +1111,7 @@ export function getOneXBetCleanScript(
           match: { stringValue: s.match },
           league: { stringValue: s.league },
           selection: { stringValue: s.selection },
+          marketType: { stringValue: s.marketType || '1X2' },
           bookmaker: { stringValue: '1xBet' },
           priceTaken: { doubleValue: s.priceTaken },
           stake: { doubleValue: s.stake },
@@ -726,17 +1119,42 @@ export function getOneXBetCleanScript(
           outcome: { stringValue: s.outcome },
           dateDisplay: { stringValue: s.dateDisplay },
           timestamp: { stringValue: s.timestamp },
-          clvPercent: { doubleValue: s.clvPercent },
           notes: { stringValue: s.notes }
         };
+
+        if (typeof s.pinnacleLineAtBet === 'number' && !isNaN(s.pinnacleLineAtBet)) {
+          fields.pinnacleLineAtBet = { doubleValue: s.pinnacleLineAtBet };
+        }
+        if (typeof s.pinnacleClosingLine === 'number' && !isNaN(s.pinnacleClosingLine)) {
+          fields.pinnacleClosingLine = { doubleValue: s.pinnacleClosingLine };
+        }
+        if (typeof s.clvPercent === 'number' && !isNaN(s.clvPercent)) {
+          fields.clvPercent = { doubleValue: s.clvPercent };
+        }
+        if (typeof s.modelEV === 'number' && !isNaN(s.modelEV)) {
+          fields.modelEV = { doubleValue: s.modelEV };
+        }
+        if (typeof s.modelProb === 'number' && !isNaN(s.modelProb)) {
+          fields.modelProb = { doubleValue: s.modelProb };
+        }
+
         await fetch(url, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fields: fields })
         });
+
+        // If this official slip replaces an old pre-staked draft ID, prune the draft from cloud
+        if (s.originalDraftId) {
+          try {
+            var delUrl = 'https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/positions/' + s.originalDraftId;
+            await fetch(delUrl, { method: 'DELETE' });
+          } catch(e) {}
+        }
+
         synced++;
       }
-      statusEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">✅ All ' + synced + ' slips saved to Cloud!</span><br><a href="${appOrigin}/#refresh=1" target="_blank" style="display:inline-block;margin-top:8px;padding:6px 12px;background:#0284c7;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:12px;">📊 Open Bet Horizon Ledger ↗</a>';
+      statusEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">✅ All ' + synced + ' slips saved to Cloud with genuine CLV!</span><br><a href="${appOrigin}/#refresh=1" target="_blank" style="display:inline-block;margin-top:8px;padding:6px 12px;background:#0284c7;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:12px;">📊 Open Bet Horizon Ledger ↗</a>';
       btn.innerText = '✅ Synced Successfully!';
       btn.style.background = '#059669';
     } catch (err) {

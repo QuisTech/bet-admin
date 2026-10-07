@@ -374,13 +374,16 @@ function parseFirestoreRestDoc(docObj: any): LoggedBet | null {
   if (!match) return null;
 
   const price = f.priceTaken?.doubleValue ?? f.priceTaken?.integerValue ?? 2.0;
-  const pin = f.pinnacleLineAtBet?.doubleValue ?? f.pinnacleLineAtBet?.integerValue ?? Math.max(1.05, Math.round((price / 1.05) * 100) / 100);
+  const hasRealPin = (f.pinnacleLineAtBet?.doubleValue ?? f.pinnacleLineAtBet?.integerValue ?? 0) > 1.0;
+  const pin = hasRealPin
+    ? (f.pinnacleLineAtBet?.doubleValue ?? f.pinnacleLineAtBet?.integerValue)
+    : (f.pinnacleClosingLine?.doubleValue ?? f.pinnacleClosingLine?.integerValue ?? price);
   const pinClose = f.pinnacleClosingLine?.doubleValue ?? f.pinnacleClosingLine?.integerValue ?? pin;
   const prob = f.modelProb?.doubleValue ?? f.modelProb?.integerValue ?? (price > 0 ? Math.round((1 / price) * 1000) / 1000 : 0.5);
-  const ev = f.modelEV?.doubleValue ?? f.modelEV?.integerValue ?? 5.0;
+  const clv = f.clvPercent?.doubleValue ?? f.clvPercent?.integerValue ?? (hasRealPin && pinClose > 0 ? Math.round(((price / pinClose) - 1.0) * 1000) / 10 : undefined);
+  const ev = f.modelEV?.doubleValue ?? f.modelEV?.integerValue ?? (clv !== undefined ? clv : 0);
   const stake = f.stake?.doubleValue ?? f.stake?.integerValue ?? 0;
   const payout = f.payout?.doubleValue ?? f.payout?.integerValue ?? 0;
-  const clv = f.clvPercent?.doubleValue ?? f.clvPercent?.integerValue ?? (pinClose > 0 ? Math.round(((price / pinClose) - 1.0) * 1000) / 10 : 0);
 
   return {
     id: f.id?.stringValue || docId,

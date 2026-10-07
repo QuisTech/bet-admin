@@ -16,6 +16,8 @@ import {
   getOneXBetCleanScript,
   parse1xBetInput,
   convertParsedSlipsToLoggedBets,
+  findCorrelatedBet,
+  correlateAndMerge,
   type ParsedOneXBetSlip,
 } from '../services/oneXBetParser';
 import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated } from '../services/ledgerService';
@@ -89,40 +91,18 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
   const handleImportSlips = async () => {
     if (parsedSlips.length === 0) return;
 
-    const newBets = convertParsedSlipsToLoggedBets(parsedSlips);
     const existing = getLoggedBets();
+    const newBets = convertParsedSlipsToLoggedBets(parsedSlips, existing);
     const merged = [...existing];
 
     for (const nb of newBets) {
-      const cleanDate = (d?: string) => (d ? d.replace(/[^0-9/]/g, ' ').trim().split(/\s+/)[0] : '');
-      const idx = merged.findIndex(
-        (b) =>
-          b.id === nb.id ||
-          (b.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() ===
-            nb.match.toLowerCase().replace(/\s*-\s*/g, ' vs ').trim() &&
-            cleanDate(b.dateDisplay) === cleanDate(nb.dateDisplay))
-      );
+      const matched = findCorrelatedBet(nb, merged);
+      const idx = matched ? merged.findIndex((b) => b.id === matched.id) : -1;
 
       if (idx >= 0) {
         const old = merged[idx];
         const oldId = old.id;
-        // Intelligent reconciliation: Adopt 1xBet real settlement outcome, payout, and official slip ID,
-        // while preserving rich model probabilities, Pinnacle CLV, and EV if already calculated.
-        merged[idx] = {
-          ...old,
-          ...nb,
-          id: nb.id || old.id,
-          modelProb: old.modelProb && old.modelProb !== Math.round((1 / (old.priceTaken || 2.0)) * 1000) / 1000 ? old.modelProb : nb.modelProb,
-          modelEV: typeof old.modelEV === 'number' && old.modelEV !== 5.0 ? old.modelEV : nb.modelEV,
-          pinnacleLineAtBet: old.pinnacleLineAtBet || nb.pinnacleLineAtBet,
-          pinnacleClosingLine: old.pinnacleClosingLine || nb.pinnacleClosingLine,
-          clvPercent: typeof old.clvPercent === 'number' && old.clvPercent !== 5.0 ? old.clvPercent : nb.clvPercent,
-          outcome: nb.outcome,
-          payout: nb.payout,
-          priceTaken: nb.priceTaken || old.priceTaken,
-          stake: nb.stake || old.stake,
-          notes: old.notes && !old.notes.includes(nb.id) ? `${old.notes} • Slip № ${nb.id}` : (nb.notes || old.notes),
-        };
+        merged[idx] = correlateAndMerge(nb, old);
 
         // If the old position had a temporary/draft ID that was replaced by an official slip ID,
         // prune the ghost draft doc from Firestore to prevent double counting
@@ -130,7 +110,7 @@ export const OneXBetSyncModal: React.FC<OneXBetSyncModalProps> = ({
           deleteBetFromFirestore(oldId).catch(() => {});
         }
       } else {
-        merged.push(nb);
+        merged.unshift(nb);
       }
     }
 
