@@ -606,7 +606,7 @@ export const JackpotOptimizer: React.FC = () => {
                 <th className="py-2.5 px-3 text-center">2 (Away)</th>
                 <th className="py-2.5 px-3 text-center">Role</th>
                 <th className="py-2.5 px-3 text-center">Your Selection</th>
-                <th className="py-2.5 px-3 text-left">Analysis &amp; Edge</th>
+                <th className="py-2.5 px-3 text-left min-w-[280px]">Analysis &amp; Edge</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
@@ -729,9 +729,22 @@ export const JackpotOptimizer: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Analysis Snippet */}
-                    <td className="py-2.5 px-3 font-sans text-[11px] text-slate-400 max-w-xs truncate">
-                      {m.analysis}
+                    {/* Analysis & Edge Full Text */}
+                    <td className="py-2.5 px-3 font-sans text-[11px] text-slate-300 min-w-[280px] whitespace-normal leading-relaxed">
+                      {(() => {
+                        const colonIdx = m.analysis.indexOf(':');
+                        if (colonIdx !== -1) {
+                          const tag = m.analysis.slice(0, colonIdx);
+                          const rest = m.analysis.slice(colonIdx + 1);
+                          return (
+                            <span>
+                              <span className="font-semibold text-slate-200">{tag}:</span>
+                              <span className="text-slate-300 ml-1">{rest}</span>
+                            </span>
+                          );
+                        }
+                        return <span>{m.analysis}</span>;
+                      })()}
                     </td>
                   </tr>
                 );
