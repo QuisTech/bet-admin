@@ -320,12 +320,12 @@ export const SPORTYBET_ROUND_20261018: JackpotSlate = {
     createSportyMatch(2, '17/10/2026', '15:00', 'Championship', 'Bristol City', 'Sheffield United', 2.13, 3.55, 3.36),
     createSportyMatch(3, '17/10/2026', '15:00', 'Championship', 'Derby County', 'Stoke City', 2.59, 3.41, 2.70),
     createSportyMatch(4, '17/10/2026', '17:30', 'Premier League', 'Newcastle', 'Aston Villa', 2.28, 3.77, 3.07),
-    createSportyMatch(5, '17/10/2026', '20:00', 'Spain La Liga', 'Valencia', 'Athletic Bilbao', 3.37, 3.43, 2.26),
+    createSportyMatch(5, '17/10/2026', '20:00', 'Spain La Liga', 'Valencia', 'Athletic Bilbao', 3.35, 3.42, 2.28),
     createSportyMatch(6, '18/10/2026', '14:00', 'France Ligue 1', 'Angers', 'Marseille', 3.26, 3.72, 2.15),
     createSportyMatch(7, '18/10/2026', '14:00', 'Premier League', 'Bournemouth', 'Sunderland AFC', 2.11, 3.60, 3.46),
-    createSportyMatch(8, '18/10/2026', '14:00', 'Premier League', 'Leeds United', 'Man Utd', 2.46, 3.67, 2.77),
+    createSportyMatch(8, '18/10/2026', '14:00', 'Premier League', 'Leeds United', 'Man Utd', 2.43, 3.66, 2.81),
     createSportyMatch(9, '18/10/2026', '15:15', 'Spain La Liga', 'Celta', 'Alaves', 2.16, 3.33, 3.60),
-    createSportyMatch(10, '18/10/2026', '16:15', 'France Ligue 1', 'Le Havre', 'AJ Auxerre', 2.38, 3.44, 3.04),
+    createSportyMatch(10, '18/10/2026', '16:15', 'France Ligue 1', 'Le Havre', 'AJ Auxerre', 2.36, 3.43, 3.08),
     createSportyMatch(11, '18/10/2026', '16:15', 'France Ligue 1', 'Paris FC', 'Rennes', 2.24, 3.62, 3.15),
     createSportyMatch(12, '18/10/2026', '17:30', 'Spain La Liga', 'Malaga CF', 'Real Sociedad', 3.25, 3.55, 2.22),
   ],
@@ -852,13 +852,14 @@ export function parseJackpotPlainText(
     return { matches: singleLineMatches, roundNumber: extractedRound };
   }
 
-  // Strategy 2: Multi-line chunking (one element per line from smartphone screen copy)
+  // Strategy 2: Multi-line chunking (one element per line from smartphone screen copy or print table view)
   interface RawChunkMatch {
     no: number;
     home: string;
     away: string;
     date: string;
     time: string;
+    oddsList: number[];
     hOdds: number;
     xOdds: number;
     aOdds: number;
@@ -872,6 +873,11 @@ export function parseJackpotPlainText(
 
   const pushCurrent = () => {
     if (current && (current.home || current.away)) {
+      if (current.oddsList && current.oddsList.length >= 3) {
+        current.hOdds = current.oddsList[0];
+        current.xOdds = current.oddsList[1];
+        current.aOdds = current.oddsList[2];
+      }
       if (current.poolH && current.poolX && current.poolA && !current.hOdds) {
         current.hOdds = Math.round((100 / Math.max(5, current.poolH)) * 100) / 100;
         current.xOdds = Math.round((100 / Math.max(5, current.poolX)) * 100) / 100;
@@ -883,6 +889,39 @@ export function parseJackpotPlainText(
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    // Skip table headers and print artifacts
+    if (
+      line === 'Print' ||
+      line.startsWith('No.') ||
+      line.includes('1(Home)') ||
+      line.includes('H2H')
+    ) {
+      continue;
+    }
+
+    // Check for SportyBet Table Row Format: "1\t17/10/2026 15:00\tBrentford" or "1  17/10/2026 15:00  Brentford"
+    const tabMatch = line.match(
+      /^(\d{1,2})[\t\s]+(\d{1,2}[\/\.]\d{1,2}(?:\/\d{2,4})?)\s+(\d{1,2}:\d{2})[\t\s]+(.+)$/
+    );
+    if (tabMatch) {
+      pushCurrent();
+      current = {
+        no: parseInt(tabMatch[1], 10),
+        date: tabMatch[2],
+        time: tabMatch[3],
+        home: tabMatch[4].trim(),
+        away: '',
+        oddsList: [],
+        hOdds: 2.2,
+        xOdds: 3.2,
+        aOdds: 2.8,
+        poolH: null,
+        poolX: null,
+        poolA: null,
+      };
+      continue;
+    }
 
     // Check if line is an isolated game number (e.g. "1", "2", "#1")
     const numMatch = line.match(/^#?(\d{1,2})$/);
@@ -896,6 +935,7 @@ export function parseJackpotPlainText(
           away: '',
           date: '17/10',
           time: '15:00',
+          oddsList: [],
           hOdds: 2.2,
           xOdds: 3.2,
           aOdds: 2.8,
@@ -916,6 +956,7 @@ export function parseJackpotPlainText(
           away: '',
           date: '17/10',
           time: '15:00',
+          oddsList: [],
           hOdds: 2.2,
           xOdds: 3.2,
           aOdds: 2.8,
@@ -926,6 +967,13 @@ export function parseJackpotPlainText(
       } else {
         continue;
       }
+    }
+
+    // Check if line is a single decimal odds number (e.g. "2.44")
+    const singleOddMatch = line.match(/^([1-9]\d{0,1}\.\d{1,2})$/);
+    if (singleOddMatch && current) {
+      current.oddsList.push(parseFloat(singleOddMatch[1]));
+      continue;
     }
 
     // Check for 3 odds on one line
