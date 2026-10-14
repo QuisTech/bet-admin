@@ -103,13 +103,26 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
       const target = bets.find((b) => b.id === id);
       const defaultReturn = target ? Math.round(target.stake * 0.92 * 100) / 100 : 0;
       const input = window.prompt(
-        `Enter refund amount received from 1xBet for ${target?.match || 'this match'} (NGN):`,
+        `Enter refund amount received from ${target?.bookmaker || 'bookmaker'} for ${target?.match || 'this match'} (NGN):`,
         String(target?.payout && target.payout > 0 ? target.payout : defaultReturn)
       );
       if (input === null) return; // user cancelled
       const val = parseFloat(input);
       if (!isNaN(val) && val >= 0) {
         customPayout = val;
+      }
+    } else if (outcome === 'WON') {
+      const target = bets.find((b) => b.id === id);
+      if (target?.marketType === 'POOL_JACKPOT') {
+        const input = window.prompt(
+          `Enter actual jackpot or consolation prize won for ${target?.match || 'this pool ticket'} (NGN):`,
+          String(target?.payout && target.payout > 0 ? target.payout : 25000)
+        );
+        if (input === null) return; // user cancelled
+        const val = parseFloat(input);
+        if (!isNaN(val) && val >= 0) {
+          customPayout = val;
+        }
       }
     }
     const updated = updateBetOutcome(id, outcome, customPayout);
@@ -447,10 +460,22 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
                   <tr key={b.id} className="hover:bg-slate-900/40 transition-colors">
                     {/* Match & Date */}
                     <td className="py-3 px-3.5">
-                      <div className="font-bold text-slate-200">{b.match || 'Football Match'}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {b.marketType === 'POOL_JACKPOT' && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            🎯 POOL
+                          </span>
+                        )}
+                        <span className="font-bold text-slate-200">{b.match || 'Football Match'}</span>
+                      </div>
                       <div className="text-[10px] text-slate-500">
                         {b.league || 'Sportsbook'} • {b.dateDisplay || '24/09/2026'}
                       </div>
+                      {b.notes && (
+                        <div className="text-[9px] text-slate-400 mt-0.5 line-clamp-1" title={b.notes}>
+                          {b.notes}
+                        </div>
+                      )}
                     </td>
 
                     {/* Selection & Bookmaker */}
@@ -463,17 +488,37 @@ export const BetLedger: React.FC<BetLedgerProps> = ({ config, onOpenSettings }) 
 
                     {/* Odds Taken vs Model */}
                     <td className="py-3 px-3 text-right">
-                      <div className="font-bold text-amber-400 text-sm">
-                        {price.toFixed(3).replace(/\.?0+$/, '')}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        P(M): {(prob * 100).toFixed(1)}%
-                      </div>
+                      {b.marketType === 'POOL_JACKPOT' ? (
+                        <>
+                          <div className="font-bold text-amber-400 text-xs">
+                            JACKPOT
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            P(M): {(prob * 100).toFixed(2)}%
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="font-bold text-amber-400 text-sm">
+                            {price.toFixed(3).replace(/\.?0+$/, '')}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            P(M): {(prob * 100).toFixed(1)}%
+                          </div>
+                        </>
+                      )}
                     </td>
 
                     {/* CLV % vs Sharp Fair */}
                     <td className="py-3 px-3 text-right">
-                      {clv !== null ? (
+                      {b.marketType === 'POOL_JACKPOT' ? (
+                        <div>
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/50">
+                            COVER
+                          </span>
+                          <div className="text-[9px] text-slate-500 mt-0.5">Syndicate</div>
+                        </div>
+                      ) : clv !== null ? (
                         <div>
                           <span
                             className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${

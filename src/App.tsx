@@ -11,6 +11,7 @@ import { StakingCalculator } from './components/StakingCalculator';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 import { UniversalClvModal, type UniversalClvInitialData } from './components/UniversalClvModal';
 import { BatchSlateModal } from './components/BatchSlateModal';
+import { JackpotOptimizer } from './components/JackpotOptimizer';
 import type { ParsedOddsMatch } from './services/oddsTextParser';
 import type { MatchData, BankrollConfig, ModelPipelineMode } from './types';
 import { BASE_MATCHES } from './data/matchRepository';
@@ -161,7 +162,7 @@ export default function App() {
     }
   };
 
-  const [tab, setTab] = useState<'feed' | 'ledger' | 'bankroll' | 'diagnostics'>('feed');
+  const [tab, setTab] = useState<'feed' | 'ledger' | 'bankroll' | 'diagnostics' | 'jackpot'>('feed');
   const [diagnosticsSubTab, setDiagnosticsSubTab] = useState<'diagnostics' | 'evolution'>('diagnostics');
   const [tuningLeague, setTuningLeague] = useState<string | undefined>(undefined);
   const [matches, setMatches] = useState<MatchData[]>(BASE_MATCHES);
@@ -357,8 +358,8 @@ export default function App() {
           onOpenBankrollTab={() => setTab('bankroll')}
         />
 
-        {/* Center Primary Stage (Col 4-9 -> col-span-12 lg:col-span-6) */}
-        <div className="col-span-12 lg:col-span-6 bg-slate-900/70 border border-slate-800 rounded-3xl overflow-hidden relative shadow-xl min-h-[600px] backdrop-blur-md flex flex-col">
+        {/* Center Primary Stage (Col 4-9 -> col-span-12 lg:col-span-6, or col-span-12 lg:col-span-9 on jackpot tab) */}
+        <div className={`col-span-12 ${tab === 'jackpot' ? 'lg:col-span-9' : 'lg:col-span-6'} bg-slate-900/70 border border-slate-800 rounded-3xl overflow-hidden relative shadow-xl min-h-[600px] backdrop-blur-md flex flex-col`}>
           <div className="relative z-10 p-4 sm:p-6 h-full flex flex-col">
             {/* Navigation Tabs Row */}
             <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between mb-6">
@@ -402,6 +403,16 @@ export default function App() {
                   }`}
                 >
                   <span>🧬 Model Lab</span>
+                </button>
+                <button
+                  onClick={() => setTab('jackpot')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    tab === 'jackpot'
+                      ? 'bg-amber-500 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  }`}
+                >
+                  <span>🎯 Jackpot &amp; Pools</span>
                 </button>
               </div>
 
@@ -464,17 +475,23 @@ export default function App() {
                   }}
                 />
               )}
+
+              {tab === 'jackpot' && (
+                <JackpotOptimizer />
+              )}
             </div>
           </div>
         </div>
 
-        <TopPicksColumn
-          matches={matches}
-          opportunities={slateStats.qualifyingOpportunities.length > 0 ? slateStats.qualifyingOpportunities : slateStats.allOpportunities}
-          onSelectMatch={handleSelectMatch}
-          isLive={isOddsLive}
-          oddsSource={oddsSource}
-        />
+        {tab !== 'jackpot' && (
+          <TopPicksColumn
+            matches={matches}
+            opportunities={slateStats.qualifyingOpportunities.length > 0 ? slateStats.qualifyingOpportunities : slateStats.allOpportunities}
+            onSelectMatch={handleSelectMatch}
+            isLive={isOddsLive}
+            oddsSource={oddsSource}
+          />
+        )}
 
         {/* Footer & Quant Disclaimer */}
         <footer className="col-span-12 mt-8 pt-6 pb-4 border-t border-slate-900/80 text-center text-xs text-slate-500 space-y-2">
