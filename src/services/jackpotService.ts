@@ -737,7 +737,7 @@ export function parseSportyBetJackpotHTML(html: string): JackpotMatch[] {
   } catch (e) {
     console.error('Error parsing SportyBet HTML:', e);
   }
-  return matches.length > 0 ? matches : DEFAULT_SPORTYBET_SLATE.matches;
+  return matches;
 }
 
 /**
@@ -774,35 +774,330 @@ export function parseOneXBetTotoHTML(html: string): JackpotMatch[] {
   } catch (e) {
     console.error('Error parsing 1xBet HTML:', e);
   }
-  return matches.length > 0 ? matches : DEFAULT_1XBET_SLATE.matches;
+  return matches;
 }
 
 /**
- * Universal Ingest Parser: handles HTML or copied text from either platform
+ * Plain-Text Ingest Parser: Designed for mobile & desktop users who copy the visible text
+ * off sportybet.com or 1xbet.com directly from their smartphone screen.
+ */
+export function parseJackpotPlainText(
+  text: string,
+  platform: JackpotPlatform
+): { matches: JackpotMatch[]; roundNumber?: string } {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const maxGames = platform === 'sportybet' ? 12 : 14;
+  let extractedRound: string | undefined = undefined;
+
+  // Extract round / draw number if present in header
+  for (const line of lines) {
+    const roundMatch = line.match(/(?:Round|Draw|Super Jackpot)[\s#:]*(\d{4,10}|\d{3,6})/i);
+    if (roundMatch) {
+      extractedRound = roundMatch[1];
+      break;
+    }
+  }
+
+  // Strategy 1: Check if input has single-line match format WITH ODDS OR %
+  const singleLineMatches: JackpotMatch[] = [];
+  for (const line of lines) {
+    const singleLineWithOdds = /^(?:#?(\d{1,2})[\.\s\:\)]+)?\s*(.+?)\s*(?:-|–|vs\.?)\s*(.+?)\s+(?:(\d{1,2}[\/\.]\d{1,2}(?:\s+\d{1,2}:\d{2})?)\s+)?(?:([1-9]\d{0,1}\.\d{1,2})\s+([1-9]\d{0,1}\.\d{1,2})\s+([1-9]\d{0,1}\.\d{1,2})|(\d{1,2})%\s+(\d{1,2})%\s+(\d{1,2})%)$/i;
+    const match = line.match(singleLineWithOdds);
+    if (match) {
+      const matchNo = parseInt(match[1] || `${singleLineMatches.length + 1}`, 10);
+      const home = match[2].trim();
+      const away = match[3].trim();
+      const dateText = match[4]?.trim() || '17/10 15:00';
+      const [d = '17/10', t = '15:00'] = dateText.split(/\s+/);
+
+      const hOdds = match[5]
+        ? parseFloat(match[5])
+        : match[8]
+        ? Math.round((100 / Math.max(5, parseInt(match[8], 10))) * 100) / 100
+        : 2.2;
+      const xOdds = match[6]
+        ? parseFloat(match[6])
+        : match[9]
+        ? Math.round((100 / Math.max(5, parseInt(match[9], 10))) * 100) / 100
+        : 3.2;
+      const aOdds = match[7]
+        ? parseFloat(match[7])
+        : match[10]
+        ? Math.round((100 / Math.max(5, parseInt(match[10], 10))) * 100) / 100
+        : 2.8;
+
+      const poolH = match[8] ? parseInt(match[8], 10) : Math.round((1 / hOdds) * 100);
+      const poolX = match[9] ? parseInt(match[9], 10) : Math.round((1 / xOdds) * 100);
+      const poolA = match[10] ? parseInt(match[10], 10) : Math.round((1 / aOdds) * 100);
+
+      if (platform === 'sportybet') {
+        singleLineMatches.push(
+          createSportyMatch(matchNo, d, t, 'Football League', home, away, hOdds, xOdds, aOdds)
+        );
+      } else {
+        singleLineMatches.push(
+          create1xMatch(matchNo, d, t, 'TOTO Football', home, away, hOdds, xOdds, aOdds, poolH, poolX, poolA)
+        );
+      }
+
+      if (singleLineMatches.length >= maxGames) break;
+    }
+  }
+
+  if (singleLineMatches.length >= 6) {
+    return { matches: singleLineMatches, roundNumber: extractedRound };
+  }
+
+  // Strategy 2: Multi-line chunking (one element per line from smartphone screen copy)
+  interface RawChunkMatch {
+    no: number;
+    home: string;
+    away: string;
+    date: string;
+    time: string;
+    hOdds: number;
+    xOdds: number;
+    aOdds: number;
+    poolH?: number | null;
+    poolX?: number | null;
+    poolA?: number | null;
+  }
+
+  const rawChunks: RawChunkMatch[] = [];
+  let current: RawChunkMatch | null = null;
+
+  const pushCurrent = () => {
+    if (current && (current.home || current.away)) {
+      if (current.poolH && current.poolX && current.poolA && !current.hOdds) {
+        current.hOdds = Math.round((100 / Math.max(5, current.poolH)) * 100) / 100;
+        current.xOdds = Math.round((100 / Math.max(5, current.poolX)) * 100) / 100;
+        current.aOdds = Math.round((100 / Math.max(5, current.poolA)) * 100) / 100;
+      }
+      rawChunks.push(current);
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Check if line is an isolated game number (e.g. "1", "2", "#1")
+    const numMatch = line.match(/^#?(\d{1,2})$/);
+    if (numMatch) {
+      const n = parseInt(numMatch[1], 10);
+      if (n >= 1 && n <= 20) {
+        pushCurrent();
+        current = {
+          no: n,
+          home: '',
+          away: '',
+          date: '17/10',
+          time: '15:00',
+          hOdds: 2.2,
+          xOdds: 3.2,
+          aOdds: 2.8,
+          poolH: null,
+          poolX: null,
+          poolA: null,
+        };
+        continue;
+      }
+    }
+
+    // Don't accumulate text into un-started match if line is a header
+    if (!current) {
+      if (line.includes(' - ') || line.includes(' – ') || line.toLowerCase().includes(' vs ')) {
+        current = {
+          no: rawChunks.length + 1,
+          home: '',
+          away: '',
+          date: '17/10',
+          time: '15:00',
+          hOdds: 2.2,
+          xOdds: 3.2,
+          aOdds: 2.8,
+          poolH: null,
+          poolX: null,
+          poolA: null,
+        };
+      } else {
+        continue;
+      }
+    }
+
+    // Check for 3 odds on one line
+    const oddsMatch = line.match(/\b([1-9]\d{0,1}\.\d{1,2})\s+([1-9]\d{0,1}\.\d{1,2})\s+([1-9]\d{0,1}\.\d{1,2})\b/);
+    if (oddsMatch) {
+      current.hOdds = parseFloat(oddsMatch[1]);
+      current.xOdds = parseFloat(oddsMatch[2]);
+      current.aOdds = parseFloat(oddsMatch[3]);
+      continue;
+    }
+
+    // Check for 3 pool percentages
+    const pctMatch = line.match(/(\d{1,2})%\s+(\d{1,2})%\s+(\d{1,2})%/);
+    if (pctMatch) {
+      current.poolH = parseInt(pctMatch[1], 10);
+      current.poolX = parseInt(pctMatch[2], 10);
+      current.poolA = parseInt(pctMatch[3], 10);
+      current.hOdds = Math.round((100 / Math.max(5, current.poolH)) * 100) / 100;
+      current.xOdds = Math.round((100 / Math.max(5, current.poolX)) * 100) / 100;
+      current.aOdds = Math.round((100 / Math.max(5, current.poolA)) * 100) / 100;
+      continue;
+    }
+
+    // Check for labeled odds like "1 2.30"
+    const labeledH = line.match(/^(?:1|H)[\s\:\-]+([1-9]\d{0,1}\.\d{1,2})/i);
+    if (labeledH) {
+      current.hOdds = parseFloat(labeledH[1]);
+      continue;
+    }
+    const labeledX = line.match(/^(?:X|D)[\s\:\-]+([1-9]\d{0,1}\.\d{1,2})/i);
+    if (labeledX) {
+      current.xOdds = parseFloat(labeledX[1]);
+      continue;
+    }
+    const labeledA = line.match(/^(?:2|A)[\s\:\-]+([1-9]\d{0,1}\.\d{1,2})/i);
+    if (labeledA) {
+      current.aOdds = parseFloat(labeledA[1]);
+      continue;
+    }
+
+    // Check for date/time
+    const dateMatch = line.match(/(\d{1,2}[\/\.]\d{1,2}(?:\/\d{2,4})?)\s*(\d{1,2}:\d{2})?/);
+    if (dateMatch && !current.home) {
+      current.date = dateMatch[1];
+      if (dateMatch[2]) current.time = dateMatch[2];
+      continue;
+    }
+
+    // Check for team separator in line ("Team A - Team B" or "Team A vs Team B")
+    if (line.includes(' - ') || line.includes(' – ') || line.toLowerCase().includes(' vs ')) {
+      const sep = line.includes(' - ')
+        ? ' - '
+        : line.includes(' – ')
+        ? ' – '
+        : line.toLowerCase().includes(' vs ')
+        ? line.includes(' vs ')
+          ? ' vs '
+          : ' VS '
+        : ' - ';
+      const parts = line.split(sep);
+      if (parts.length >= 2) {
+        current.home = parts[0].replace(/^#?\d{1,2}[\.\s\:\)]+/, '').trim();
+        current.away = parts[1].replace(/\d+\.\d{2}.*$/, '').replace(/\d+%.*$/, '').trim();
+        continue;
+      }
+    }
+
+    // Otherwise if it's text and not numbers/keywords
+    if (!line.match(/^\d+/) && !line.includes('Jackpot') && !line.includes('TOTO') && line.length > 2) {
+      if (!current.home) {
+        current.home = line;
+      } else if (!current.away) {
+        current.away = line;
+      }
+    }
+  }
+
+  pushCurrent();
+
+  const finalMatches: JackpotMatch[] = rawChunks.slice(0, maxGames).map((m, idx) => {
+    const matchNum = m.no || idx + 1;
+    let poolH = m.poolH;
+    let poolX = m.poolX;
+    let poolA = m.poolA;
+
+    if (!poolH || !poolX || !poolA) {
+      const invH = 1 / m.hOdds;
+      const invX = 1 / m.xOdds;
+      const invA = 1 / m.aOdds;
+      const sum = invH + invX + invA;
+      poolH = Math.round((invH / sum) * 100);
+      poolX = Math.round((invX / sum) * 100);
+      poolA = Math.round((invA / sum) * 100);
+    }
+
+    if (platform === 'sportybet') {
+      return createSportyMatch(
+        matchNum,
+        m.date,
+        m.time,
+        'Football League',
+        m.home || `Home ${matchNum}`,
+        m.away || `Away ${matchNum}`,
+        m.hOdds,
+        m.xOdds,
+        m.aOdds
+      );
+    } else {
+      return create1xMatch(
+        matchNum,
+        m.date,
+        m.time,
+        'TOTO Football',
+        m.home || `Home ${matchNum}`,
+        m.away || `Away ${matchNum}`,
+        m.hOdds,
+        m.xOdds,
+        m.aOdds,
+        poolH,
+        poolX,
+        poolA
+      );
+    }
+  });
+
+  return { matches: finalMatches, roundNumber: extractedRound };
+}
+
+/**
+ * Universal Ingest Parser: handles HTML or copied plain text from either platform (mobile or desktop)
  */
 export function parseJackpotInput(input: string, platform: JackpotPlatform): JackpotSlate | null {
   if (!input || !input.trim()) return null;
 
-  if (platform === 'sportybet') {
-    const matches = parseSportyBetJackpotHTML(input);
-    if (matches.length > 0) {
-      return {
-        ...DEFAULT_SPORTYBET_SLATE,
-        matches,
-        totalGames: matches.length,
-        matchCount: 12,
-      };
+  const isHtml = /<[a-z][\s\S]*>/i.test(input);
+
+  // 1. Try HTML parsing first if HTML tags are present
+  if (isHtml) {
+    if (platform === 'sportybet') {
+      const htmlMatches = parseSportyBetJackpotHTML(input);
+      if (htmlMatches.length >= 6) {
+        return {
+          ...DEFAULT_SPORTYBET_SLATE,
+          matches: htmlMatches,
+          totalGames: htmlMatches.length,
+          matchCount: 12,
+        };
+      }
+    } else {
+      const htmlMatches = parseOneXBetTotoHTML(input);
+      if (htmlMatches.length >= 6) {
+        return {
+          ...DEFAULT_1XBET_SLATE,
+          matches: htmlMatches,
+          totalGames: htmlMatches.length,
+          matchCount: 14,
+        };
+      }
     }
-  } else {
-    const matches = parseOneXBetTotoHTML(input);
-    if (matches.length > 0) {
-      return {
-        ...DEFAULT_1XBET_SLATE,
-        matches,
-        totalGames: matches.length,
-        matchCount: 14,
-      };
-    }
+  }
+
+  // 2. Fall back to plain-text parsing (ideal for mobile screen copy & paste)
+  const plainResult = parseJackpotPlainText(input, platform);
+  if (plainResult.matches.length >= 6) {
+    const defaultSlate = platform === 'sportybet' ? DEFAULT_SPORTYBET_SLATE : DEFAULT_1XBET_SLATE;
+    return {
+      ...defaultSlate,
+      matches: plainResult.matches,
+      totalGames: plainResult.matches.length,
+      matchCount: platform === 'sportybet' ? 12 : 14,
+      roundNumber: plainResult.roundNumber || defaultSlate.roundNumber,
+    };
   }
 
   return null;

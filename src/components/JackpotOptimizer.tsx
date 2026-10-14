@@ -516,8 +516,8 @@ export const JackpotOptimizer: React.FC = () => {
                 Paste Raw HTML or Text from {platform === 'sportybet' ? 'SportyBet Jackpot' : '1xBet TOTO'}
               </h4>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono">
-              Inspect element on the page, copy the container, and paste below.
+            <span className="text-[10px] text-cyan-400 font-mono">
+              📱 Smartphone friendly: Copy text directly off your phone screen or paste raw HTML from desktop.
             </span>
           </div>
 
@@ -525,9 +525,9 @@ export const JackpotOptimizer: React.FC = () => {
             rows={4}
             value={rawHtmlInput}
             onChange={(e) => setRawHtmlInput(e.target.value)}
-            placeholder={`Paste raw HTML or copied match text from ${
+            placeholder={`📱 Smartphone: Select & copy visible match text from ${
               platform === 'sportybet' ? 'sportybet.com/ng/jackpot' : '1xbet.com/en/toto/football'
-            } here...`}
+            } and paste here...\n💻 Desktop: You can also paste raw container HTML.`}
             className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-400"
           />
 
