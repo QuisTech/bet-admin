@@ -860,6 +860,7 @@ export function parseJackpotPlainText(
     date: string;
     time: string;
     oddsList: number[];
+    poolList: number[];
     hOdds: number;
     xOdds: number;
     aOdds: number;
@@ -878,6 +879,14 @@ export function parseJackpotPlainText(
         current.xOdds = current.oddsList[1];
         current.aOdds = current.oddsList[2];
       }
+      if (current.poolList && current.poolList.length >= 3) {
+        current.poolH = current.poolList[0];
+        current.poolX = current.poolList[1];
+        current.poolA = current.poolList[2];
+        current.hOdds = Math.round((100 / Math.max(5, current.poolH)) * 100) / 100;
+        current.xOdds = Math.round((100 / Math.max(5, current.poolX)) * 100) / 100;
+        current.aOdds = Math.round((100 / Math.max(5, current.poolA)) * 100) / 100;
+      }
       if (current.poolH && current.poolX && current.poolA && !current.hOdds) {
         current.hOdds = Math.round((100 / Math.max(5, current.poolH)) * 100) / 100;
         current.xOdds = Math.round((100 / Math.max(5, current.poolX)) * 100) / 100;
@@ -890,12 +899,15 @@ export function parseJackpotPlainText(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Skip table headers and print artifacts
+    // Skip table headers and 1X2 market column headers
     if (
       line === 'Print' ||
       line.startsWith('No.') ||
       line.includes('1(Home)') ||
-      line.includes('H2H')
+      line.includes('H2H') ||
+      (line === '1' && (lines[i + 1] === 'X' || lines[i - 1]?.includes('League') || lines[i - 1]?.includes('Liga') || lines[i - 1]?.includes('Bundesliga') || lines[i - 1]?.includes('Serie A'))) ||
+      line === 'X' ||
+      (line === '2' && (lines[i - 1] === 'X' || lines[i - 2] === '1'))
     ) {
       continue;
     }
@@ -913,6 +925,7 @@ export function parseJackpotPlainText(
         home: tabMatch[4].trim(),
         away: '',
         oddsList: [],
+        poolList: [],
         hOdds: 2.2,
         xOdds: 3.2,
         aOdds: 2.8,
@@ -928,6 +941,10 @@ export function parseJackpotPlainText(
     if (numMatch) {
       const n = parseInt(numMatch[1], 10);
       if (n >= 1 && n <= 20) {
+        // Guard against header numbers 1, 2 if right before/after X
+        if (lines[i + 1] === 'X' || lines[i - 1] === 'X') {
+          continue;
+        }
         pushCurrent();
         current = {
           no: n,
@@ -936,6 +953,7 @@ export function parseJackpotPlainText(
           date: '17/10',
           time: '15:00',
           oddsList: [],
+          poolList: [],
           hOdds: 2.2,
           xOdds: 3.2,
           aOdds: 2.8,
@@ -957,6 +975,7 @@ export function parseJackpotPlainText(
           date: '17/10',
           time: '15:00',
           oddsList: [],
+          poolList: [],
           hOdds: 2.2,
           xOdds: 3.2,
           aOdds: 2.8,
@@ -985,7 +1004,14 @@ export function parseJackpotPlainText(
       continue;
     }
 
-    // Check for 3 pool percentages
+    // Check if line is a single pool percentage (e.g. "42%" or "42 %")
+    const singlePctMatch = line.match(/^(\d{1,2})\s*%$/);
+    if (singlePctMatch && current) {
+      current.poolList.push(parseInt(singlePctMatch[1], 10));
+      continue;
+    }
+
+    // Check for 3 pool percentages on one line
     const pctMatch = line.match(/(\d{1,2})%\s+(\d{1,2})%\s+(\d{1,2})%/);
     if (pctMatch) {
       current.poolH = parseInt(pctMatch[1], 10);
@@ -1014,7 +1040,7 @@ export function parseJackpotPlainText(
       continue;
     }
 
-    // Check for date/time
+    // Check for date/time (handles "17/10 15:00" and "17/1015:00")
     const dateMatch = line.match(/(\d{1,2}[\/\.]\d{1,2}(?:\/\d{2,4})?)\s*(\d{1,2}:\d{2})?/);
     if (dateMatch && !current.home) {
       current.date = dateMatch[1];
@@ -1041,11 +1067,29 @@ export function parseJackpotPlainText(
       }
     }
 
-    // Otherwise if it's text and not numbers/keywords
-    if (!line.match(/^\d+/) && !line.includes('Jackpot') && !line.includes('TOTO') && line.length > 2) {
+    // League name header check (e.g. "England. Premier League", "Germany. Bundesliga")
+    if (
+      line.includes('Premier League') ||
+      line.includes('Bundesliga') ||
+      line.includes('La Liga') ||
+      line.includes('Serie A') ||
+      line.includes('Ligue 1') ||
+      line.includes('Championship')
+    ) {
+      // Don't treat league header as a team name
+      continue;
+    }
+
+    // Otherwise if it's text and not numbers/odds/percentages
+    const isNumberOrOdd = /^\d{1,2}$/.test(line) || /^\d+\.\d{2}$/.test(line) || /^\d+%$/.test(line);
+    if (!isNumberOrOdd && !line.includes('Jackpot') && !line.includes('TOTO') && line.length > 2) {
       if (!current.home) {
         current.home = line;
       } else if (!current.away) {
+        // Skip duplicate team names caused by responsive mobile HTML (e.g. Brentford ... Brentford)
+        if (line.toLowerCase() === current.home.toLowerCase()) {
+          continue;
+        }
         current.away = line;
       }
     }
