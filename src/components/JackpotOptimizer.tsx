@@ -113,6 +113,49 @@ export const JackpotOptimizer: React.FC = () => {
     setUserSelections({});
   };
 
+  const [sweetspotNotice, setSweetspotNotice] = useState<string | null>(null);
+
+  // Apply Syndicate Sweetspot Optimization Preset
+  const handleApplySweetspot = (customTargetSlate?: JackpotSlate) => {
+    const targetSlate = customTargetSlate || slate;
+    const isSporty = targetSlate.platform === 'sportybet';
+    // 8 lines (₦800) for SportyBet 12; 4 lines (₦3,200) for 1xBet 14
+    const optTickets = isSporty ? 8 : 4;
+    setTargetTickets(optTickets);
+    setStrategy('BALANCED_COVER');
+
+    if (targetSlate.matchCount === 12) {
+      setMinDraws(2);
+      setMaxDraws(4);
+      setMinHomes(4);
+      setMaxHomes(8);
+    } else {
+      setMinDraws(2);
+      setMaxDraws(5);
+      setMinHomes(5);
+      setMaxHomes(9);
+    }
+
+    // Auto-lock Bankers as single picks; set volatile/hedges to recommended doubles
+    const autoPicks: { [matchNo: number]: JackpotOutcome[] } = {};
+    targetSlate.matches.forEach((m) => {
+      if (m.role === 'BANKER') {
+        autoPicks[m.no] = [m.recommendedOutcome];
+      } else {
+        autoPicks[m.no] = m.recommendedDoubles;
+      }
+    });
+    setUserSelections(autoPicks);
+
+    const slateCost = optTickets * targetSlate.stakePerComboNGN;
+    setSweetspotNotice(
+      `⚡ Sweetspot Activated: ${optTickets} Lines (₦${slateCost.toLocaleString()}) • Balanced Consolation Cover • Bankers Locked`
+    );
+    setTimeout(() => {
+      setSweetspotNotice(null);
+    }, 4500);
+  };
+
   // Compute total combinations in user selections
   const fullCombinationCount = useMemo(() => {
     return slate.matches.reduce((acc, m) => {
@@ -162,9 +205,9 @@ export const JackpotOptimizer: React.FC = () => {
     const parsed = parseJackpotInput(rawHtmlInput, platform);
     if (parsed) {
       setSlate(parsed);
-      setUserSelections({});
       setIsIngestOpen(false);
       setRawHtmlInput('');
+      handleApplySweetspot(parsed);
     } else {
       setIngestError('Could not parse valid matches from the input. Make sure to paste the full HTML or text from the page.');
     }
@@ -584,7 +627,19 @@ export const JackpotOptimizer: React.FC = () => {
 
       {/* 4. Mathematical Probability & Interactive Selections Matrix */}
       <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-5 shadow-xl backdrop-blur-md space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+        {sweetspotNotice && (
+          <div className="bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-emerald-500/20 border border-emerald-500/40 rounded-2xl p-3 flex items-center justify-between text-xs text-emerald-300 animate-in fade-in duration-200 shadow-lg">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-emerald-400 fill-current shrink-0 animate-pulse" />
+              <span className="font-bold">{sweetspotNotice}</span>
+            </div>
+            <span className="text-[10px] text-cyan-300 font-mono px-2 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/30">
+              Optimal Strategy Active
+            </span>
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <span>Match Probabilities &amp; Strategic Roles ({slate.totalGames} Games)</span>
@@ -593,13 +648,23 @@ export const JackpotOptimizer: React.FC = () => {
               </span>
             </h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => handleApplySweetspot()}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+              title="1-Click: Locks AI Bankers, double hedges volatile toss-ups, and auto-tunes covering lines for optimal ROI"
+            >
+              <Zap className="w-3.5 h-3.5 fill-current" />
+              <span>⚡ Auto-Tune Sweetspot</span>
+            </button>
+
             <button
               onClick={handleResetToAI}
-              className="text-[10px] text-cyan-400 hover:text-cyan-300 font-bold underline cursor-pointer"
+              className="text-[10px] text-slate-400 hover:text-cyan-300 font-bold underline cursor-pointer"
             >
-              Reset to AI Recommendations
+              Reset All
             </button>
+
             <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
               <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
                 BANKER (44%+)
@@ -786,8 +851,18 @@ export const JackpotOptimizer: React.FC = () => {
               Combinatorial Covering Reduction Engine
             </h3>
           </div>
-          <div className="text-xs text-slate-400 font-mono">
-            Optimized Portfolio: <span className="font-bold text-emerald-400">₦{totalCostNGN.toLocaleString()}</span> ({generatedTickets.length} lines)
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleApplySweetspot()}
+              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
+              title="Automatically set optimal tickets, macro-filters, and banker locks"
+            >
+              <Zap className="w-3 h-3 text-emerald-400 fill-current" />
+              <span>Sweetspot Preset</span>
+            </button>
+            <div className="text-xs text-slate-400 font-mono">
+              Optimized Portfolio: <span className="font-bold text-emerald-400">₦{totalCostNGN.toLocaleString()}</span> ({generatedTickets.length} lines)
+            </div>
           </div>
         </div>
 
