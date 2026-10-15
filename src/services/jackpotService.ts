@@ -835,7 +835,7 @@ export function runJackpotMonteCarlo(
         hitAnyPrizeThisRun = true;
         tierHitCounts[matchesWon]++;
 
-        // Calculate parimutuel dividend
+        // Calculate parimutuel dividend based on exact tier errors
         let rivalWinners = 0;
         if (matchesWon === numMatches) {
           rivalWinners = Math.max(0, Math.round(rivalJackpotExpectation));
@@ -843,7 +843,13 @@ export function runJackpotMonteCarlo(
           jackpotWinsCount++;
         } else {
           const errors = numMatches - matchesWon;
-          const combinFactor = errors === 1 ? numMatches * 2 : (numMatches * (numMatches - 1)) * 3;
+          // Exact binomial coefficient C(n, errors) scaled by public clustering
+          let c = 1;
+          for (let i = 1; i <= errors; i++) {
+            c = (c * (numMatches - i + 1)) / i;
+          }
+          const clusteringMultiplier = Math.pow(1.35, errors);
+          const combinFactor = c * clusteringMultiplier;
           rivalWinners = Math.max(1, Math.round(rivalJackpotExpectation * combinFactor));
         }
 
