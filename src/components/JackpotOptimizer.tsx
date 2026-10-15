@@ -205,9 +205,9 @@ export const JackpotOptimizer: React.FC = () => {
     const parsed = parseJackpotInput(rawHtmlInput, platform);
     if (parsed) {
       setSlate(parsed);
+      setUserSelections({});
       setIsIngestOpen(false);
       setRawHtmlInput('');
-      handleApplySweetspot(parsed);
     } else {
       setIngestError('Could not parse valid matches from the input. Make sure to paste the full HTML or text from the page.');
     }
