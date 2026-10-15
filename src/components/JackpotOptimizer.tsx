@@ -966,7 +966,7 @@ export const JackpotOptimizer: React.FC = () => {
               {monteCarloResult.anyPrizeOddsRatio}
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              {monteCarloResult.anyPrizeHitRatePct}% chance ({monteCarloResult.anyPrizeHits.toLocaleString()} simulated hits)
+              {monteCarloResult.anyPrizeHitRatePct}% slates ({monteCarloResult.anyPrizeWinningSlates.toLocaleString()} slates • {monteCarloResult.anyPrizeWinningTickets.toLocaleString()} winning tickets)
             </div>
           </div>
 
@@ -984,7 +984,7 @@ export const JackpotOptimizer: React.FC = () => {
               {monteCarloResult.jackpotOddsRatio}
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              {monteCarloResult.jackpotHitRatePct}% probability ({monteCarloResult.jackpotHits} hits)
+              {monteCarloResult.jackpotHitRatePct}% probability ({monteCarloResult.jackpotWinningSlates} slates • {monteCarloResult.jackpotWinningTickets} tix)
             </div>
           </div>
 
@@ -1013,21 +1013,21 @@ export const JackpotOptimizer: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 4: Bankroll Reserve Guidance */}
+          {/* Card 4: Bankroll Runway Guidance */}
           <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Recommended Reserve
+                Suggested Runway
               </span>
               <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                95% Survival
+                {monteCarloResult.recommendation.recommendedBankrollSlates} Slates
               </span>
             </div>
             <div className="text-xl font-black font-mono text-cyan-400">
-              {monteCarloResult.recommendation.recommendedBankrollSlates} Slates
+              ₦{monteCarloResult.recommendation.recommendedBankrollNGN.toLocaleString()}
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              ₦{monteCarloResult.recommendation.recommendedBankrollNGN.toLocaleString()} bankroll buffer
+              Recommended buffer for {monteCarloResult.recommendation.recommendedBankrollSlates} rounds of play
             </div>
           </div>
         </div>
@@ -1054,8 +1054,8 @@ export const JackpotOptimizer: React.FC = () => {
                   <tr className="border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase">
                     <th className="pb-2">Tier</th>
                     <th className="pb-2 text-center">Score</th>
-                    <th className="pb-2 text-center">Hit Rate</th>
-                    <th className="pb-2 text-center">Odds</th>
+                    <th className="pb-2 text-center">Slate Odds</th>
+                    <th className="pb-2 text-center">Tickets Won</th>
                     <th className="pb-2 text-right">Avg Payout</th>
                   </tr>
                 </thead>
@@ -1069,10 +1069,12 @@ export const JackpotOptimizer: React.FC = () => {
                         {t.requiredScore}/{slate.matchCount}
                       </td>
                       <td className="py-2 text-center text-slate-300">
-                        {t.hitRatePct.toFixed(2)}%
+                        <div>{t.slateOddsRatio}</div>
+                        <div className="text-[9px] text-slate-500 font-mono">({t.slateWinRatePct.toFixed(2)}%)</div>
                       </td>
                       <td className="py-2 text-center text-slate-400">
-                        {t.oddsRatio}
+                        <span className="font-mono font-bold text-slate-300">{t.winningTickets.toLocaleString()}</span>
+                        <span className="text-[9px] text-slate-500 block">({t.winningSlates.toLocaleString()} slates)</span>
                       </td>
                       <td className="py-2 text-right font-bold text-amber-300">
                         ₦{t.estimatedAvgPayoutNGN.toLocaleString()}
