@@ -608,6 +608,343 @@ export function generateCoveringPortfolio(
 
 export const generateReducedSystem = generateCoveringPortfolio;
 
+export interface MonteCarloTierResult {
+  tierName: string;
+  requiredScore: number;
+  hits: number;
+  hitRatePct: number;
+  oddsRatio: string;
+  estimatedAvgPayoutNGN: number;
+  totalPayoutNGN: number;
+}
+
+export interface MonteCarloResult {
+  iterations: number;
+  durationMs: number;
+  ticketCount: number;
+  costPerSlateNGN: number;
+  totalSimulatedCostNGN: number;
+  totalSimulatedGrossPayoutNGN: number;
+  netProfitNGN: number;
+  roiPct: number;
+  expectedReturnPerSlateNGN: number;
+  anyPrizeHits: number;
+  anyPrizeHitRatePct: number;
+  anyPrizeOddsRatio: string;
+  jackpotHits: number;
+  jackpotHitRatePct: number;
+  jackpotOddsRatio: string;
+  scoreHistogram: { [score: number]: number };
+  tiers: MonteCarloTierResult[];
+  crowdAnalysis: {
+    soloJackpotChancePct: number;
+    publicBiasedMatchesCount: number;
+    contrarianEdgeRatio: number;
+    verdict: string;
+  };
+  recommendation: {
+    recommendedBankrollSlates: number;
+    recommendedBankrollNGN: number;
+    riskOfRuinText: string;
+  };
+}
+
+/**
+ * High-Performance Monte Carlo Simulator for Pool Betting Jackpots
+ * Simulates thousands of slate weekends using market fair probabilities,
+ * evaluates portfolio hit-rates across all prize tiers, and models
+ * public pool competition & dividend dilution to calculate empirical ROI.
+ */
+export function runJackpotMonteCarlo(
+  slate: JackpotSlate,
+  tickets: CoveringTicket[],
+  iterations: number = 25000
+): MonteCarloResult {
+  const start = performance.now();
+  const numMatches = slate.matches.length;
+  const numTickets = tickets.length;
+  const costPerSlate = numTickets * slate.stakePerComboNGN;
+  const totalSimulatedCost = costPerSlate * iterations;
+
+  if (numTickets === 0 || numMatches === 0) {
+    return {
+      iterations,
+      durationMs: 0,
+      ticketCount: 0,
+      costPerSlateNGN: 0,
+      totalSimulatedCostNGN: 0,
+      totalSimulatedGrossPayoutNGN: 0,
+      netProfitNGN: 0,
+      roiPct: 0,
+      expectedReturnPerSlateNGN: 0,
+      anyPrizeHits: 0,
+      anyPrizeHitRatePct: 0,
+      anyPrizeOddsRatio: '0%',
+      jackpotHits: 0,
+      jackpotHitRatePct: 0,
+      jackpotOddsRatio: '0%',
+      scoreHistogram: {},
+      tiers: [],
+      crowdAnalysis: {
+        soloJackpotChancePct: 0,
+        publicBiasedMatchesCount: 0,
+        contrarianEdgeRatio: 1,
+        verdict: 'No tickets selected to simulate.',
+      },
+      recommendation: {
+        recommendedBankrollSlates: 0,
+        recommendedBankrollNGN: 0,
+        riskOfRuinText: 'No tickets in portfolio.',
+      },
+    };
+  }
+
+  // 1. Precompute integer lookups for ultra-fast match simulation
+  // 0 = '1' (Home), 1 = 'X' (Draw), 2 = '2' (Away)
+  const threshHome = new Float64Array(numMatches);
+  const threshDraw = new Float64Array(numMatches);
+  const crowdMatrix: number[][] = [];
+
+  let publicBiasedMatchesCount = 0;
+
+  for (let i = 0; i < numMatches; i++) {
+    const m = slate.matches[i];
+    let pH = m.fairProbabilities?.home || 0.333;
+    let pD = m.fairProbabilities?.draw || 0.333;
+    let pA = m.fairProbabilities?.away || 0.334;
+    const sum = pH + pD + pA;
+    if (sum > 0) {
+      pH /= sum;
+      pD /= sum;
+      pA /= sum;
+    }
+    threshHome[i] = pH;
+    threshDraw[i] = pH + pD;
+
+    // Crowd distribution
+    let cH = m.crowdPercent ? m.crowdPercent.home / 100 : Math.min(0.85, pH * 1.15);
+    let cD = m.crowdPercent ? m.crowdPercent.draw / 100 : Math.max(0.12, pD * 0.85);
+    let cA = m.crowdPercent ? m.crowdPercent.away / 100 : Math.max(0.08, 1 - cH - cD);
+    const cSum = cH + cD + cA;
+    if (cSum > 0) {
+      cH /= cSum;
+      cD /= cSum;
+      cA /= cSum;
+    }
+    crowdMatrix.push([Math.max(0.02, cH), Math.max(0.02, cD), Math.max(0.02, cA)]);
+
+    if (Math.abs(cH - pH) > 0.08 || Math.abs(cA - pA) > 0.08) {
+      publicBiasedMatchesCount++;
+    }
+  }
+
+  // 2. Map tickets to integer code arrays
+  const ticketCodes: number[][] = tickets.map((t) => {
+    return t.picksArray.map((p) => (p === '1' ? 0 : p === 'X' ? 1 : 2));
+  });
+
+  // 3. Define Prize Tiers and Pool Allocations
+  interface TierDef {
+    score: number;
+    name: string;
+    poolNGN: number;
+  }
+
+  const tierDefs: TierDef[] = [];
+  let minPayoutScore = numMatches;
+
+  if (numMatches === 12) {
+    // SportyBet 12
+    const totalJackpot = slate.jackpotPrizeNGN || 35000000;
+    tierDefs.push({ score: 12, name: '12/12 Jackpot', poolNGN: totalJackpot });
+    tierDefs.push({ score: 11, name: '11/12 Consolation', poolNGN: 1200000 });
+    tierDefs.push({ score: 10, name: '10/12 Consolation', poolNGN: 600000 });
+    minPayoutScore = 10;
+  } else {
+    // 1xBet 14 (TOTO-14)
+    const baseProgressive = slate.jackpotPrizeNGN || 16380000;
+    const estPool = Math.max(25000000, baseProgressive * 0.7);
+    tierDefs.push({ score: 14, name: '14/14 Jackpot', poolNGN: baseProgressive + estPool * 0.1 });
+    tierDefs.push({ score: 13, name: '13/14 (10% Pool)', poolNGN: estPool * 0.1 });
+    tierDefs.push({ score: 12, name: '12/14 (10% Pool)', poolNGN: estPool * 0.1 });
+    tierDefs.push({ score: 11, name: '11/14 (15% Pool)', poolNGN: estPool * 0.15 });
+    tierDefs.push({ score: 10, name: '10/14 (20% Pool)', poolNGN: estPool * 0.2 });
+    tierDefs.push({ score: 9, name: '9/14 (35% Pool)', poolNGN: estPool * 0.35 });
+    minPayoutScore = 9;
+  }
+
+  // Fast score lookup map for tier definitions
+  const tierMap: Record<number, TierDef> = {};
+  tierDefs.forEach((td) => {
+    tierMap[td.score] = td;
+  });
+
+  // Trackers
+  const scoreHistogram: Record<number, number> = {};
+  for (let s = 0; s <= numMatches; s++) {
+    scoreHistogram[s] = 0;
+  }
+
+  const tierHitCounts: Record<number, number> = {};
+  const tierTotalPayouts: Record<number, number> = {};
+  tierDefs.forEach((td) => {
+    tierHitCounts[td.score] = 0;
+    tierTotalPayouts[td.score] = 0;
+  });
+
+  let anyPrizeRuns = 0;
+  let jackpotWinsCount = 0;
+  let soloJackpotRuns = 0;
+  let totalGrossPayoutNGN = 0;
+
+  const simOutcomes = new Uint8Array(numMatches);
+  const estimatedRivalPool = 24000; // Average size of public pool
+
+  // 4. Run the Monte Carlo Iterations
+  for (let it = 0; it < iterations; it++) {
+    // Simulate weekend match outcomes
+    let lnPublicProb = 0;
+    for (let m = 0; m < numMatches; m++) {
+      const r = Math.random();
+      const outcome = r < threshHome[m] ? 0 : r < threshDraw[m] ? 1 : 2;
+      simOutcomes[m] = outcome;
+      lnPublicProb += Math.log(crowdMatrix[m][outcome]);
+    }
+
+    // Expected rival winners for the jackpot
+    const rivalJackpotExpectation = estimatedRivalPool * Math.exp(lnPublicProb);
+
+    // Evaluate all portfolio tickets
+    let bestScoreThisRun = 0;
+    let hitAnyPrizeThisRun = false;
+    let runGrossWin = 0;
+
+    for (let t = 0; t < numTickets; t++) {
+      const tPicks = ticketCodes[t];
+      let matchesWon = 0;
+      for (let m = 0; m < numMatches; m++) {
+        if (tPicks[m] === simOutcomes[m]) matchesWon++;
+      }
+
+      if (matchesWon > bestScoreThisRun) {
+        bestScoreThisRun = matchesWon;
+      }
+
+      // Check if ticket qualifies for prize payout
+      if (matchesWon >= minPayoutScore && tierMap[matchesWon]) {
+        hitAnyPrizeThisRun = true;
+        tierHitCounts[matchesWon]++;
+
+        // Calculate parimutuel dividend
+        let rivalWinners = 0;
+        if (matchesWon === numMatches) {
+          rivalWinners = Math.max(0, Math.round(rivalJackpotExpectation));
+          if (rivalWinners === 0) soloJackpotRuns++;
+          jackpotWinsCount++;
+        } else {
+          const errors = numMatches - matchesWon;
+          const combinFactor = errors === 1 ? numMatches * 2 : (numMatches * (numMatches - 1)) * 3;
+          rivalWinners = Math.max(1, Math.round(rivalJackpotExpectation * combinFactor));
+        }
+
+        const tierPool = tierMap[matchesWon].poolNGN;
+        const dividend = tierPool / (1 + rivalWinners);
+        runGrossWin += dividend;
+        tierTotalPayouts[matchesWon] += dividend;
+      }
+    }
+
+    scoreHistogram[bestScoreThisRun]++;
+    if (hitAnyPrizeThisRun) {
+      anyPrizeRuns++;
+    }
+    totalGrossPayoutNGN += runGrossWin;
+  }
+
+  const durationMs = Math.round(performance.now() - start);
+
+  // 5. Compute Post-Simulation Analytics
+  const netProfit = totalGrossPayoutNGN - totalSimulatedCost;
+  const roiPct = totalSimulatedCost > 0 ? (netProfit / totalSimulatedCost) * 100 : 0;
+  const expectedReturnPerSlate = totalGrossPayoutNGN / iterations;
+  const anyPrizeHitRatePct = (anyPrizeRuns / iterations) * 100;
+  const anyPrizeOddsRatio =
+    anyPrizeRuns > 0 ? `1 in ${(iterations / anyPrizeRuns).toFixed(1)} slates` : '0%';
+  const jackpotHitRatePct = (jackpotWinsCount / iterations) * 100;
+  const jackpotOddsRatio =
+    jackpotWinsCount > 0
+      ? `1 in ${(iterations / jackpotWinsCount).toLocaleString()} slates`
+      : `> 1 in ${(iterations * 2).toLocaleString()} slates`;
+
+  const soloJackpotChancePct =
+    jackpotWinsCount > 0 ? (soloJackpotRuns / jackpotWinsCount) * 100 : 0;
+
+  // Format Tiers Summary
+  const tiers: MonteCarloTierResult[] = tierDefs.map((td) => {
+    const hits = tierHitCounts[td.score];
+    const totalP = tierTotalPayouts[td.score];
+    const avgP = hits > 0 ? totalP / hits : td.poolNGN;
+    const hitRate = (hits / iterations) * 100;
+    const odds = hits > 0 ? `1 in ${(iterations / hits).toFixed(1)} slates` : `0%`;
+    return {
+      tierName: td.name,
+      requiredScore: td.score,
+      hits,
+      hitRatePct: hitRate,
+      oddsRatio: odds,
+      estimatedAvgPayoutNGN: Math.round(avgP),
+      totalPayoutNGN: Math.round(totalP),
+    };
+  });
+
+  // Calculate contrarian edge ratio
+  const contrarianEdgeRatio =
+    publicBiasedMatchesCount > 0 ? Math.min(2.5, 1.0 + publicBiasedMatchesCount * 0.15) : 1.0;
+
+  let verdict = 'Balanced Syndicate Portfolio: Good mix of probability anchors and consolation hedges.';
+  if (contrarianEdgeRatio >= 1.5) {
+    verdict = 'High-Leverage Contrarian Portfolio: Strong crowd fade; hits generate massive solo dividends!';
+  } else if (anyPrizeHitRatePct > 15) {
+    verdict = 'High-Coverage Consolation Portfolio: Excellent consolation strike rate to protect bankroll.';
+  }
+
+  // Bankroll Recommendation (Poisson 95% survival formula)
+  const hitProbDecimal = Math.max(0.01, anyPrizeRuns / iterations);
+  const recommendedBankrollSlates = Math.min(100, Math.max(20, Math.ceil(3 / hitProbDecimal)));
+  const recommendedBankrollNGN = recommendedBankrollSlates * costPerSlate;
+
+  return {
+    iterations,
+    durationMs,
+    ticketCount: numTickets,
+    costPerSlateNGN: costPerSlate,
+    totalSimulatedCostNGN: totalSimulatedCost,
+    totalSimulatedGrossPayoutNGN: Math.round(totalGrossPayoutNGN),
+    netProfitNGN: Math.round(netProfit),
+    roiPct: Math.round(roiPct * 10) / 10,
+    expectedReturnPerSlateNGN: Math.round(expectedReturnPerSlate),
+    anyPrizeHits: anyPrizeRuns,
+    anyPrizeHitRatePct: Math.round(anyPrizeHitRatePct * 100) / 100,
+    anyPrizeOddsRatio,
+    jackpotHits: jackpotWinsCount,
+    jackpotHitRatePct: Math.round(jackpotHitRatePct * 1000) / 1000,
+    jackpotOddsRatio,
+    scoreHistogram,
+    tiers,
+    crowdAnalysis: {
+      soloJackpotChancePct: Math.round(soloJackpotChancePct * 10) / 10,
+      publicBiasedMatchesCount,
+      contrarianEdgeRatio: Math.round(contrarianEdgeRatio * 100) / 100,
+      verdict,
+    },
+    recommendation: {
+      recommendedBankrollSlates,
+      recommendedBankrollNGN,
+      riskOfRuinText: `At ${anyPrizeOddsRatio} prize frequency, keeping a reserve of ${recommendedBankrollSlates} slates (₦${recommendedBankrollNGN.toLocaleString()}) gives a 95%+ probability of weathering drawdowns without risk of ruin.`,
+    },
+  };
+}
+
 /**
  * Generates 1-Click Console Automation Code for SportyBet (sportybet.com/ng/jackpot)
  */

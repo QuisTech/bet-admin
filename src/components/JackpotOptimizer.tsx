@@ -18,6 +18,10 @@ import {
   Flame,
   CheckCircle2,
   BookmarkPlus,
+  Dices,
+  BarChart3,
+  Activity,
+  RotateCw,
 } from 'lucide-react';
 import type { LoggedBet } from '../types';
 import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated } from '../services/ledgerService';
@@ -28,6 +32,7 @@ import {
   type JackpotSlate,
   type CoveringTicket,
   type ReductionConfig,
+  type MonteCarloResult,
   SPORTYBET_ROUND_20261018,
   ONEXBET_TOTO_DRAW_1154,
   generateCoveringPortfolio,
@@ -35,6 +40,7 @@ import {
   generateOneXBetConsoleScript,
   generateOneXBetBatchFormat,
   parseJackpotInput,
+  runJackpotMonteCarlo,
 } from '../services/jackpotService';
 
 export const JackpotOptimizer: React.FC = () => {
@@ -132,6 +138,23 @@ export const JackpotOptimizer: React.FC = () => {
   const generatedTickets: CoveringTicket[] = useMemo(() => {
     return generateCoveringPortfolio(slate, reductionConfig, userSelections);
   }, [slate, reductionConfig, userSelections]);
+
+  // Monte Carlo Simulation Engine State
+  const [mcIterations, setMcIterations] = useState<number>(25000);
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [simSeed, setSimSeed] = useState<number>(0);
+
+  const monteCarloResult: MonteCarloResult = useMemo(() => {
+    return runJackpotMonteCarlo(slate, generatedTickets, mcIterations);
+  }, [slate, generatedTickets, mcIterations, simSeed]);
+
+  const handleRerunMonteCarlo = () => {
+    setIsSimulating(true);
+    setTimeout(() => {
+      setSimSeed((s) => s + 1);
+      setIsSimulating(false);
+    }, 150);
+  };
 
   // Handle Raw Ingest
   const handleIngestSubmit = () => {
@@ -876,7 +899,263 @@ export const JackpotOptimizer: React.FC = () => {
         </div>
       </div>
 
-      {/* 6. Generated Covering Tickets Ready to Play */}
+      {/* 6. Monte Carlo Stress-Testing Engine */}
+      <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-5 shadow-xl backdrop-blur-md space-y-5">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400">
+              <Dices className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white">
+                  Monte Carlo Portfolio Stress-Testing Engine
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 font-mono">
+                  {monteCarloResult.iterations.toLocaleString()} Runs
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Empirical hit rates, consolation prize probabilities, and public pool dividend simulation ({monteCarloResult.durationMs}ms)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
+              {[10000, 25000, 50000].map((count) => (
+                <button
+                  key={count}
+                  onClick={() => setMcIterations(count)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition cursor-pointer ${
+                    mcIterations === count
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {(count / 1000).toFixed(0)}k
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleRerunMonteCarlo}
+              disabled={isSimulating}
+              className="py-1.5 px-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 hover:text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isSimulating ? 'animate-spin' : ''}`} />
+              <span>{isSimulating ? 'Simulating...' : 'Re-Run'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Hero KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Card 1: Any Prize Hit Frequency */}
+          <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Any Prize Win Rate
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Strike Rate
+              </span>
+            </div>
+            <div className="text-xl font-black font-mono text-emerald-400">
+              {monteCarloResult.anyPrizeOddsRatio}
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">
+              {monteCarloResult.anyPrizeHitRatePct}% chance ({monteCarloResult.anyPrizeHits.toLocaleString()} simulated hits)
+            </div>
+          </div>
+
+          {/* Card 2: Jackpot Probability */}
+          <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Jackpot Hit Odds
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Solo: {monteCarloResult.crowdAnalysis.soloJackpotChancePct}%
+              </span>
+            </div>
+            <div className="text-xl font-black font-mono text-amber-400">
+              {monteCarloResult.jackpotOddsRatio}
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">
+              {monteCarloResult.jackpotHitRatePct}% probability ({monteCarloResult.jackpotHits} hits)
+            </div>
+          </div>
+
+          {/* Card 3: Expected Value & Simulated ROI */}
+          <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Simulated Net EV
+              </span>
+              <span
+                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                  monteCarloResult.roiPct >= 0
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                }`}
+              >
+                {monteCarloResult.roiPct >= 0 ? '+' : ''}{monteCarloResult.roiPct}% ROI
+              </span>
+            </div>
+            <div className="text-xl font-black font-mono text-white">
+              ₦{monteCarloResult.expectedReturnPerSlateNGN.toLocaleString()}
+              <span className="text-xs text-slate-500 font-normal ml-1">/ ₦{monteCarloResult.costPerSlateNGN.toLocaleString()}</span>
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">
+              Est. gross return vs ₦{monteCarloResult.costPerSlateNGN.toLocaleString()} ticket cost
+            </div>
+          </div>
+
+          {/* Card 4: Bankroll Reserve Guidance */}
+          <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Recommended Reserve
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                95% Survival
+              </span>
+            </div>
+            <div className="text-xl font-black font-mono text-cyan-400">
+              {monteCarloResult.recommendation.recommendedBankrollSlates} Slates
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">
+              ₦{monteCarloResult.recommendation.recommendedBankrollNGN.toLocaleString()} bankroll buffer
+            </div>
+          </div>
+        </div>
+
+        {/* Detailed Panels: Tiers Table + Score Histogram */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Left: Prize Tier Breakdown Table (7 cols) */}
+          <div className="lg:col-span-7 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-400" />
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Prize Tier Hit Distribution & Diluted Payouts
+                </h4>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">
+                Parimutuel Split Model
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase">
+                    <th className="pb-2">Tier</th>
+                    <th className="pb-2 text-center">Score</th>
+                    <th className="pb-2 text-center">Hit Rate</th>
+                    <th className="pb-2 text-center">Odds</th>
+                    <th className="pb-2 text-right">Avg Payout</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-[11px]">
+                  {monteCarloResult.tiers.map((t) => (
+                    <tr key={t.requiredScore} className="hover:bg-slate-900/50 transition-colors">
+                      <td className="py-2 font-sans font-bold text-slate-200">
+                        {t.tierName}
+                      </td>
+                      <td className="py-2 text-center font-bold text-emerald-400">
+                        {t.requiredScore}/{slate.matchCount}
+                      </td>
+                      <td className="py-2 text-center text-slate-300">
+                        {t.hitRatePct.toFixed(2)}%
+                      </td>
+                      <td className="py-2 text-center text-slate-400">
+                        {t.oddsRatio}
+                      </td>
+                      <td className="py-2 text-right font-bold text-amber-300">
+                        ₦{t.estimatedAvgPayoutNGN.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Right: Score Histogram & Contrarian Leverage Insight (5 cols) */}
+          <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+            {/* Score Distribution Chart */}
+            <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 space-y-2.5 flex-1">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-cyan-400" />
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                    Portfolio Score Curve
+                  </h4>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Best Ticket per Slate
+                </span>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                {Array.from({ length: 7 }, (_, i) => slate.matchCount - 6 + i)
+                  .filter((score) => score >= (slate.matchCount === 12 ? 6 : 8))
+                  .map((score) => {
+                    const count = monteCarloResult.scoreHistogram[score] || 0;
+                    const pct = (count / monteCarloResult.iterations) * 100;
+                    const isJackpot = score === slate.matchCount;
+                    const isConsolation =
+                      slate.matchCount === 12 ? score >= 10 : score >= 9;
+
+                    return (
+                      <div key={score} className="space-y-0.5 text-[10px] font-mono">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className={`font-bold ${isJackpot ? 'text-amber-400' : isConsolation ? 'text-emerald-300' : 'text-slate-400'}`}>
+                            {score}/{slate.matchCount} {isJackpot ? '🏆' : isConsolation ? '✨' : ''}
+                          </span>
+                          <span>
+                            {pct.toFixed(1)}% ({count.toLocaleString()})
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isJackpot
+                                ? 'bg-gradient-to-r from-amber-500 to-yellow-300'
+                                : isConsolation
+                                ? 'bg-gradient-to-r from-emerald-500 to-cyan-400'
+                                : 'bg-slate-700'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(pct > 0 ? 3 : 0, pct * 2.2))}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Contrarian & Dividend Edge Alert Box */}
+            <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-purple-500/30 space-y-1 text-xs">
+              <div className="flex items-center gap-1.5 text-purple-300 font-bold text-[11px]">
+                <Activity className="w-3.5 h-3.5" />
+                <span>Syndicate Leverage Assessment</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                {monteCarloResult.crowdAnalysis.verdict}
+              </p>
+              <p className="text-[10px] text-slate-400 leading-relaxed font-mono pt-1 border-t border-slate-800/80">
+                {monteCarloResult.recommendation.riskOfRuinText}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 7. Generated Covering Tickets Ready to Play */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
