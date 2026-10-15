@@ -934,7 +934,7 @@ export const JackpotOptimizer: React.FC = () => {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  {(count / 1000).toFixed(0)}k
+                  {(count / 1000).toFixed(0)}k Runs
                 </button>
               ))}
             </div>
