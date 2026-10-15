@@ -613,6 +613,8 @@ export interface MonteCarloTierResult {
   requiredScore: number;
   winningTickets: number; // Total tickets in portfolio that cashed
   winningSlates: number;  // Slates where at least 1 ticket cashed
+  peakScoreSlates: number; // Slates where this score was the highest in the portfolio (matches scoreHistogram)
+  multiTierSlates: number; // Slates where this tier cashed alongside a higher tier win (e.g. 10/12 won during an 11/12+ run)
   ticketHitRatePct: number;
   slateWinRatePct: number;
   slateOddsRatio: string;
@@ -954,6 +956,8 @@ export function runJackpotMonteCarlo(
   const tiers: MonteCarloTierResult[] = tierDefs.map((td) => {
     const winningTickets = tierWinningTickets[td.score];
     const winningSlates = tierWinningSlates[td.score];
+    const peakScoreSlates = scoreHistogram[td.score] || 0;
+    const multiTierSlates = Math.max(0, winningSlates - peakScoreSlates);
     const totalP = tierTotalPayouts[td.score];
     const avgP = winningTickets > 0 ? totalP / winningTickets : td.poolNGN;
     const slateWinRate = (winningSlates / iterations) * 100;
@@ -965,6 +969,8 @@ export function runJackpotMonteCarlo(
       requiredScore: td.score,
       winningTickets,
       winningSlates,
+      peakScoreSlates,
+      multiTierSlates,
       ticketHitRatePct: ticketHitRate,
       slateWinRatePct: slateWinRate,
       slateOddsRatio: odds,

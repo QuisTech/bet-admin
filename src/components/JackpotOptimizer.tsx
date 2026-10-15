@@ -1074,7 +1074,18 @@ export const JackpotOptimizer: React.FC = () => {
                       </td>
                       <td className="py-2 text-center text-slate-400">
                         <span className="font-mono font-bold text-slate-300">{t.winningTickets.toLocaleString()}</span>
-                        <span className="text-[9px] text-slate-500 block">({t.winningSlates.toLocaleString()} slates)</span>
+                        <span className="text-[9px] text-slate-500 block">
+                          ({t.winningSlates.toLocaleString()} slates
+                          {t.multiTierSlates > 0 ? (
+                            <span
+                              className="text-cyan-400 font-mono ml-1"
+                              title={`${t.peakScoreSlates.toLocaleString()} slates where ${t.requiredScore}/${slate.matchCount} was your best ticket + ${t.multiTierSlates.toLocaleString()} slates where it was won alongside a higher tier`}
+                            >
+                              • {t.peakScoreSlates} peak + {t.multiTierSlates} multi
+                            </span>
+                          ) : null}
+                          )
+                        </span>
                       </td>
                       <td className="py-2 text-right font-bold text-amber-300">
                         ₦{t.estimatedAvgPayoutNGN.toLocaleString()}
@@ -1083,6 +1094,14 @@ export const JackpotOptimizer: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Multi-tier note explaining why Tier Slates >= Peak Histogram */}
+            <div className="pt-2 border-t border-slate-800/80 flex items-start gap-1.5 text-[10px] text-slate-400 font-mono">
+              <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
+              <span>
+                <strong className="text-slate-300">Multi-Tier Coverage:</strong> When you hit a top tier (e.g. 11/12), companion hedge tickets also cash 10/12 consolation prizes. The <em>Score Curve</em> records each slate by its single highest ticket, while this table tallies all winning slates per tier.
+              </span>
             </div>
           </div>
 
@@ -1097,8 +1116,8 @@ export const JackpotOptimizer: React.FC = () => {
                     Portfolio Score Curve
                   </h4>
                 </div>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  Best Ticket per Slate
+                <span className="text-[10px] text-slate-400 font-mono" title="Each slate is categorized by its single highest-scoring ticket (percentages sum to 100%)">
+                  Highest Ticket per Slate
                 </span>
               </div>
 
