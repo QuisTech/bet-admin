@@ -841,21 +841,31 @@ export function runJackpotMonteCarlo(
   let totalGrossPayoutNGN = 0;
 
   const simOutcomes = new Uint8Array(numMatches);
-  const estimatedRivalPool = 24000; // Average size of public pool
+  const rivalScoreProb = new Float64Array(numMatches + 1);
+  const estimatedRivalPool = numMatches === 12 ? 20000 : 25000; // Realistic active competitor pool
 
   // 4. Run the Monte Carlo Iterations
   for (let it = 0; it < iterations; it++) {
     // A. Simulate weekend match outcomes using fair probabilities
-    let lnPublicProb = 0;
     for (let m = 0; m < numMatches; m++) {
       const r = Math.random();
       const outcome = r < threshHome[m] ? 0 : r < threshDraw[m] ? 1 : 2;
       simOutcomes[m] = outcome;
-      lnPublicProb += Math.log(crowdMatrix[m][outcome]);
     }
 
-    // Expected rival winners for the jackpot
-    const rivalJackpotExpectation = estimatedRivalPool * Math.exp(lnPublicProb);
+    // Exact Poisson-Binomial PMF via Dynamic Programming:
+    // Computes rivalScoreProb[k] = exact probability that a random public competitor scores k correct
+    // using the public crowd's selection probability q_m for each simulated outcome
+    rivalScoreProb.fill(0);
+    rivalScoreProb[0] = 1.0;
+    for (let m = 0; m < numMatches; m++) {
+      const q = crowdMatrix[m][simOutcomes[m]];
+      const oneMinusQ = 1.0 - q;
+      for (let k = m + 1; k >= 1; k--) {
+        rivalScoreProb[k] = rivalScoreProb[k] * oneMinusQ + rivalScoreProb[k - 1] * q;
+      }
+      rivalScoreProb[0] = rivalScoreProb[0] * oneMinusQ;
+    }
 
     // B. Score every ticket in our portfolio independently
     let bestScoreThisRun = 0;
@@ -893,25 +903,16 @@ export function runJackpotMonteCarlo(
         tierWinningTickets[score] += myTicketsInTier;
         anyPrizeWinningTickets += myTicketsInTier;
 
-        let rivalWinners = 0;
+        // Exact Poisson parameter from the Poisson-Binomial crowd score expectation:
+        const lambdaTier = estimatedRivalPool * rivalScoreProb[score];
+        const rivalWinners = samplePoisson(lambdaTier);
+
         if (score === numMatches) {
-          // Exact Poisson draw for rival jackpot winners
-          rivalWinners = samplePoisson(rivalJackpotExpectation);
           jackpotWinningSlates++;
           jackpotWinningTickets += myTicketsInTier;
           if (rivalWinners === 0) {
             soloJackpotSlates++;
           }
-        } else {
-          const errors = numMatches - score;
-          let c = 1;
-          for (let i = 1; i <= errors; i++) {
-            c = (c * (numMatches - i + 1)) / i;
-          }
-          const clusteringMultiplier = Math.pow(1.35, errors);
-          const combinFactor = c * clusteringMultiplier;
-          const lambdaTier = rivalJackpotExpectation * combinFactor;
-          rivalWinners = samplePoisson(lambdaTier);
         }
 
         // Exact Dividend Sharing: All our winning tickets + all rival winners share the pool

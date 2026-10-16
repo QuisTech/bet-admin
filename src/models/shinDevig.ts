@@ -105,12 +105,12 @@ export function calculateShinDevig(
   const twoOneMinusZ = 2 * oneMinusZ;
   let fairProbabilities = beta.map((b_i) => {
     const sqrtTerm = Math.sqrt(Math.max(1e-12, z * z + 4 * oneMinusZ * b_i));
-    return Math.max(0.001, (sqrtTerm - z) / twoOneMinusZ);
+    return Math.max(0, (sqrtTerm - z) / twoOneMinusZ);
   });
 
   // Final normalization to ensure exact sum to 1.0
   const finalSum = fairProbabilities.reduce((sum, p) => sum + p, 0);
-  fairProbabilities = fairProbabilities.map((p) => Math.round((p / finalSum) * 10000) / 10000);
+  fairProbabilities = fairProbabilities.map((p) => (finalSum > 0 ? p / finalSum : 1 / n));
 
   const fairOdds = fairProbabilities.map((p) => (p > 0 ? Math.round((1 / p) * 100) / 100 : 999));
 

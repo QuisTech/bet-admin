@@ -903,12 +903,12 @@ export const JackpotOptimizer: React.FC = () => {
               onChange={(e) => setStrategy(e.target.value as any)}
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 font-bold focus:outline-none focus:border-emerald-500 cursor-pointer"
             >
-              <option value="BALANCED_COVER">Balanced Cover (Guaranteed Consolation)</option>
+              <option value="BALANCED_COVER">Balanced Cover (Targeted Consolation Cover)</option>
               <option value="JACKPOT_MAX_PROB">Jackpot Hunter (Maximum Probability)</option>
               <option value="CONTRARIAN_HIGH_EV">Contrarian (+EV Crowd Fade)</option>
             </select>
             <div className="text-[10px] text-slate-500 font-mono mt-1">
-              Ternary Hamming distance greedy covering
+              Ternary Hamming distance diverse covering
             </div>
           </div>
 
