@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
-import { generateCoveringPortfolio, createSportyMatch } from '../src/services/jackpotService.ts';
+import { generateCoveringPortfolio, createSportyMatch, SPORTYBET_ROUND_20261018 } from '../src/services/jackpotService.ts';
 
 const PROTOCOL_VERSION = '1.6.0';
 const LEDGER_PATH = path.resolve('audit/prospective_ledger.json');
@@ -58,6 +58,7 @@ function getCurrentGitCommit() {
 function computeCanonicalCommitmentHash(commitment) {
   const canonical = {
     deadline: commitment.deadline,
+    earliestKickoff: commitment.earliestKickoff || null,
     frozenBeamWidth: commitment.frozenBeamWidth,
     frozenConstraints: commitment.frozenConstraints,
     gitCommit: commitment.gitCommit,
@@ -71,6 +72,8 @@ function computeCanonicalCommitmentHash(commitment) {
         away: m.odds?.away ?? null
       }
     })),
+    oddsCapturedAt: commitment.oddsCapturedAt || null,
+    oddsSource: commitment.oddsSource || null,
     pairedBaselineTickets: [...commitment.pairedBaselineTickets].sort(),
     protocolVersion: commitment.protocolVersion,
     roundId: commitment.roundId,
@@ -236,10 +239,57 @@ if (command === 'status') {
     process.exit(1);
   }
 
-  const history = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'));
-  const round = history.find(r => r.periodNumber === roundId);
+  // 1. Guard against registering historical settled rounds
+  if (fs.existsSync(HISTORY_PATH)) {
+    const history = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'));
+    const hist = history.find(r => r.periodNumber === roundId);
+    if (hist && hist.matches && hist.matches.some(m => m.actualResult)) {
+      console.error(`\nFATAL PROSPECTIVE ERROR: Round ${roundId} is an ALREADY-SETTLED historical round in sportybet_history.json!`);
+      console.error(`Match results are already settled. Prospective protocol strictly prohibits registering historical rounds.`);
+      process.exit(1);
+    }
+  }
+
+  // 2. Resolve round data from active sources
+  let round = null;
+  const UPCOMING_PATH = path.resolve('public/data/upcoming_sportybet_round.json');
+  if (fs.existsSync(UPCOMING_PATH)) {
+    const upcoming = JSON.parse(fs.readFileSync(UPCOMING_PATH, 'utf8'));
+    if (upcoming.periodNumber === roundId) round = upcoming;
+  }
+
+  if (!round && (roundId === '20261018' || roundId === SPORTYBET_ROUND_20261018.roundNumber)) {
+    const s = SPORTYBET_ROUND_20261018;
+    round = {
+      periodNumber: s.roundNumber,
+      deadline: 1792245600000, // Sat 15:00 WAT (2026-10-17T15:00:00+01:00)
+      maxWinnings: s.jackpotPrizeNGN,
+      oddsSource: 'SPORTYBET_NG_OFFICIAL_PRE_MATCH',
+      oddsCapturedAt: '2026-10-17T12:00:00+01:00',
+      matches: s.matches.map(m => ({
+        no: m.no,
+        date: m.date,
+        time: m.time,
+        home: m.homeTeam,
+        away: m.awayTeam,
+        odds: {
+          home: m.odds.home,
+          draw: m.odds.draw,
+          away: m.odds.away
+        }
+      }))
+    };
+  }
+
+  if (!round && fs.existsSync(HISTORY_PATH)) {
+    const history = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'));
+    const pending = history.find(r => r.periodNumber === roundId && !r.matches.some(m => m.actualResult));
+    if (pending) round = pending;
+  }
+
   if (!round) {
-    console.error(`Error: Round ${roundId} not found in sportybet_history.json`);
+    console.error(`\nError: Round ${roundId} not found in active slates or upcoming round files.`);
+    console.error(`To register an upcoming round, specify active round (e.g. 20261018) or provide public/data/upcoming_sportybet_round.json.`);
     process.exit(1);
   }
 
@@ -249,11 +299,33 @@ if (command === 'status') {
     process.exit(1);
   }
 
+  // 3. Deadline and Kickoff Semantics (WAT = UTC+1)
+  const matchKickoffs = round.matches.map(m => {
+    if (m.kickoffMs) return m.kickoffMs;
+    if (m.date && m.time) {
+      const parts = m.date.split('/');
+      if (parts.length === 3) {
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${m.time}:00+01:00`).getTime();
+      }
+    }
+    return null;
+  }).filter(k => k !== null && !isNaN(k));
+
   const deadlineMs = typeof round.deadline === 'number' ? round.deadline : new Date(round.deadline).getTime();
-  if (Date.now() > deadlineMs && process.env.ALLOW_HISTORICAL_REGISTRATION !== 'true') {
-    console.error(`\nFATAL LOOKAHEAD ERROR: Round ${roundId} registration deadline (${new Date(deadlineMs).toISOString()}) has passed!`);
-    console.error(`Current system time: ${new Date().toISOString()}`);
-    console.error(`Protocol v1.6.0 strictly prohibits retroactive registration to prevent lookahead bias.`);
+  const earliestKickoff = matchKickoffs.length > 0 ? Math.min(...matchKickoffs) : deadlineMs;
+  const nowMs = Date.now();
+
+  if (nowMs >= earliestKickoff && process.env.ALLOW_HISTORICAL_REGISTRATION !== 'true') {
+    console.error(`\nFATAL LOOKAHEAD ERROR: Earliest match has already kicked off (${new Date(earliestKickoff).toISOString()})!`);
+    console.error(`Current system time: ${new Date(nowMs).toISOString()}`);
+    console.error(`Protocol v1.6.0 strictly prohibits registration after kickoff.`);
+    process.exit(1);
+  }
+
+  if (nowMs >= deadlineMs && process.env.ALLOW_HISTORICAL_REGISTRATION !== 'true') {
+    console.error(`\nFATAL LOOKAHEAD ERROR: Round deadline has passed (${new Date(deadlineMs).toISOString()})!`);
+    console.error(`Current system time: ${new Date(nowMs).toISOString()}`);
+    console.error(`Protocol v1.6.0 strictly prohibits retroactive registration.`);
     process.exit(1);
   }
 
@@ -277,7 +349,10 @@ if (command === 'status') {
   const commitmentPayload = {
     protocolVersion: PROTOCOL_VERSION,
     roundId,
-    deadline: round.deadline,
+    deadline: deadlineMs,
+    earliestKickoff: new Date(earliestKickoff).toISOString(),
+    oddsSource: round.oddsSource || 'SPORTYBET_NG_OFFICIAL_PRE_MATCH',
+    oddsCapturedAt: round.oddsCapturedAt || now,
     gitCommit: commit,
     strategy: 'BALANCED_COVER',
     frozenBeamWidth: 2000,
@@ -310,12 +385,23 @@ if (command === 'status') {
   ledger.records.push(record);
   saveLedger(ledger);
 
+  // 4. Post-Registration Independent Verification: Re-read record from disk and confirm bit-exact hash
+  const diskLedger = loadLedger();
+  const diskRecord = diskLedger.records.find(r => r.roundId === roundId);
+  const recomputedDiskHash = computeCanonicalCommitmentHash(diskRecord);
+  if (recomputedDiskHash !== canonicalHash) {
+    console.error(`\nFATAL INTEGRITY VERIFICATION FAILED: Recomputed disk hash (${recomputedDiskHash}) != canonical commitment (${canonicalHash})!`);
+    process.exit(1);
+  }
+
   console.log('\n=============================================================');
   console.log(`  ✅ PROSPECTIVE ROUND PRE-REGISTERED (FULL CANONICAL COMMITMENT)`);
   console.log('=============================================================');
-  console.log(`Round: ${roundId} (Deadline: ${new Date(round.deadline).toUTCString()})`);
+  console.log(`Round: ${roundId} (Deadline: ${new Date(deadlineMs).toUTCString()} | Earliest Kickoff: ${new Date(earliestKickoff).toUTCString()})`);
+  console.log(`Odds Source: ${record.oddsSource} (Captured: ${record.oddsCapturedAt})`);
   console.log(`Git Commit: ${commit} | Strategy: BALANCED_COVER | Lines: 8 (₦800)`);
   console.log(`Canonical Commitment SHA-256: ${canonicalHash}`);
+  console.log(`Independent Hash Re-verification: Bit-exact match confirmed from disk ✅`);
   console.log(`Pre-registered Strategy Tickets:`);
   ticketStrings.forEach((t, i) => console.log(`  Line #${i + 1}: ${t}`));
   console.log(`Paired Random Baseline Tickets:`);

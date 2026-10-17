@@ -53,6 +53,9 @@ To guarantee that predictions cannot be altered or retrofitted post-kickoff:
    * `protocolVersion` ("1.6.0")
    * `roundId` (period number)
    * `deadline` (timestamp)
+   * `earliestKickoff` (ISO timestamp of earliest kickoff across all 12 fixtures)
+   * `oddsSource` (originating source tag, e.g. "SPORTYBET_NG_OFFICIAL_PRE_MATCH")
+   * `oddsCapturedAt` (ISO timestamp of odds recording)
    * `gitCommit` (short commit SHA)
    * `strategy` ("BALANCED_COVER")
    * `frozenBeamWidth` (2000)
@@ -66,7 +69,8 @@ To guarantee that predictions cannot be altered or retrofitted post-kickoff:
    * The registered record is committed to `audit/prospective_ledger.json` and pushed to `origin/main` on GitHub prior to the scheduled kickoff time of the earliest match.
    * The public Git commit SHA and GitHub commit timestamp serve as external, third-party proof of pre-kickoff commitment.
    * *Critical Epistemic Boundary on Cryptographic Proof:* A SHA-256 commitment published to GitHub proves immutability after commitment (that predictions, model inputs, timestamp, and verification procedure were not retrofitted post-kickoff). It cannot independently prove that predictions were generated without lookahead; lookahead prevention requires auditing that input odds and fixtures were pre-match and produced strictly by frozen code without retrospective knowledge.
-3. **Settlement Verification Gate:**
+3. **Settlement Verification Gate & Post-Registration Integrity:**
+   * Immediately upon registration, the engine re-reads the committed record from disk and confirms bit-for-bit equivalence of the computed SHA-256 hash.
    * When `scripts/prospective_jackpot_tracker.mjs settle <roundId>` is invoked, the engine recomputes the canonical hash from the ledger entry and asserts bit-for-bit equivalence against the stored `sha256`. Any discrepancy aborts settlement immediately.
 
 ---
