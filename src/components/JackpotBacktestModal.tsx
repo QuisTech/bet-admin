@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Play,
@@ -67,6 +68,17 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
     return runHistoricalBacktest(activeRounds, 'RANDOM_RUSH', ticketsPerRound);
   }, [activeRounds, ticketsPerRound]);
 
+  // Lock background scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isOpen]);
+
   const handleRunTest = () => {
     setIsRunning(true);
     setTimeout(() => {
@@ -78,9 +90,9 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl h-[88vh] max-h-[820px] flex flex-col shadow-2xl overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         {/* Compact Modal Header */}
         <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/70 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -506,6 +518,7 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
