@@ -138,6 +138,57 @@ export interface HistoricalRound {
   }[];
 }
 
+export interface Historical1xBetCategory {
+  categoryNumber: number; // 14, 13, 12, 11, 10, 9
+  percent: number;
+  prizeFund: number;
+  guessed: number;
+  guessedInCurr: number;
+  payoutOn1CurrUnit: number;
+}
+
+export interface Historical1xBetMatch {
+  no: number;
+  home: string;
+  away: string;
+  champ: string;
+  startDate: number;
+  homeScore: number;
+  awayScore: number;
+  score: string;
+  actualResult: JackpotOutcome;
+  odds: {
+    home: number;
+    draw: number;
+    away: number;
+  };
+  publicPercents?: {
+    home: number;
+    draw: number;
+    away: number;
+  };
+  bookPercents?: {
+    home: number;
+    draw: number;
+    away: number;
+  };
+}
+
+export interface Historical1xBetDraw {
+  drawNumber: number;
+  status: string;
+  jackpot: number;
+  pool: number;
+  prizeFund: number;
+  countBets: number;
+  countVariants: number;
+  countUnique: number;
+  updateDate: number;
+  isJackpotWon: boolean;
+  matches: Historical1xBetMatch[];
+  categories: Historical1xBetCategory[];
+}
+
 export interface RolloverOverlayAnalysis {
   isRollover: boolean;
   baseJackpotNGN: number;
@@ -165,6 +216,11 @@ export interface BacktestRoundResult {
   isJackpotRound: boolean;
   jackpotWonByPublic: boolean;
   salesNGN: number;
+  // 1xBet / 14-match platform specifics
+  hits14?: number;
+  hits13?: number;
+  hits9?: number;
+  matchCount?: number;
 }
 
 export interface BacktestSummary {
@@ -183,6 +239,11 @@ export interface BacktestSummary {
   bestSingleRoundWinNGN: number;
   averageScorePerTicket: number;
   roundDetails: BacktestRoundResult[];
+  // Platform context & additional tiers
+  platform?: JackpotPlatform;
+  total14Hits?: number;
+  total13Hits?: number;
+  total9Hits?: number;
 }
 
 /**
@@ -1738,6 +1799,50 @@ export function historicalRoundToSlate(hr: HistoricalRound): JackpotSlate {
 }
 
 /**
+ * Converts a completed 1xBet Historical Draw into a typed JackpotSlate
+ */
+export function historical1xBetDrawToSlate(draw: Historical1xBetDraw): JackpotSlate {
+  return {
+    platform: '1xbet',
+    roundId: `Draw no. ${draw.drawNumber}`,
+    roundNumber: String(draw.drawNumber),
+    matchCount: 14,
+    totalGames: 14,
+    ticketCostNGN: 100,
+    stakePerComboNGN: 100,
+    jackpotPrizeNGN: draw.jackpot,
+    timeRemaining: draw.isJackpotWon ? 'Completed (Jackpot Won)' : 'Completed (Rollover)',
+    consolations: '6 Prize Tiers: 14, 13, 12, 11, 10 & 9 Correct Wins!',
+    consolationTiers: (draw.categories || []).map((c) => ({
+      requiredPicks: c.categoryNumber,
+      shareDescription: `${c.categoryNumber}/14 Tier (${c.percent}% pool - ₦${Math.round(c.prizeFund).toLocaleString()}${c.guessed > 0 ? `, ${c.guessed} winners, ${c.payoutOn1CurrUnit}x` : ', 0 hits'})`,
+    })),
+    matches: draw.matches.map((m) => {
+      const matchDate = new Date(m.startDate || draw.updateDate);
+      const mDateStr = matchDate.toLocaleDateString('en-GB');
+      const mTimeStr = matchDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const pH = m.publicPercents?.home ?? m.bookPercents?.home ?? 33.3;
+      const pX = m.publicPercents?.draw ?? m.bookPercents?.draw ?? 33.3;
+      const pA = m.publicPercents?.away ?? m.bookPercents?.away ?? 33.4;
+      return create1xMatch(
+        m.no,
+        mDateStr,
+        mTimeStr,
+        m.champ || 'Football',
+        m.home,
+        m.away,
+        m.odds?.home || 2.5,
+        m.odds?.draw || 3.2,
+        m.odds?.away || 2.8,
+        pH,
+        pX,
+        pA
+      );
+    }),
+  };
+}
+
+/**
  * Rollover & Overlay Detection Engine
  * Analyzes jackpot carryover surplus and computes mathematical overlay equity
  */
@@ -1921,3 +2026,171 @@ export function runHistoricalBacktest(
     roundDetails,
   };
 }
+
+/**
+ * Historical Backtesting Engine for 1xBet TOTO-14 Covering Systems
+ * Evaluates covering strategies across 246+ real historical 1xBet draws with true 14-match scores and parimutuel prize funds.
+ */
+export function run1xBetHistoricalBacktest(
+  draws: Historical1xBetDraw[],
+  strategy: 'BALANCED_COVER' | 'JACKPOT_MAX_PROB' | 'CONTRARIAN_HIGH_EV' | 'RANDOM_RUSH',
+  ticketsPerRound: number = 8,
+  minDraws: number = 2,
+  maxDraws: number = 5,
+  minHomes: number = 4,
+  maxHomes: number = 9
+): BacktestSummary {
+  const roundDetails: BacktestRoundResult[] = [];
+  let totalStakeNGN = 0;
+  let totalPayoutNGN = 0;
+  let total14Hits = 0;
+  let total13Hits = 0;
+  let total12Hits = 0;
+  let total11Hits = 0;
+  let total10Hits = 0;
+  let total9Hits = 0;
+  let profitableRounds = 0;
+  let bestSingleRoundWinNGN = 0;
+  let totalScoreSum = 0;
+  let totalTicketCount = 0;
+
+  for (const dr of draws) {
+    const slate = historical1xBetDrawToSlate(dr);
+    const stakeNGN = ticketsPerRound * slate.stakePerComboNGN;
+    totalStakeNGN += stakeNGN;
+
+    let tickets: JackpotOutcome[][] = [];
+
+    if (strategy === 'RANDOM_RUSH') {
+      // Uniform random 1, X, 2 choice across 14 matches (standard quick pick)
+      for (let t = 0; t < ticketsPerRound; t++) {
+        const line: JackpotOutcome[] = [];
+        for (let m = 0; m < 14; m++) {
+          const rand = Math.ceil(3 * Math.random());
+          line.push(rand === 1 ? '1' : rand === 2 ? 'X' : '2');
+        }
+        tickets.push(line);
+      }
+    } else {
+      // Algorithmic Covering Portfolio for 14 matches
+      const reductionConfig: ReductionConfig = {
+        targetTickets: ticketsPerRound,
+        strategy,
+        minDraws,
+        maxDraws,
+        minHomes,
+        maxHomes,
+      };
+      const coveringTickets = generateCoveringPortfolio(slate, reductionConfig);
+      tickets = coveringTickets.map((t) => t.picksArray);
+    }
+
+    const actualResults = dr.matches.map((m) => m.actualResult);
+    let roundPayout = 0;
+    let round14 = 0;
+    let round13 = 0;
+    let round12 = 0;
+    let round11 = 0;
+    let round10 = 0;
+    let round9 = 0;
+    let bestScore = 0;
+
+    for (const t of tickets) {
+      totalTicketCount++;
+      let score = 0;
+      for (let i = 0; i < 14; i++) {
+        if (t[i] === actualResults[i]) score++;
+      }
+      totalScoreSum += score;
+      if (score > bestScore) bestScore = score;
+
+      if (score >= 9) {
+        if (score === 14) {
+          round14++;
+          total14Hits++;
+        } else if (score === 13) {
+          round13++;
+          total13Hits++;
+        } else if (score === 12) {
+          round12++;
+          total12Hits++;
+        } else if (score === 11) {
+          round11++;
+          total11Hits++;
+        } else if (score === 10) {
+          round10++;
+          total10Hits++;
+        } else if (score === 9) {
+          round9++;
+          total9Hits++;
+        }
+
+        // Parimutuel rule: winning at tier S wins that tier and all lower eligible tiers down to 9
+        for (let catNum = 9; catNum <= score; catNum++) {
+          const cat = dr.categories.find((c) => c.categoryNumber === catNum);
+          if (cat) {
+            if (cat.payoutOn1CurrUnit > 0) {
+              roundPayout += cat.payoutOn1CurrUnit * slate.stakePerComboNGN;
+            } else if (cat.prizeFund > 0) {
+              roundPayout += cat.prizeFund / (cat.guessed + 1);
+            }
+          }
+        }
+      }
+    }
+
+    const netProfit = roundPayout - stakeNGN;
+    if (netProfit > 0) profitableRounds++;
+    if (roundPayout > bestSingleRoundWinNGN) bestSingleRoundWinNGN = roundPayout;
+    totalPayoutNGN += roundPayout;
+
+    roundDetails.push({
+      periodNumber: String(dr.drawNumber),
+      deadline: dr.updateDate,
+      totalTickets: ticketsPerRound,
+      stakeNGN,
+      hits12: round12,
+      hits11: round11,
+      hits10: round10,
+      hits14: round14,
+      hits13: round13,
+      hits9: round9,
+      matchCount: 14,
+      payoutNGN: roundPayout,
+      netProfitNGN: netProfit,
+      actualResults,
+      bestTicketScore: bestScore,
+      isJackpotRound: dr.isJackpotWon,
+      jackpotWonByPublic: dr.isJackpotWon,
+      salesNGN: dr.pool,
+    });
+  }
+
+  const netProfitNGN = totalPayoutNGN - totalStakeNGN;
+  const roiPct = totalStakeNGN > 0 ? (netProfitNGN / totalStakeNGN) * 100 : 0;
+  const winRateRoundsPct = draws.length > 0 ? (profitableRounds / draws.length) * 100 : 0;
+  const averageScorePerTicket = totalTicketCount > 0 ? totalScoreSum / totalTicketCount : 0;
+
+  return {
+    strategy,
+    platform: '1xbet',
+    totalRounds: draws.length,
+    ticketsPerRound,
+    totalStakeNGN,
+    totalPayoutNGN,
+    netProfitNGN,
+    roiPct,
+    total12Hits,
+    total11Hits,
+    total10Hits,
+    total14Hits,
+    total13Hits,
+    total9Hits,
+    profitableRounds,
+    winRateRoundsPct,
+    bestSingleRoundWinNGN,
+    averageScorePerTicket,
+    roundDetails,
+  };
+}
+

@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { syncJackpotRounds } from './scripts/syncJackpotHelper.js';
+import { sync1xBetDraws } from './scripts/sync1xBetHelper.js';
 
 function jackpotSyncPlugin(): Plugin {
   return {
@@ -21,6 +22,23 @@ function jackpotSyncPlugin(): Plugin {
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ error: err?.message || 'Sync failed' }));
+        }
+      });
+
+      server.middlewares.use('/api/sync-1xbet', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        }
+        try {
+          const result = await sync1xBetDraws();
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(result));
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err?.message || '1xBet sync failed' }));
         }
       });
     },
