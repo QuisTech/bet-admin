@@ -403,90 +403,29 @@ export const JackpotOptimizer: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* 1. Header & Platform Switcher */}
-      <div className="p-5 rounded-3xl bg-slate-950/80 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Trophy className="w-5 h-5 text-amber-400" />
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <span>Jackpot &amp; Football Pool Combinatorial Solver</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-                PRO SYNDICATE
-              </span>
-            </h2>
-          </div>
-          <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-            Replaces blind luck with combinatorial covering codes, Shin de-vigged fair probabilities, and game-theoretic public bias fading.
-          </p>
-        </div>
-
-        {/* Action Controls: Platform Switcher, Slate Selector & Backtester Button */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            onClick={() => setIsBacktestModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 hover:text-amber-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-            title="Run historical backtests across 390 completed SportyBet jackpot rounds"
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
-            <span>Historical Backtest</span>
-            {historicalRounds.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
-                {historicalRounds.length} Rounds
-              </span>
-            )}
-          </button>
-
-          {/* 1-Click Sync History Button */}
-          {platform === 'sportybet' && (
-            <button
-              onClick={handleSyncJackpot}
-              disabled={isSyncingJackpot}
-              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 hover:text-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
-              title="Sync latest settled rounds from SportyBet CMS (equivalent to npm run update:jackpot)"
-            >
-              <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingJackpot ? 'animate-spin' : ''}`} />
-              <span>{isSyncingJackpot ? 'Syncing...' : 'Sync History'}</span>
-            </button>
-          )}
-
-          {syncFeedback && (
-            <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700 text-amber-300 animate-in fade-in">
-              {syncFeedback}
-            </span>
-          )}
-
-          <button
-            onClick={() => setIsHelpOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-amber-400 hover:text-amber-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-            title="How does this help? Read the mathematical edge & syndicate strategy"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
-            <span>Guide</span>
-          </button>
-
-          {/* Historical Round Selector (SportyBet) */}
-          {platform === 'sportybet' && historicalRounds.length > 0 && (
-            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-2xl border border-slate-800">
-              <select
-                value={selectedRoundId}
-                onChange={(e) => handleRoundSelect(e.target.value)}
-                className="bg-slate-900 text-xs font-bold text-slate-200 py-1 px-2.5 rounded-xl border-none focus:outline-none focus:ring-0 cursor-pointer font-mono"
-              >
-                <option value="active">🟢 Live Active: Round 20261018 (₦74.7M - Mega Rollover)</option>
-                <optgroup label="Archived Rounds (Exact Odds & Real Scores)">
-                  {historicalRounds.map((hr) => (
-                    <option key={hr.periodNumber} value={hr.periodNumber}>
-                      Round {hr.periodNumber} ({hr.isJackpotWon ? 'Won' : 'Rollover'} • ₦{(hr.maxWinnings / 1e6).toFixed(1)}M)
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
+      <div className="p-5 rounded-3xl bg-slate-950/80 border border-slate-800 shadow-xl space-y-4">
+        {/* Top Tier: Title & Prominent Platform Switcher */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Trophy className="w-5 h-5 text-amber-400" />
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <span>Jackpot &amp; Football Pool Combinatorial Solver</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                  PRO SYNDICATE
+                </span>
+              </h2>
             </div>
-          )}
+            <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+              Replaces blind luck with combinatorial covering codes, Shin de-vigged fair probabilities, and game-theoretic public bias fading.
+            </p>
+          </div>
 
-          <div className="flex items-center gap-1 bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
+          {/* Platform Switcher: Always visible & prioritized */}
+          <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 self-start lg:self-auto shrink-0 shadow-inner">
             <button
               onClick={() => handlePlatformChange('sportybet')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
                 platform === 'sportybet'
                   ? 'bg-amber-500 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.35)]'
                   : 'text-slate-400 hover:text-white'
@@ -497,7 +436,7 @@ export const JackpotOptimizer: React.FC = () => {
             </button>
             <button
               onClick={() => handlePlatformChange('1xbet')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
                 platform === '1xbet'
                   ? 'bg-cyan-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.35)]'
                   : 'text-slate-400 hover:text-white'
@@ -505,6 +444,84 @@ export const JackpotOptimizer: React.FC = () => {
             >
               <Target className="w-3.5 h-3.5" />
               <span>1xBet TOTO-14</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Tier: Round Selector & Tools Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
+          {/* Round Selector (SportyBet) or Active Draw Indicator (1xBet) */}
+          {platform === 'sportybet' && historicalRounds.length > 0 ? (
+            <div className="flex items-center gap-2 flex-1 min-w-[260px] max-w-lg">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 shrink-0">Round:</span>
+              <div className="relative flex-1">
+                <select
+                  value={selectedRoundId}
+                  onChange={(e) => handleRoundSelect(e.target.value)}
+                  className="w-full bg-slate-900 text-xs font-bold text-slate-200 py-1.5 px-3 rounded-xl border border-slate-800 focus:outline-none focus:border-amber-500/60 cursor-pointer font-mono truncate"
+                >
+                  <option value="active">🟢 Live Active: Round 20261018 (₦74.7M - Mega Rollover)</option>
+                  <optgroup label="Archived Rounds (Exact Odds & Real Scores)">
+                    {historicalRounds.map((hr) => (
+                      <option key={hr.periodNumber} value={hr.periodNumber}>
+                        Round {hr.periodNumber} ({hr.isJackpotWon ? 'Won' : 'Rollover'} • ₦{(hr.maxWinnings / 1e6).toFixed(1)}M)
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+              <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              <span className="font-bold text-slate-300">1xBet TOTO-14</span>
+              <span>• Draw #{slate.roundNumber} Active Slate</span>
+            </div>
+          )}
+
+          {/* Action Tools: Backtest, Sync, Guide */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {platform === 'sportybet' && (
+              <>
+                <button
+                  onClick={() => setIsBacktestModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 hover:text-amber-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  title="Run historical backtests across 390 completed SportyBet jackpot rounds"
+                >
+                  <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Historical Backtest</span>
+                  {historicalRounds.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
+                      {historicalRounds.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleSyncJackpot}
+                  disabled={isSyncingJackpot}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 hover:text-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+                  title="Sync latest settled rounds from SportyBet CMS (equivalent to npm run update:jackpot)"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingJackpot ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingJackpot ? 'Syncing...' : 'Sync History'}</span>
+                </button>
+
+                {syncFeedback && (
+                  <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700 text-amber-300 animate-in fade-in">
+                    {syncFeedback}
+                  </span>
+                )}
+              </>
+            )}
+
+            <button
+              onClick={() => setIsHelpOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-amber-400 hover:text-amber-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="How does this help? Read the mathematical edge & syndicate strategy"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+              <span>Guide</span>
             </button>
           </div>
         </div>
