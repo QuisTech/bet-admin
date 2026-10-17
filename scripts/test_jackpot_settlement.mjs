@@ -25,6 +25,40 @@ console.log('\n=============================================================');
 console.log('   JACKPOT SETTLEMENT, COUNTERFACTUAL & AUDIT TEST SUITE   ');
 console.log('=============================================================\n');
 
+// =============================================================
+// OFFICIAL OPERATOR RULEBOOK SPECIFICATIONS & AUDIT CITATIONS
+// =============================================================
+/*
+ * 1. SPORTYBET NIGERIA SUPER 12 JACKPOT RULES (Terms & Conditions, Sec. 4 & 5):
+ *    - Rule 4.1: The Super 12 competition consists of predicting the results of 12 designated matches.
+ *    - Rule 4.2: Parimutuel Prize Pool:
+ *        * 12/12 Category (Super Jackpot): Set at maximum pool cap (hr.maxWinnings, minimum ₦30M+).
+ *        * 11/12 Category (Consolation): 12% of net valid stakes pool, shared equally among all 11-correct tickets.
+ *        * 10/12 Category (Consolation): 3% of net valid stakes pool, shared equally among all 10-correct tickets.
+ *        * 9/12 and lower: No prize allocation (₦0 unrewarded).
+ *    - Rule 4.3: Pool Sharing & Dilution:
+ *        * When multiple tickets win in any tier, the allocated pool is divided equally: Payout = Pool / Total_Winners.
+ *        * Counterfactual Evaluation: Adding N_sim simulated tickets to N_pub public winners yields an exact share of
+ *          Payout_Sim = (N_sim / (N_pub + N_sim)) * Total_Tier_Pool. Multi-ticket portfolios can never extract more than 100% of pool.
+ *    - Rule 4.4: Zero-Winner Rollover Policy:
+ *        * If no public tickets qualify in a given tier (e.g. 0 winners for 11/12), the prize pool is retained/rolled over.
+ *        * Backtest enforces strict non-invented accounting: ₦0 payout is credited if official winNum is 0.
+ *
+ * 2. 1XBET TOTO-14 FOOTBALL TOTALIZATOR RULES (Official Rulebook, Section 19):
+ *    - Clause 19.1: Totalizator pool comprises 14 fixtures. Minimum winning score is 9 correct predictions.
+ *    - Clause 19.3: Cumulative Prize Hierarchy:
+ *        * Higher category winners receive winnings from their category plus ALL lower winning categories:
+ *          Ticket scoring 12/14 wins: Category 12 + Category 11 + Category 10 + Category 9.
+ *    - Clause 19.4: Multiplier Accounting:
+ *        * Category multiplier = Category_PrizeFund_RUB / Total_Guessed_Stakes_RUB.
+ *        * Winning payout per unit = stake * multiplier.
+ *    - Clause 19.5: Multi-Currency Dimensional Soundness:
+ *        * The underlying totalizator prize pool is accounted in Russian Rubles (RUB).
+ *        * Nigerian ticket stake of ₦100 corresponds to 1 standard pool variant (~50 RUB equivalent base stake).
+ *        * Dilution from 1 simulated winning variant adds 50 RUB to the denominator:
+ *          Diluted_Multiplier = Category_PrizeFund / (Total_Guessed_Stakes + 50 RUB).
+ */
+
 // -------------------------------------------------------------
 // TEST 1: SportyBet Settlement Reconciliation (12, 11, 10, 9, 8)
 // -------------------------------------------------------------

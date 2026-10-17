@@ -10,6 +10,10 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "node scripts/test_jackpot_settlement.mjs",
+    "audit:benchmark": "node scripts/run_out_of_sample_benchmark.mjs",
+    "audit:significance": "node scripts/statistical_significance_test.mjs",
+    "audit:reconcile": "node scripts/reconcile_payouts.mjs",
+    "audit:prospective": "node scripts/prospective_jackpot_tracker.mjs",
     "update:jackpot": "node scripts/fetch_sportybet_history.cjs",
     "update:1xbet": "node scripts/fetch_1xbet_history.cjs"
   },
