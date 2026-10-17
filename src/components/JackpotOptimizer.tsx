@@ -33,8 +33,11 @@ import {
   type CoveringTicket,
   type ReductionConfig,
   type MonteCarloResult,
+  type HistoricalRound,
   SPORTYBET_ROUND_20261018,
   ONEXBET_TOTO_DRAW_1154,
+  historicalRoundToSlate,
+  analyzeJackpotOverlay,
   generateCoveringPortfolio,
   generateSportyBetConsoleScript,
   generateOneXBetConsoleScript,
@@ -42,10 +45,87 @@ import {
   parseJackpotInput,
   runJackpotMonteCarlo,
 } from '../services/jackpotService';
+import { JackpotBacktestModal } from './JackpotBacktestModal';
 
 export const JackpotOptimizer: React.FC = () => {
   const [platform, setPlatform] = useState<JackpotPlatform>('sportybet');
   const [slate, setSlate] = useState<JackpotSlate>(SPORTYBET_ROUND_20261018);
+
+  // Historical archive & backtester state
+  const [historicalRounds, setHistoricalRounds] = useState<HistoricalRound[]>([]);
+  const [selectedRoundId, setSelectedRoundId] = useState<string>('active');
+  const [isBacktestModalOpen, setIsBacktestModalOpen] = useState(false);
+  const [isSyncingJackpot, setIsSyncingJackpot] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch('/data/sportybet_history.json')
+      .then((res) => res.json())
+      .then((data: HistoricalRound[]) => {
+        if (Array.isArray(data)) {
+          setHistoricalRounds(data);
+        }
+      })
+      .catch((err) => console.warn('Could not load historical jackpot rounds:', err));
+  }, []);
+
+  const handleSyncJackpot = async () => {
+    if (isSyncingJackpot) return;
+    setIsSyncingJackpot(true);
+    setSyncFeedback('Syncing with SportyBet...');
+    try {
+      const res = await fetch('/api/sync-jackpot', {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        throw new Error(`Server returned HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.success && Array.isArray(data.allRounds)) {
+        setHistoricalRounds(data.allRounds);
+        if (data.newAddedCount > 0) {
+          setSyncFeedback(`✅ Synced ${data.newAddedCount} new round(s)! (${data.totalCount} total)`);
+        } else {
+          setSyncFeedback(`✅ Up to date (${data.totalCount} rounds)`);
+        }
+      } else {
+        setSyncFeedback(data.message || 'Sync completed');
+      }
+    } catch (err: any) {
+      console.error('Failed to sync jackpot rounds:', err);
+      setSyncFeedback('❌ Sync failed: ' + (err?.message || 'Network error'));
+    } finally {
+      setIsSyncingJackpot(false);
+      setTimeout(() => {
+        setSyncFeedback(null);
+      }, 5000);
+    }
+  };
+
+  const handleRoundSelect = (periodNumber: string) => {
+    setSelectedRoundId(periodNumber);
+    if (periodNumber === 'active') {
+      setSlate(SPORTYBET_ROUND_20261018);
+    } else {
+      const hr = historicalRounds.find((r) => r.periodNumber === periodNumber);
+      if (hr) {
+        setSlate(historicalRoundToSlate(hr));
+      }
+    }
+    setUserSelections({});
+    setCopiedTicketId(null);
+    setCopiedConsoleId(null);
+    setCopiedBatch(false);
+  };
+
+  const activeHistoricalRound = useMemo(() => {
+    if (selectedRoundId === 'active') return null;
+    return historicalRounds.find((r) => r.periodNumber === selectedRoundId) || null;
+  }, [selectedRoundId, historicalRounds]);
+
+  const overlayAnalysis = useMemo(() => {
+    return analyzeJackpotOverlay(slate.jackpotPrizeNGN);
+  }, [slate.jackpotPrizeNGN]);
 
   // Custom user match locks: matchNo -> array of chosen outcomes ['1', 'X']
   const [userSelections, setUserSelections] = useState<{ [matchNo: number]: JackpotOutcome[] }>({});
@@ -53,6 +133,7 @@ export const JackpotOptimizer: React.FC = () => {
   // Switch slate when platform changes
   const handlePlatformChange = (p: JackpotPlatform) => {
     setPlatform(p);
+    setSelectedRoundId('active');
     if (p === 'sportybet') {
       setSlate(SPORTYBET_ROUND_20261018);
     } else {
@@ -338,16 +419,69 @@ export const JackpotOptimizer: React.FC = () => {
           </p>
         </div>
 
-        {/* Action Controls: Platform Switcher & Help Modal Button */}
+        {/* Action Controls: Platform Switcher, Slate Selector & Backtester Button */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            onClick={() => setIsBacktestModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 hover:text-amber-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+            title="Run historical backtests across 390 completed SportyBet jackpot rounds"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Historical Backtest</span>
+            {historicalRounds.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
+                {historicalRounds.length} Rounds
+              </span>
+            )}
+          </button>
+
+          {/* 1-Click Sync History Button */}
+          {platform === 'sportybet' && (
+            <button
+              onClick={handleSyncJackpot}
+              disabled={isSyncingJackpot}
+              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 hover:text-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+              title="Sync latest settled rounds from SportyBet CMS (equivalent to npm run update:jackpot)"
+            >
+              <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingJackpot ? 'animate-spin' : ''}`} />
+              <span>{isSyncingJackpot ? 'Syncing...' : 'Sync History'}</span>
+            </button>
+          )}
+
+          {syncFeedback && (
+            <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700 text-amber-300 animate-in fade-in">
+              {syncFeedback}
+            </span>
+          )}
+
           <button
             onClick={() => setIsHelpOpen(true)}
             className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-amber-400 hover:text-amber-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
             title="How does this help? Read the mathematical edge & syndicate strategy"
           >
             <BookOpen className="w-3.5 h-3.5 text-amber-400" />
-            <span>How Does This Help?</span>
+            <span>Guide</span>
           </button>
+
+          {/* Historical Round Selector (SportyBet) */}
+          {platform === 'sportybet' && historicalRounds.length > 0 && (
+            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+              <select
+                value={selectedRoundId}
+                onChange={(e) => handleRoundSelect(e.target.value)}
+                className="bg-slate-900 text-xs font-bold text-slate-200 py-1 px-2.5 rounded-xl border-none focus:outline-none focus:ring-0 cursor-pointer font-mono"
+              >
+                <option value="active">🟢 Live Active: Round 20261018 (₦74.7M - Mega Rollover)</option>
+                <optgroup label="Archived Rounds (Exact Odds & Real Scores)">
+                  {historicalRounds.map((hr) => (
+                    <option key={hr.periodNumber} value={hr.periodNumber}>
+                      Round {hr.periodNumber} ({hr.isJackpotWon ? 'Won' : 'Rollover'} • ₦{(hr.maxWinnings / 1e6).toFixed(1)}M)
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          )}
 
           <div className="flex items-center gap-1 bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
             <button
@@ -359,7 +493,7 @@ export const JackpotOptimizer: React.FC = () => {
               }`}
             >
               <Zap className="w-3.5 h-3.5" />
-              <span>Sporty 12 (₦74.7M)</span>
+              <span>Sporty 12</span>
             </button>
             <button
               onClick={() => handlePlatformChange('1xbet')}
@@ -370,7 +504,7 @@ export const JackpotOptimizer: React.FC = () => {
               }`}
             >
               <Target className="w-3.5 h-3.5" />
-              <span>1xBet TOTO-14 (₦16.4M+)</span>
+              <span>1xBet TOTO-14</span>
             </button>
           </div>
         </div>
@@ -471,17 +605,30 @@ export const JackpotOptimizer: React.FC = () => {
         {/* Card 1: Jackpot Pool */}
         <div className="bg-gradient-to-br from-amber-500/10 via-slate-900/60 to-slate-950 border border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-              {platform === 'sportybet' ? 'Super Jackpot Prize Pool' : 'Current Minimum Jackpot'}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                {platform === 'sportybet' ? 'Super Jackpot Prize Pool' : 'Current Minimum Jackpot'}
+              </span>
+              {overlayAnalysis.isRollover && (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                  🔥 ROLLOVER
+                </span>
+              )}
+            </div>
             <span className="text-[10px] font-mono font-bold text-slate-400">
               {platform === 'sportybet' ? `Round ${slate.roundNumber}` : `Draw no. ${slate.roundNumber}`}
             </span>
           </div>
           <div className="my-2">
-            <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">
-              ₦{slate.jackpotPrizeNGN.toLocaleString()}
+            <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight flex items-baseline gap-2">
+              <span>₦{slate.jackpotPrizeNGN.toLocaleString()}</span>
             </div>
+            {overlayAnalysis.isRollover && (
+              <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-emerald-400 font-mono">
+                <Sparkles className="w-3 h-3 text-emerald-400 shrink-0" />
+                <span>+₦{(overlayAnalysis.overlayNGN / 1e6).toFixed(1)}M Carryover (+{overlayAnalysis.overlayPct.toFixed(0)}% House Overlay)</span>
+              </div>
+            )}
             <div className="text-[11px] text-amber-300/80 font-medium mt-0.5">
               {slate.consolations}
             </div>
@@ -682,6 +829,44 @@ export const JackpotOptimizer: React.FC = () => {
           </div>
         </div>
 
+        {/* Historical Archive Banner if reviewing an archived slate */}
+        {activeHistoricalRound && (
+          <div className="m-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg">
+                🏛️
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-white">Historical Archive Review: Round {activeHistoricalRound.periodNumber}</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    activeHistoricalRound.isJackpotWon ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                  }`}>
+                    {activeHistoricalRound.isJackpotWon ? '12/12 Jackpot Won' : 'Rollover (No 12/12 Winners)'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  Settled on {new Date(activeHistoricalRound.deadline).toLocaleDateString('en-GB')} • Total Sales: ₦{activeHistoricalRound.sales.toLocaleString()} ({activeHistoricalRound.totalCombinationsBought.toLocaleString()} tickets bought)
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+              <div className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800">
+                <span className="text-slate-400">11/12 Tier: </span>
+                <span className="font-bold text-emerald-400">
+                  {activeHistoricalRound.winnings.find(w => w.correctEvents === 11)?.winNum || 0} winners (₦{parseFloat(activeHistoricalRound.winnings.find(w => w.correctEvents === 11)?.perWinnings.toString() || '0').toLocaleString()} each)
+                </span>
+              </div>
+              <div className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800">
+                <span className="text-slate-400">10/12 Tier: </span>
+                <span className="font-bold text-cyan-400">
+                  {activeHistoricalRound.winnings.find(w => w.correctEvents === 10)?.winNum || 0} winners (₦{parseFloat(activeHistoricalRound.winnings.find(w => w.correctEvents === 10)?.perWinnings.toString() || '0').toLocaleString()} each)
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Matches Grid */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-sans">
@@ -701,6 +886,7 @@ export const JackpotOptimizer: React.FC = () => {
               {slate.matches.map((m) => {
                 const chosen = userSelections[m.no] || m.recommendedDoubles;
                 const isBankerLocked = chosen.length === 1;
+                const histMatch = activeHistoricalRound?.matches.find((hm) => hm.no === m.no);
 
                 return (
                   <tr key={m.id} className="hover:bg-slate-800/30 transition-colors">
@@ -710,6 +896,11 @@ export const JackpotOptimizer: React.FC = () => {
                         <span>{m.homeTeam}</span>
                         <span className="text-slate-500 text-[11px]">vs</span>
                         <span>{m.awayTeam}</span>
+                        {histMatch && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-amber-300 font-bold font-mono border border-slate-700">
+                            {histMatch.homeScore} - {histMatch.awayScore} ({histMatch.actualResult})
+                          </span>
+                        )}
                         {m.publicTrap && (
                           <span
                             className="px-1.5 py-0.2 rounded text-[9px] bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold"
@@ -1397,6 +1588,17 @@ export const JackpotOptimizer: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* Historical Backtester Modal */}
+      <JackpotBacktestModal
+        isOpen={isBacktestModalOpen}
+        onClose={() => setIsBacktestModalOpen(false)}
+        historicalRounds={historicalRounds}
+        onLoadRoundToOptimizer={handleRoundSelect}
+        onSync={handleSyncJackpot}
+        isSyncing={isSyncingJackpot}
+      />
     </div>
   );
 };
+

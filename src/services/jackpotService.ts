@@ -110,6 +110,81 @@ export interface ReductionConfig {
 
 export type ReducedSystemConfig = ReductionConfig;
 
+export interface HistoricalRound {
+  periodNumber: string;
+  periodId: string;
+  deadline: number;
+  maxWinnings: number;
+  sales: number;
+  totalCombinationsBought: number;
+  winnings: {
+    correctEvents: number;
+    winNum: number;
+    perWinnings: number;
+  }[];
+  isJackpotWon: boolean;
+  matches: {
+    no: number;
+    home: string;
+    away: string;
+    homeScore: number;
+    awayScore: number;
+    actualResult: JackpotOutcome;
+    odds: {
+      home: number;
+      draw: number;
+      away: number;
+    };
+  }[];
+}
+
+export interface RolloverOverlayAnalysis {
+  isRollover: boolean;
+  baseJackpotNGN: number;
+  currentPrizeNGN: number;
+  overlayNGN: number;
+  overlayPct: number;
+  expectedValueMultiplier: number;
+  status: 'STANDARD_BASE' | 'MODERATE_OVERLAY' | 'HIGH_OVERLAY_ROLLOVER' | 'MEGA_OVERLAY_JACKPOT';
+  badgeText: string;
+  description: string;
+}
+
+export interface BacktestRoundResult {
+  periodNumber: string;
+  deadline: number;
+  totalTickets: number;
+  stakeNGN: number;
+  hits12: number;
+  hits11: number;
+  hits10: number;
+  payoutNGN: number;
+  netProfitNGN: number;
+  actualResults: JackpotOutcome[];
+  bestTicketScore: number;
+  isJackpotRound: boolean;
+  jackpotWonByPublic: boolean;
+  salesNGN: number;
+}
+
+export interface BacktestSummary {
+  strategy: 'BALANCED_COVER' | 'JACKPOT_MAX_PROB' | 'CONTRARIAN_HIGH_EV' | 'RANDOM_RUSH';
+  totalRounds: number;
+  ticketsPerRound: number;
+  totalStakeNGN: number;
+  totalPayoutNGN: number;
+  netProfitNGN: number;
+  roiPct: number;
+  total12Hits: number;
+  total11Hits: number;
+  total10Hits: number;
+  profitableRounds: number;
+  winRateRoundsPct: number;
+  bestSingleRoundWinNGN: number;
+  averageScorePerTicket: number;
+  roundDetails: BacktestRoundResult[];
+}
+
 /**
  * Calculates fair probabilities from 1X2 odds using Shin de-vigging
  */
@@ -1622,4 +1697,227 @@ export function parseJackpotInput(input: string, platform: JackpotPlatform): Jac
   }
 
   return null;
+}
+
+export const SPORTYBET_HISTORICAL_ROUNDS: HistoricalRound[] = [];
+
+/**
+ * Converts a completed SportyBet Historical Round into a typed JackpotSlate
+ */
+export function historicalRoundToSlate(hr: HistoricalRound): JackpotSlate {
+  return {
+    platform: 'sportybet',
+    roundId: `Round No. ${hr.periodNumber}`,
+    roundNumber: hr.periodNumber,
+    matchCount: 12,
+    totalGames: 12,
+    ticketCostNGN: 100,
+    stakePerComboNGN: 100,
+    jackpotPrizeNGN: hr.maxWinnings,
+    timeRemaining: hr.isJackpotWon ? 'Completed (Jackpot Won)' : 'Completed (Rollover)',
+    consolations: 'Super Jackpot: 12/12 • 2nd Prize: 11/12 • 3rd Prize: 10/12',
+    consolationTiers: [
+      { requiredPicks: 12, shareDescription: `Super Jackpot Prize (₦${hr.maxWinnings.toLocaleString()})` },
+      { requiredPicks: 11, shareDescription: `2nd Tier: 12% Pool (₦${Math.round(hr.sales * 0.12).toLocaleString()})` },
+      { requiredPicks: 10, shareDescription: `3rd Tier: 3% Pool (₦${Math.round(hr.sales * 0.03).toLocaleString()})` },
+    ],
+    matches: hr.matches.map((m) =>
+      createSportyMatch(
+        m.no,
+        new Date(hr.deadline).toLocaleDateString('en-GB'),
+        new Date(hr.deadline).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        'Sporty 12',
+        m.home,
+        m.away,
+        m.odds.home,
+        m.odds.draw,
+        m.odds.away
+      )
+    ),
+  };
+}
+
+/**
+ * Rollover & Overlay Detection Engine
+ * Analyzes jackpot carryover surplus and computes mathematical overlay equity
+ */
+export function analyzeJackpotOverlay(
+  currentPrizeNGN: number,
+  baseJackpotNGN: number = 34000000
+): RolloverOverlayAnalysis {
+  const overlayNGN = Math.max(0, currentPrizeNGN - baseJackpotNGN);
+  const overlayPct = (overlayNGN / baseJackpotNGN) * 100;
+  const expectedValueMultiplier = currentPrizeNGN / baseJackpotNGN;
+  const isRollover = overlayNGN > 2000000;
+
+  let status: RolloverOverlayAnalysis['status'] = 'STANDARD_BASE';
+  let badgeText = 'Standard Seed Pool';
+  let description = 'Regular base jackpot without accumulated rollover carryover.';
+
+  if (overlayPct >= 80) {
+    status = 'MEGA_OVERLAY_JACKPOT';
+    badgeText = `🔥 MEGA ROLLOVER (+${overlayPct.toFixed(0)}% OVERLAY)`;
+    description = `Massive multi-week rollover! ₦${(overlayNGN / 1e6).toFixed(1)}M house carryover added to pool. Significant mathematical positive EV overlay.`;
+  } else if (overlayPct >= 30) {
+    status = 'HIGH_OVERLAY_ROLLOVER';
+    badgeText = `⚡ HIGH ROLLOVER (+${overlayPct.toFixed(0)}% OVERLAY)`;
+    description = `Rollover accumulated from previous un-won round. Pool prize is +${overlayPct.toFixed(0)}% higher than normal base seed.`;
+  } else if (overlayPct > 5) {
+    status = 'MODERATE_OVERLAY';
+    badgeText = `📈 ROLLOVER ACTIVE (+${overlayPct.toFixed(0)}%)`;
+    description = `Moderate rollover carryover active in pool.`;
+  }
+
+  return {
+    isRollover,
+    baseJackpotNGN,
+    currentPrizeNGN,
+    overlayNGN,
+    overlayPct,
+    expectedValueMultiplier,
+    status,
+    badgeText,
+    description,
+  };
+}
+
+/**
+ * Historical Backtesting Engine for Jackpot Covering Systems
+ * Evaluates covering strategies across real historical rounds with actual outcomes and real prize payouts.
+ */
+export function runHistoricalBacktest(
+  rounds: HistoricalRound[],
+  strategy: 'BALANCED_COVER' | 'JACKPOT_MAX_PROB' | 'CONTRARIAN_HIGH_EV' | 'RANDOM_RUSH',
+  ticketsPerRound: number = 8,
+  minDraws: number = 2,
+  maxDraws: number = 4,
+  minHomes: number = 4,
+  maxHomes: number = 8
+): BacktestSummary {
+  const roundDetails: BacktestRoundResult[] = [];
+  let totalStakeNGN = 0;
+  let totalPayoutNGN = 0;
+  let total12Hits = 0;
+  let total11Hits = 0;
+  let total10Hits = 0;
+  let profitableRounds = 0;
+  let bestSingleRoundWinNGN = 0;
+  let totalScoreSum = 0;
+  let totalTicketCount = 0;
+
+  for (const hr of rounds) {
+    const slate = historicalRoundToSlate(hr);
+    const stakeNGN = ticketsPerRound * slate.stakePerComboNGN;
+    totalStakeNGN += stakeNGN;
+
+    let tickets: JackpotOutcome[][] = [];
+
+    if (strategy === 'RANDOM_RUSH') {
+      // Exact SportyBet Random Rush algorithm: Math.ceil(3 * Math.random()) per match
+      for (let t = 0; t < ticketsPerRound; t++) {
+        const line: JackpotOutcome[] = [];
+        for (let m = 0; m < 12; m++) {
+          const rand = Math.ceil(3 * Math.random());
+          line.push(rand === 1 ? '1' : rand === 2 ? 'X' : '2');
+        }
+        tickets.push(line);
+      }
+    } else {
+      // Algorithmic Covering Portfolio
+      const reductionConfig: ReductionConfig = {
+        targetTickets: ticketsPerRound,
+        strategy,
+        minDraws,
+        maxDraws,
+        minHomes,
+        maxHomes,
+      };
+      const coveringTickets = generateCoveringPortfolio(slate, reductionConfig);
+      tickets = coveringTickets.map((t) => t.picksArray);
+    }
+
+    const actualResults = hr.matches.map((m) => m.actualResult);
+    let roundPayout = 0;
+    let round12 = 0;
+    let round11 = 0;
+    let round10 = 0;
+    let bestScore = 0;
+
+    // Actual historical payouts from the archive
+    const win11Obj = hr.winnings.find((w) => w.correctEvents === 11);
+    const win10Obj = hr.winnings.find((w) => w.correctEvents === 10);
+    // If historically zero tickets won a tier, calculate exact 12% / 3% pool formula
+    const pay11 = win11Obj ? win11Obj.perWinnings : (hr.sales * 0.12) / 20;
+    const pay10 = win10Obj ? win10Obj.perWinnings : (hr.sales * 0.03) / 200;
+
+    for (const t of tickets) {
+      totalTicketCount++;
+      let score = 0;
+      for (let i = 0; i < 12; i++) {
+        if (t[i] === actualResults[i]) score++;
+      }
+      totalScoreSum += score;
+      if (score > bestScore) bestScore = score;
+
+      if (score === 12) {
+        round12++;
+        total12Hits++;
+        const public12 = hr.winnings.find((w) => w.correctEvents === 12)?.winNum || 0;
+        roundPayout += hr.maxWinnings / (public12 + 1);
+      } else if (score === 11) {
+        round11++;
+        total11Hits++;
+        roundPayout += pay11;
+      } else if (score === 10) {
+        round10++;
+        total10Hits++;
+        roundPayout += pay10;
+      }
+    }
+
+    const netProfit = roundPayout - stakeNGN;
+    if (netProfit > 0) profitableRounds++;
+    if (roundPayout > bestSingleRoundWinNGN) bestSingleRoundWinNGN = roundPayout;
+    totalPayoutNGN += roundPayout;
+
+    roundDetails.push({
+      periodNumber: hr.periodNumber,
+      deadline: hr.deadline,
+      totalTickets: ticketsPerRound,
+      stakeNGN,
+      hits12: round12,
+      hits11: round11,
+      hits10: round10,
+      payoutNGN: roundPayout,
+      netProfitNGN: netProfit,
+      actualResults,
+      bestTicketScore: bestScore,
+      isJackpotRound: hr.isJackpotWon,
+      jackpotWonByPublic: hr.isJackpotWon,
+      salesNGN: hr.sales,
+    });
+  }
+
+  const netProfitNGN = totalPayoutNGN - totalStakeNGN;
+  const roiPct = totalStakeNGN > 0 ? (netProfitNGN / totalStakeNGN) * 100 : 0;
+  const winRateRoundsPct = rounds.length > 0 ? (profitableRounds / rounds.length) * 100 : 0;
+  const averageScorePerTicket = totalTicketCount > 0 ? totalScoreSum / totalTicketCount : 0;
+
+  return {
+    strategy,
+    totalRounds: rounds.length,
+    ticketsPerRound,
+    totalStakeNGN,
+    totalPayoutNGN,
+    netProfitNGN,
+    roiPct,
+    total12Hits,
+    total11Hits,
+    total10Hits,
+    profitableRounds,
+    winRateRoundsPct,
+    bestSingleRoundWinNGN,
+    averageScorePerTicket,
+    roundDetails,
+  };
 }

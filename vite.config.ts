@@ -1,10 +1,35 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { syncJackpotRounds } from './scripts/syncJackpotHelper.js';
+
+function jackpotSyncPlugin(): Plugin {
+  return {
+    name: 'jackpot-sync-plugin',
+    configureServer(server) {
+      server.middlewares.use('/api/sync-jackpot', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        }
+        try {
+          const result = await syncJackpotRounds();
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(result));
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err?.message || 'Sync failed' }));
+        }
+      });
+    },
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), jackpotSyncPlugin()],
   server: {
     port: 3010,
     strictPort: true,
@@ -19,6 +44,11 @@ export default defineConfig({
         target: 'https://api.the-odds-api.com/v4',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/odds/, ''),
+      },
+      '/api/sporty': {
+        target: 'https://shop.sportybet.com/api/ng',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/sporty/, ''),
       },
     },
   },
