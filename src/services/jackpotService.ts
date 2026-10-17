@@ -292,10 +292,17 @@ export function analyzeMatch(
 } {
   const fair = devig1X2(homeOdds, drawOdds, awayOdds);
 
+  // Empirical public consensus model when bookmaker doesn't publish pool percentages (e.g. SportyBet):
+  // Public under-bets Draws (~25% lower than fair probability) and over-bets Favorites
+  const rawPublicHome = Math.pow(fair.home, 0.85);
+  const rawPublicAway = Math.pow(fair.away, 0.85);
+  const rawPublicDraw = Math.pow(fair.draw, 1.25);
+  const rawSum = rawPublicHome + rawPublicDraw + rawPublicAway;
+
   const pool = poolPct || {
-    home: Math.round(fair.home * 100),
-    draw: Math.round(fair.draw * 100),
-    away: Math.round(fair.away * 100),
+    home: Math.round((rawPublicHome / rawSum) * 100),
+    draw: Math.round((rawPublicDraw / rawSum) * 100),
+    away: Math.round((rawPublicAway / rawSum) * 100),
   };
 
   const ev = {
@@ -528,6 +535,10 @@ export function generateCoveringPortfolio(
   const optionsPerMatch: JackpotOutcome[][] = matches.map((m) => {
     if (customSelections && customSelections[m.no] && customSelections[m.no].length > 0) {
       return customSelections[m.no];
+    }
+    // In Contrarian High EV mode, allow all 3 outcomes so high-EV value picks (neglected draws/underdogs) are not pruned
+    if (config.strategy === 'CONTRARIAN_HIGH_EV') {
+      return ['1', 'X', '2'];
     }
     // If it's a tight coin-flip or double hedge, include the Draw so macro-filters can find 2-4 draw combinations
     if (m.role === 'DOUBLE_HEDGE' || m.role === 'COIN_FLIP') {

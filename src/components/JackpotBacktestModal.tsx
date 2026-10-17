@@ -36,6 +36,16 @@ interface JackpotBacktestModalProps {
   isSyncing?: boolean;
 }
 
+function getSportyRoundOverlayPct(r: HistoricalRound): number {
+  const base = r.deadline > 1640995200000 ? 34000000 : 15000000;
+  return r.maxWinnings > base ? ((r.maxWinnings - base) / base) * 100 : 0;
+}
+
+function get1xBetDrawOverlayPct(d: Historical1xBetDraw): number {
+  const baseJackpot = 100000000;
+  return d.jackpot > baseJackpot ? ((d.jackpot - baseJackpot) / baseJackpot) * 100 : 0;
+}
+
 export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
   isOpen,
   onClose,
@@ -48,24 +58,39 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
 }) => {
   const is1xBet = platform === '1xbet';
   const currentMatchCount = is1xBet ? 14 : 12;
-  const totalAvailable = is1xBet ? historical1xBetDraws.length : historicalRounds.length;
 
   const [strategy, setStrategy] = useState<'BALANCED_COVER' | 'JACKPOT_MAX_PROB' | 'CONTRARIAN_HIGH_EV' | 'RANDOM_RUSH'>('BALANCED_COVER');
   const [ticketsPerRound, setTicketsPerRound] = useState<number>(8);
   const [sampleRoundsCount, setSampleRoundsCount] = useState<number>(50);
+  const [overlayFilter, setOverlayFilter] = useState<'ALL' | 'ROLLOVER_30' | 'ROLLOVER_50'>('ALL');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'SUMMARY' | 'ROUNDS_TABLE' | 'VS_RUSH'>('SUMMARY');
 
+  // Filter rounds by Rollover / Overlay surplus
+  const eligibleSportyRounds = useMemo(() => {
+    if (overlayFilter === 'ALL') return historicalRounds;
+    const threshold = overlayFilter === 'ROLLOVER_50' ? 50 : 30;
+    return historicalRounds.filter((r) => getSportyRoundOverlayPct(r) >= threshold);
+  }, [historicalRounds, overlayFilter]);
+
+  const eligible1xDraws = useMemo(() => {
+    if (overlayFilter === 'ALL') return historical1xBetDraws;
+    const threshold = overlayFilter === 'ROLLOVER_50' ? 50 : 30;
+    return historical1xBetDraws.filter((d) => get1xBetDrawOverlayPct(d) >= threshold);
+  }, [historical1xBetDraws, overlayFilter]);
+
+  const totalAvailable = is1xBet ? eligible1xDraws.length : eligibleSportyRounds.length;
+
   // Filtered rounds to evaluate (default to latest 50, or all available)
   const activeSportyRounds = useMemo(() => {
-    if (historicalRounds.length === 0) return [];
-    return historicalRounds.slice(0, Math.min(historicalRounds.length, sampleRoundsCount));
-  }, [historicalRounds, sampleRoundsCount]);
+    if (eligibleSportyRounds.length === 0) return [];
+    return eligibleSportyRounds.slice(0, Math.min(eligibleSportyRounds.length, sampleRoundsCount));
+  }, [eligibleSportyRounds, sampleRoundsCount]);
 
   const active1xDraws = useMemo(() => {
-    if (historical1xBetDraws.length === 0) return [];
-    return historical1xBetDraws.slice(0, Math.min(historical1xBetDraws.length, sampleRoundsCount));
-  }, [historical1xBetDraws, sampleRoundsCount]);
+    if (eligible1xDraws.length === 0) return [];
+    return eligible1xDraws.slice(0, Math.min(eligible1xDraws.length, sampleRoundsCount));
+  }, [eligible1xDraws, sampleRoundsCount]);
 
   // Backtest result state
   const [summary, setSummary] = useState<BacktestSummary | null>(null);
@@ -184,14 +209,36 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
               <select
                 value={strategy}
                 onChange={(e) => setStrategy(e.target.value as any)}
-                className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500"
+                className={`bg-slate-900 border rounded-xl px-2.5 py-1.5 font-medium text-xs focus:outline-none transition ${
+                  strategy === 'CONTRARIAN_HIGH_EV'
+                    ? 'border-emerald-500 text-emerald-300 font-bold bg-emerald-500/10'
+                    : 'border-slate-700 text-white focus:border-amber-500'
+                }`}
               >
                 <option value="BALANCED_COVER">Balanced Consolation Cover (Sweetspot)</option>
                 <option value="JACKPOT_MAX_PROB">Jackpot Max Probability Anchor</option>
-                <option value="CONTRARIAN_HIGH_EV">Contrarian High EV (Fade Public)</option>
+                <option value="CONTRARIAN_HIGH_EV">⚡ Contrarian High EV (Fade Public Bias)</option>
                 <option value="RANDOM_RUSH">
                   {is1xBet ? '1xBet Quick Pick (Uniform Random)' : 'SportyBet Quick Pick (Random Rush)'}
                 </option>
+              </select>
+            </div>
+
+            {/* Rollover / Overlay Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400 shrink-0">Pool Mode:</span>
+              <select
+                value={overlayFilter}
+                onChange={(e) => setOverlayFilter(e.target.value as any)}
+                className={`bg-slate-900 border rounded-xl px-2.5 py-1.5 font-medium text-xs focus:outline-none transition ${
+                  overlayFilter !== 'ALL'
+                    ? 'border-amber-400 text-amber-300 font-bold bg-amber-500/10'
+                    : 'border-slate-700 text-slate-300 focus:border-amber-500'
+                }`}
+              >
+                <option value="ALL">All {is1xBet ? 'Draws' : 'Rounds'} (Blind Continuous Play)</option>
+                <option value="ROLLOVER_30">⚡ Rollovers &gt;30% Overlay ({is1xBet ? '158 Draws' : '87 Rounds'})</option>
+                <option value="ROLLOVER_50">🔥 Mega Rollovers &gt;50% Overlay ({is1xBet ? '145 Draws' : '68 Rounds'})</option>
               </select>
             </div>
 
@@ -218,11 +265,11 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
                 onChange={(e) => setSampleRoundsCount(parseInt(e.target.value, 10))}
                 className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500 font-mono"
               >
-                <option value="25">25 {is1xBet ? 'Draws' : 'Rounds'} (~6 Mos)</option>
-                <option value="50">50 {is1xBet ? 'Draws' : 'Rounds'} (~1 Year)</option>
-                <option value="100">100 {is1xBet ? 'Draws' : 'Rounds'} (~2 Yrs)</option>
-                <option value="200">200 {is1xBet ? 'Draws' : 'Rounds'} (~4 Yrs)</option>
-                <option value="500">All {totalAvailable} {is1xBet ? 'Draws' : 'Rounds'}</option>
+                <option value="25">25 {is1xBet ? 'Draws' : 'Rounds'}</option>
+                <option value="50">50 {is1xBet ? 'Draws' : 'Rounds'}</option>
+                <option value="100">100 {is1xBet ? 'Draws' : 'Rounds'}</option>
+                <option value="200">200 {is1xBet ? 'Draws' : 'Rounds'}</option>
+                <option value="500">All {totalAvailable} {overlayFilter !== 'ALL' ? 'Rollovers' : is1xBet ? 'Draws' : 'Rounds'}</option>
               </select>
             </div>
           </div>
@@ -283,6 +330,39 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           {summary && activeTab === 'SUMMARY' && (
             <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Strategic Insights Banner */}
+              {(overlayFilter !== 'ALL' || strategy === 'CONTRARIAN_HIGH_EV') && (
+                <div className="space-y-2">
+                  {overlayFilter !== 'ALL' && (
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-300">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>
+                          <strong>Rollover / Overlay Filter Active ({overlayFilter === 'ROLLOVER_50' ? '>50%' : '>30%'} Carryover):</strong> Evaluating exclusively high-equity rollover rounds where previous un-won jackpots subsidize player tickets!
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-amber-400/90 font-bold shrink-0 ml-3">
+                        {summary.totalRounds} {is1xBet ? 'Draws' : 'Rounds'}
+                      </span>
+                    </div>
+                  )}
+
+                  {strategy === 'CONTRARIAN_HIGH_EV' && (
+                    <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>
+                          <strong>Contrarian High EV Active:</strong> Fades public consensus traps by backing under-bet value outcomes (neglected draws &amp; away value). When combinations hit, prize pools are not diluted among thousands of casual punters!
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0 ml-3">
+                        Pool Equity Edge
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 4 Main KPI Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 {/* Total Invested */}
