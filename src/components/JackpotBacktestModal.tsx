@@ -47,6 +47,7 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
   isSyncing = false,
 }) => {
   const is1xBet = platform === '1xbet';
+  const currentMatchCount = is1xBet ? 14 : 12;
   const totalAvailable = is1xBet ? historical1xBetDraws.length : historicalRounds.length;
 
   const [strategy, setStrategy] = useState<'BALANCED_COVER' | 'JACKPOT_MAX_PROB' | 'CONTRARIAN_HIGH_EV' | 'RANDOM_RUSH'>('BALANCED_COVER');
@@ -91,6 +92,10 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
       return runHistoricalBacktest(activeSportyRounds, 'RANDOM_RUSH', ticketsPerRound);
     }
   }, [is1xBet, active1xDraws, activeSportyRounds, ticketsPerRound]);
+
+  const benchmarkAccuracyText = rushBenchmark
+    ? `${rushBenchmark.averageScorePerTicket.toFixed(2)} / ${currentMatchCount} for ${is1xBet ? 'Quick Pick' : 'Random Rush'}`
+    : `${(currentMatchCount / 3).toFixed(1)} / ${currentMatchCount} for ${is1xBet ? 'Quick Pick' : 'Random Rush'}`;
 
   // Lock background scroll when modal is open
   useEffect(() => {

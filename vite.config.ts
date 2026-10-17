@@ -1,7 +1,9 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+// @ts-expect-error JS helper lacks type declarations
 import { syncJackpotRounds } from './scripts/syncJackpotHelper.js';
+// @ts-expect-error JS helper lacks type declarations
 import { sync1xBetDraws } from './scripts/sync1xBetHelper.js';
 
 function jackpotSyncPlugin(): Plugin {
