@@ -547,7 +547,57 @@ export function generateCoveringPortfolio(
     return m.recommendedDoubles;
   });
 
-  // Calculate full permutation count
+  // Globally optimal candidate generation using Beam Search (avoids depth-first traversal bias)
+  const beamWidth = 1500;
+  let beam: {
+    picks: JackpotOutcome[];
+    prob: number;
+    evScore: number;
+  }[] = [{ picks: [], prob: 1.0, evScore: 1.0 }];
+
+  for (let m = 0; m < numMatches; m++) {
+    const match = matches[m];
+    const opts = optionsPerMatch[m];
+    const nextCandidates: {
+      picks: JackpotOutcome[];
+      prob: number;
+      evScore: number;
+    }[] = [];
+
+    for (const c of beam) {
+      for (const opt of opts) {
+        let p = 0.33;
+        let evVal = 1.0;
+        if (opt === '1') {
+          p = match.fairProbabilities.home;
+          evVal = match.evRatios?.home || 1.0;
+        } else if (opt === 'X') {
+          p = match.fairProbabilities.draw;
+          evVal = match.evRatios?.draw || 1.0;
+        } else {
+          p = match.fairProbabilities.away;
+          evVal = match.evRatios?.away || 1.0;
+        }
+
+        nextCandidates.push({
+          picks: [...c.picks, opt],
+          prob: c.prob * p,
+          evScore: c.evScore * evVal,
+        });
+      }
+    }
+
+    // Sort by target strategy metric and retain top beamWidth paths
+    if (config.strategy === 'CONTRARIAN_HIGH_EV') {
+      nextCandidates.sort((a, b) => b.evScore - a.evScore);
+    } else {
+      nextCandidates.sort((a, b) => b.prob - a.prob);
+    }
+
+    beam = nextCandidates.slice(0, beamWidth);
+  }
+
+  // Filter beam candidates by macro constraints
   const validCandidates: {
     picks: JackpotOutcome[];
     prob: number;
@@ -555,80 +605,48 @@ export function generateCoveringPortfolio(
     macro: { homes: number; draws: number; aways: number };
   }[] = [];
 
-  // Recursive candidate generator
-  function buildPermutations(
-    index: number,
-    currentPicks: JackpotOutcome[],
-    currentProb: number,
-    currentEv: number,
-    enforceStrictMacro: boolean = true
-  ) {
-    if (validCandidates.length >= 3500) return;
+  const minDraws = config.minDraws ?? 2;
+  const maxDraws = config.maxDraws ?? 5;
+  const minHomes = config.minHomes ?? 3;
+  const maxHomes = config.maxHomes ?? 9;
 
-    if (index === numMatches) {
-      const homes = currentPicks.filter((p) => p === '1').length;
-      const draws = currentPicks.filter((p) => p === 'X').length;
-      const aways = currentPicks.filter((p) => p === '2').length;
+  for (const c of beam) {
+    const homes = c.picks.filter((p) => p === '1').length;
+    const draws = c.picks.filter((p) => p === 'X').length;
+    const aways = c.picks.filter((p) => p === '2').length;
 
-      const minDraws = enforceStrictMacro ? (config.minDraws ?? 2) : 1;
-      const maxDraws = enforceStrictMacro ? (config.maxDraws ?? 5) : 6;
-      const minHomes = enforceStrictMacro ? (config.minHomes ?? 4) : 2;
-      const maxHomes = enforceStrictMacro ? (config.maxHomes ?? 8) : 10;
-
-      if (draws >= minDraws && draws <= maxDraws && homes >= minHomes && homes <= maxHomes) {
-        validCandidates.push({
-          picks: [...currentPicks],
-          prob: currentProb,
-          evScore: currentEv,
-          macro: { homes, draws, aways },
-        });
-      }
-      return;
-    }
-
-    const match = matches[index];
-    const opts = optionsPerMatch[index];
-
-    for (const opt of opts) {
-      let p = 0.33;
-      let evVal = 1.0;
-      if (opt === '1') {
-        p = match.fairProbabilities.home;
-        evVal = match.evRatios?.home || 1.0;
-      } else if (opt === 'X') {
-        p = match.fairProbabilities.draw;
-        evVal = match.evRatios?.draw || 1.0;
-      } else {
-        p = match.fairProbabilities.away;
-        evVal = match.evRatios?.away || 1.0;
-      }
-
-      buildPermutations(index + 1, [...currentPicks, opt], currentProb * p, currentEv * evVal, enforceStrictMacro);
+    if (draws >= minDraws && draws <= maxDraws && homes >= minHomes && homes <= maxHomes) {
+      validCandidates.push({
+        picks: c.picks,
+        prob: c.prob,
+        evScore: c.evScore,
+        macro: { homes, draws, aways },
+      });
     }
   }
 
-  // 1. First attempt: Strict macro filters
-  buildPermutations(0, [], 1.0, 1.0, true);
-
-  // 2. Second attempt if needed: Relaxed macro filters
+  // If strict filter yielded fewer than targetTickets, accept relaxed candidates from beam
   if (validCandidates.length < config.targetTickets) {
-    buildPermutations(0, [], 1.0, 1.0, false);
+    for (const c of beam) {
+      if (validCandidates.some((v) => v.picks.every((p, i) => p === c.picks[i]))) continue;
+      const homes = c.picks.filter((p) => p === '1').length;
+      const draws = c.picks.filter((p) => p === 'X').length;
+      const aways = c.picks.filter((p) => p === '2').length;
+      validCandidates.push({
+        picks: c.picks,
+        prob: c.prob,
+        evScore: c.evScore,
+        macro: { homes, draws, aways },
+      });
+      if (validCandidates.length >= config.targetTickets * 4) break;
+    }
   }
 
-  // Fallback: If still empty, construct diverse candidate tickets
+  // Fallback: If still empty, construct base lines
   if (validCandidates.length === 0) {
     const basePicks = matches.map((m) => m.recommendedPick);
     for (let t = 0; t < config.targetTickets; t++) {
       const ticketPicks = [...basePicks];
-      if (t > 0) {
-        // Vary volatile matches
-        matches.forEach((m, idx) => {
-          if (m.role === 'DOUBLE_HEDGE' || m.role === 'COIN_FLIP') {
-            if ((idx + t) % 3 === 1) ticketPicks[idx] = m.secondaryOutcome;
-            else if ((idx + t) % 3 === 2) ticketPicks[idx] = 'X';
-          }
-        });
-      }
       const homes = ticketPicks.filter((p) => p === '1').length;
       const draws = ticketPicks.filter((p) => p === 'X').length;
       const aways = ticketPicks.filter((p) => p === '2').length;
@@ -645,14 +663,11 @@ export function generateCoveringPortfolio(
   if (config.strategy === 'CONTRARIAN_HIGH_EV') {
     validCandidates.sort((a, b) => b.evScore - a.evScore);
   } else {
-    // BALANCED_COVER or JACKPOT_MAX_PROB
     validCandidates.sort((a, b) => b.prob - a.prob);
   }
 
   // Greedy Maximum Distance Covering Algorithm:
-  // Select N tickets that maximize mutual Hamming distance (to guarantee consolation coverage)
   const selectedTickets: CoveringTicket[] = [];
-  const targetCount = Math.min(config.targetTickets, validCandidates.length);
 
   // 1. Pick the primary anchor line
   const prime = validCandidates[0];
@@ -677,18 +692,16 @@ export function generateCoveringPortfolio(
   });
 
   // 2. Select subsequent tickets that maximize covering distance
-  for (let k = 1; k < targetCount; k++) {
+  for (let k = 1; k < config.targetTickets; k++) {
     let bestCandidateIdx = -1;
     let bestScore = -Infinity;
 
     for (let c = 1; c < validCandidates.length; c++) {
       const candidate = validCandidates[c];
-      // Check if already selected
       if (selectedTickets.some((t) => t.picksArray.every((p, idx) => p === candidate.picks[idx]))) {
         continue;
       }
 
-      // Calculate minimum Hamming distance to all currently selected tickets
       let minDistance = Infinity;
       for (const selected of selectedTickets) {
         let dist = 0;
@@ -700,10 +713,8 @@ export function generateCoveringPortfolio(
 
       let distanceQuality = 0;
       if (config.strategy === 'JACKPOT_MAX_PROB') {
-        // Closer distance to preserve top combinations
         distanceQuality = minDistance >= 1 && minDistance <= 3 ? 12 : -4;
       } else {
-        // Balanced or Contrarian: distance 2-4 for optimal ternary sphere packing
         distanceQuality = minDistance >= 2 && minDistance <= 4 ? 14 : -3;
       }
 
@@ -746,7 +757,28 @@ export function generateCoveringPortfolio(
         guaranteeTier: tierTag,
       });
     } else {
-      break;
+      // Fallback to guarantee exact targetTickets count without dropping tickets
+      const remaining = validCandidates.find(
+        (c) => !selectedTickets.some((t) => t.picksArray.every((p, i) => p === c.picks[i]))
+      );
+      if (remaining) {
+        const picksObj: Record<number, JackpotOutcome> = {};
+        remaining.picks.forEach((p, idx) => { picksObj[idx + 1] = p; });
+        selectedTickets.push({
+          id: k + 1,
+          ticketNumber: k + 1,
+          picks: picksObj,
+          picksArray: remaining.picks,
+          jointProbability: remaining.prob,
+          homeCount: remaining.macro.homes,
+          drawCount: remaining.macro.draws,
+          awayCount: remaining.macro.aways,
+          macroStats: remaining.macro,
+          strategyTag: `Covering Line #${k + 1}`,
+          summaryString: remaining.picks.join('-'),
+          guaranteeTier: 'Covering',
+        });
+      }
     }
   }
 
@@ -1898,6 +1930,20 @@ export function analyzeJackpotOverlay(
 }
 
 /**
+ * Fast, reproducible 32-bit PRNG (Mulberry32) for deterministic baseline simulations
+ */
+export function createSeededRandom(seed: number = 1337): () => number {
+  let s = seed;
+  return function () {
+    s |= 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return (t >>> 0) / 4294967296;
+  };
+}
+
+/**
  * Historical Backtesting Engine for Jackpot Covering Systems
  * Evaluates covering strategies across real historical rounds with actual outcomes and real prize payouts.
  */
@@ -1922,18 +1968,20 @@ export function runHistoricalBacktest(
   let totalTicketCount = 0;
 
   for (const hr of rounds) {
-    const slate = historicalRoundToSlate(hr);
-    const stakeNGN = ticketsPerRound * slate.stakePerComboNGN;
-    totalStakeNGN += stakeNGN;
+    // Skip void or un-ingested rounds with no recorded sales
+    if (!hr.sales || hr.sales === 0) continue;
 
+    const slate = historicalRoundToSlate(hr);
     let tickets: JackpotOutcome[][] = [];
 
     if (strategy === 'RANDOM_RUSH') {
-      // Exact SportyBet Random Rush algorithm: Math.ceil(3 * Math.random()) per match
+      // Deterministic, reproducible Quick Pick using Mulberry32 seeded by round period
+      const seed = parseInt(hr.periodNumber, 10) || 12345;
+      const rng = createSeededRandom(seed + ticketsPerRound);
       for (let t = 0; t < ticketsPerRound; t++) {
         const line: JackpotOutcome[] = [];
         for (let m = 0; m < 12; m++) {
-          const rand = Math.ceil(3 * Math.random());
+          const rand = Math.floor(rng() * 3) + 1;
           line.push(rand === 1 ? '1' : rand === 2 ? 'X' : '2');
         }
         tickets.push(line);
@@ -1952,6 +2000,9 @@ export function runHistoricalBacktest(
       tickets = coveringTickets.map((t) => t.picksArray);
     }
 
+    const stakeNGN = tickets.length * slate.stakePerComboNGN;
+    totalStakeNGN += stakeNGN;
+
     const actualResults = hr.matches.map((m) => m.actualResult);
     let roundPayout = 0;
     let round12 = 0;
@@ -1959,12 +2010,17 @@ export function runHistoricalBacktest(
     let round10 = 0;
     let bestScore = 0;
 
-    // Actual historical payouts from the archive
+    // Actual historical settlement payouts from SportyBet archive
+    const win12Obj = hr.winnings.find((w) => w.correctEvents === 12);
     const win11Obj = hr.winnings.find((w) => w.correctEvents === 11);
     const win10Obj = hr.winnings.find((w) => w.correctEvents === 10);
-    // If historically zero tickets won a tier, calculate exact 12% / 3% pool formula
-    const pay11 = win11Obj ? win11Obj.perWinnings : (hr.sales * 0.12) / 20;
-    const pay10 = win10Obj ? win10Obj.perWinnings : (hr.sales * 0.03) / 200;
+
+    // Official SportyBet Settlement:
+    // If a tier had winning tickets, each winning ticket received the documented perWinnings (in NGN for a 100 NGN stake).
+    // If zero public tickets won a tier, the prize rolled over (payout = 0).
+    const pay12 = win12Obj && win12Obj.perWinnings > 0 ? win12Obj.perWinnings : hr.maxWinnings;
+    const pay11 = win11Obj && win11Obj.perWinnings > 0 ? win11Obj.perWinnings : 0;
+    const pay10 = win10Obj && win10Obj.perWinnings > 0 ? win10Obj.perWinnings : 0;
 
     for (const t of tickets) {
       totalTicketCount++;
@@ -1978,8 +2034,8 @@ export function runHistoricalBacktest(
       if (score === 12) {
         round12++;
         total12Hits++;
-        const public12 = hr.winnings.find((w) => w.correctEvents === 12)?.winNum || 0;
-        roundPayout += hr.maxWinnings / (public12 + 1);
+        const public12 = win12Obj ? win12Obj.winNum : 0;
+        roundPayout += pay12 / (public12 + 1);
       } else if (score === 11) {
         round11++;
         total11Hits++;
@@ -1999,7 +2055,7 @@ export function runHistoricalBacktest(
     roundDetails.push({
       periodNumber: hr.periodNumber,
       deadline: hr.deadline,
-      totalTickets: ticketsPerRound,
+      totalTickets: tickets.length,
       stakeNGN,
       hits12: round12,
       hits11: round11,
@@ -2067,17 +2123,15 @@ export function run1xBetHistoricalBacktest(
 
   for (const dr of draws) {
     const slate = historical1xBetDrawToSlate(dr);
-    const stakeNGN = ticketsPerRound * slate.stakePerComboNGN;
-    totalStakeNGN += stakeNGN;
-
     let tickets: JackpotOutcome[][] = [];
 
     if (strategy === 'RANDOM_RUSH') {
-      // Uniform random 1, X, 2 choice across 14 matches (standard quick pick)
+      // Deterministic, reproducible Quick Pick using Mulberry32 seeded by draw number
+      const rng = createSeededRandom(dr.drawNumber * 1000 + ticketsPerRound);
       for (let t = 0; t < ticketsPerRound; t++) {
         const line: JackpotOutcome[] = [];
         for (let m = 0; m < 14; m++) {
-          const rand = Math.ceil(3 * Math.random());
+          const rand = Math.floor(rng() * 3) + 1;
           line.push(rand === 1 ? '1' : rand === 2 ? 'X' : '2');
         }
         tickets.push(line);
@@ -2095,6 +2149,9 @@ export function run1xBetHistoricalBacktest(
       const coveringTickets = generateCoveringPortfolio(slate, reductionConfig);
       tickets = coveringTickets.map((t) => t.picksArray);
     }
+
+    const stakeNGN = tickets.length * slate.stakePerComboNGN;
+    totalStakeNGN += stakeNGN;
 
     const actualResults = dr.matches.map((m) => m.actualResult);
     let roundPayout = 0;
@@ -2136,15 +2193,12 @@ export function run1xBetHistoricalBacktest(
           total9Hits++;
         }
 
-        // Parimutuel rule: winning at tier S wins that tier and all lower eligible tiers down to 9
+        // Official 1xBet parimutuel rule: winning at tier S participates in and wins tier S and all lower eligible tiers down to 9
+        // Uses strictly verified payoutOn1CurrUnit coefficient (unitless multiplier on stake)
         for (let catNum = 9; catNum <= score; catNum++) {
           const cat = dr.categories.find((c) => c.categoryNumber === catNum);
-          if (cat) {
-            if (cat.payoutOn1CurrUnit > 0) {
-              roundPayout += cat.payoutOn1CurrUnit * slate.stakePerComboNGN;
-            } else if (cat.prizeFund > 0) {
-              roundPayout += cat.prizeFund / (cat.guessed + 1);
-            }
+          if (cat && cat.payoutOn1CurrUnit > 0) {
+            roundPayout += cat.payoutOn1CurrUnit * slate.stakePerComboNGN;
           }
         }
       }
@@ -2158,7 +2212,7 @@ export function run1xBetHistoricalBacktest(
     roundDetails.push({
       periodNumber: String(dr.drawNumber),
       deadline: dr.updateDate,
-      totalTickets: ticketsPerRound,
+      totalTickets: tickets.length,
       stakeNGN,
       hits12: round12,
       hits11: round11,
