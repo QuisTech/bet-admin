@@ -1,4 +1,4 @@
-# Formal Scientific Protocol for Prospective Jackpot Evaluation (Version 1.4.0)
+# Formal Scientific Protocol for Prospective Jackpot Evaluation (Version 1.5.0)
 
 ## 1. Executive Summary & Core Objective
 
@@ -29,11 +29,14 @@ To prevent survivor bias and selective slate entry:
 
 1. **Cohort Definition:** The prospective trial comprises a pre-registered checkpoint of **50 consecutive scheduled live rounds** of SportyBet Super 12 starting from the first registered round.
 2. **Checkpoint Classification (Not Automatic Terminal Proof):**
-   * Because 12/12 jackpot events are rare ($\approx 1.5 \times 10^{-5}$ per 8-line portfolio), 50 rounds evaluates consolation prize viability and prediction skill with high statistical power, but cannot fully observe the extreme jackpot tail.
-   * At the 50-round mark, outcomes are classified as:
-     * **Class A (Positive Edge):** Gate 1 and Gate 2 both pass with 95% bootstrap CI lower bound $> 0$.
+   * Because pairwise Hamming distance $\ge 2$ ensures all 8 tickets are mutually exclusive for 12/12, the exact portfolio jackpot win probability on round $r$ is:
+     $$P(\text{portfolio wins 12/12}) = \sum_{t=1}^8 P(t = 12) = \sum_{t=1}^8 \prod_{m=1}^{12} p_{m, t[m]}$$
+   * With average portfolio win probability $\approx 1.5 \times 10^{-5}$ per round, the cumulative probability of observing at least one 12/12 hit over 50 rounds is:
+     $$1 - (1 - 1.5 \times 10^{-5})^{50} \approx 0.075\%$$
+   * Consequently, a non-parametric bootstrap over 50 observed rounds cannot estimate rare jackpot contributions that never occurred in the sample. Outcomes at 50 rounds are formally classified as:
+     * **Class A (Positive Edge):** Both Gate 1 and Gate 2 pass with 95% bootstrap CI lower bound $> 0$.
      * **Class B (Definitively Negative):** Prediction skill fails to offset negative-sum takeout; consolation payouts cannot sustain ticket costs. Real stakes remain ₦0.
-     * **Class C (Inconclusive on Jackpot Tail):** Consolation returns are negative, but model estimates positive tail EV that cannot be confirmed without a multi-year cohort. **Stakes remain strictly at ₦0.**
+     * **Class C (Inconclusive on Jackpot Tail):** Consolation returns are negative, and tail EV cannot be confirmed without a multi-year cohort. **Stakes remain strictly at ₦0.**
 3. **Strict Slot Consumption Rules:**
    * **Settled Round:** Fixtures played to regulation. Consumes 1 slot. Counted in both accuracy and financial outcomes.
    * **Void Round:** Fixture(s) abandoned, postponed past 48 hours, or cancelled by the operator. Consumes 1 slot. ₦800 stake is recorded as **refunded capital** (net capital outflow = ₦0, gross payout = ₦0). Excluded from paired accuracy $t$-test.
@@ -47,7 +50,7 @@ To prevent survivor bias and selective slate entry:
 To guarantee that predictions cannot be altered or retrofitted post-kickoff:
 
 1. **Full Canonical Serialization:** The SHA-256 fingerprint encompasses the complete experimental commitment:
-   * `protocolVersion` ("1.4.0")
+   * `protocolVersion` ("1.5.0")
    * `roundId` (period number)
    * `deadline` (timestamp)
    * `gitCommit` (short commit SHA)
@@ -70,13 +73,15 @@ To guarantee that predictions cannot be altered or retrofitted post-kickoff:
 
 Experimental validity and commercial profitability are decoupled into two distinct sequential gates:
 
-### Gate 1 — Scientific & Prediction Integrity (Robustness & Multi-Testing Control)
+### Gate 1 — Scientific & Prediction Integrity (Multi-Benchmark & Multi-Testing Control)
 * **Scope:** Verification that predictions are genuinely prospective, tamper-evident, and statistically superior to chance.
 * **Requirements:**
   1. **Strict Pre-Kickoff Commitment:** Canonical SHA-256 hash committed to `origin/main` before kickoff.
-  2. **Primary Benchmark & Test:** Paired Student's $t$-test (df = 49) and 10,000-iteration sign-flip permutation test against deterministic PRNG baseline (`periodNumber + 1337`).
-  3. **Probabilistic Scoring:** Multi-class Brier Score ($BS$) and Log Loss ($LL$) evaluated against closing pre-match devigged probabilities.
-  4. **Multiple Testing Correction:** When testing $K$ strategies simultaneously (`BALANCED_COVER`, `CONTRARIAN_HIGH_EV`), apply **Holm-Bonferroni step-down correction** to maintain family-wise error rate at $\alpha = 0.05$.
+  2. **Primary Benchmark & Test:** Paired Student's $t$-test (df = 49) and 10,000-iteration sign-flip permutation test against primary deterministic PRNG baseline (`periodNumber + 1337`).
+  3. **Secondary Benchmark Distribution:** Multi-seed random ensemble across 10 independent PRNG seeds (`periodNumber + s` for $s \in \{101..110\}$) to establish baseline variance.
+  4. **Effect Size & Confidence Bounds:** Must report mean paired difference in picks/ticket, Cohen's $d$, and 95% paired $t$ confidence interval.
+  5. **Probabilistic Scoring:** Multi-class Brier Score ($BS$) and Log Loss ($LL$) evaluated against closing pre-match devigged probabilities.
+  6. **Multiple Testing Correction:** When testing $K$ strategies simultaneously (`BALANCED_COVER`, `CONTRARIAN_HIGH_EV`), apply **Holm-Bonferroni step-down correction** to maintain family-wise error rate at $\alpha = 0.05$.
 * **Significance:** Passing Gate 1 proves predictive skill exists beyond chance, but **does not prove commercial profitability**.
 
 ### Gate 2 — Commercial Viability & Expected Net Profitability
@@ -85,7 +90,9 @@ Experimental validity and commercial profitability are decoupled into two distin
   1. **Complete Payout Distribution Model:** Expected net value must account for the full 13-state score distribution:
      $$E[\text{Net}] = \sum_{j=0}^{12} P(\text{score} = j) \times E[\text{Payout} \mid j] - \text{Ticket Costs}$$
      where for $j < 10$, $E[\text{Payout} \mid j] \equiv 0$. Probabilities $P(j)$ and conditional dilution expectations $E[\text{Payout} \mid j]$ must be estimated strictly ex-ante using pre-match odds and crowd competition models, with zero post-hoc tuning.
-  2. **Uncertainty Quantification:** Realized net return must be evaluated with full confidence bounds (95% bootstrap confidence interval on cumulative net return). A single lucky win or point estimate $> 0$ does not satisfy Gate 2 if the lower confidence bound is deeply negative.
+  2. **Dual Uncertainty Quantification:**
+     * **Consolation Tiers (10/12 and 11/12):** Evaluated via empirical 95% bootstrap confidence interval on cumulative net return over the 50 observed rounds.
+     * **Jackpot Tail (12/12):** Evaluated via parametric sensitivity bounds combining exact sum-of-ticket probabilities with conservative crowd dilution scenarios. A point estimate $> 0$ does not satisfy Gate 2 if the lower confidence bound is negative.
   3. **Settlement Rule Verification:** Consolation funding allocations (12% for 11/12, 3% for 10/12) and zero-winner rollover rules must be verified against official written SportyBet terms, distinguishing confirmed operator payouts from theoretical simulation models.
 * **Significance:** Passing Gate 1 is a mandatory prerequisite, but **only Gate 2 authorizes risking real capital**. If Gate 2 is not satisfied, the money-making decision is to keep stakes at ₦0.
 
@@ -108,11 +115,11 @@ Every round entry in `audit/prospective_ledger.json` follows an immutable append
 ## 7. Epistemic Scope, Payout Assumptions & Commercial Verdict
 
 1. **Accuracy Power:** A sample of 50 rounds (400 tickets) provides $> 95\%$ statistical power to detect an accuracy improvement of $\ge 0.5$ picks/ticket at $\alpha = 0.05$.
-2. **Jackpot Tail Skewness:** The theoretical probability of hitting a 12/12 Super Jackpot with 8 tickets on an individual round is $\approx 1.5 \times 10^{-5}$. Across 50 rounds, the cumulative probability of observing a 12/12 hit is $< 0.1\%$.
+2. **Jackpot Tail Independence & Mutual Exclusivity:** Because all 8 portfolio tickets have pairwise Hamming distance $\ge 2$, at most one ticket can score 12/12 on any given round. Portfolio jackpot probability is exactly $\sum_{t=1}^8 P(t = 12)$, which averages $\approx 1.5 \times 10^{-5}$ per slate.
 3. **Settlement Model Status:**
    * **Tier 1 (Empirically Confirmed):** Rounds in `public/data/sportybet_history.json` where public winners existed reflect actual official SportyBet cash settlements.
    * **Tier 2 (Unverified Assumption / Counterfactual):** Zero-winner consolation pool treatment (whether 11/12 or 10/12 pools roll over, are retained by operator, or absorbed into 12/12) remains an unverified hypothesis pending written operator terms. All reported payouts depending on this assumption are explicitly tagged as `UNVERIFIED_COUNTERFACTUAL`.
-   * **Tier 3 (Operator Takeout Bounds):** Modeled house rake is bounded between $25\%$ and $30\%$.
+   * **Tier 3 (Operator Takeout Bounds):** Modeled house rake of $25\% - 30\%$ remains a working assumption until confirmed by operator financial disclosures.
 4. **Commercial Decision Rule:**
    * Gate 1 Fail $\rightarrow$ Prediction model has no edge.
    * Gate 1 Pass + Gate 2 Fail $\rightarrow$ Prediction edge exists, but house rake and crowd sharing make real betting negative-EV. **Real stakes remain strictly at ₦0.**
