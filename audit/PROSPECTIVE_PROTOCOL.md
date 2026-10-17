@@ -1,10 +1,10 @@
-# Formal Scientific Protocol for Prospective Jackpot Evaluation (Version 1.2.0)
+# Formal Scientific Protocol for Prospective Jackpot Evaluation (Version 1.3.0)
 
 ## 1. Executive Summary & Core Objective
 
-This protocol establishes a pre-registered, prospective evaluation framework for the **BALANCED_COVER** pool betting strategy across live, untouched rounds on **SportyBet Super 12**.
+This protocol establishes a pre-registered, prospective evaluation framework for pool betting strategies across live, untouched rounds on **SportyBet Super 12**.
 
-The primary objective is to evaluate whether the historical accuracy edge (+0.836 correct picks / ticket, $p = 1.43 \times 10^{-13}$) replicates prospectively on genuinely unseen slates, and whether that accuracy edge is capable of overcoming operator rake, ticket costs, and parimutuel prize thresholds to achieve financial profitability.
+The primary objective is to evaluate whether any prediction edge can overcome operator rake, ticket costs, and parimutuel prize dilution to achieve sustainably positive expected net returns—and to enforce a strict zero-stake policy (₦0 real capital at risk) until such evidence is independently demonstrated.
 
 ---
 
@@ -12,13 +12,13 @@ The primary objective is to evaluate whether the historical accuracy edge (+0.83
 
 To eliminate post-hoc tuning, lookahead bias, and parameter cherry-picking:
 
-* **Strategy Objective:** `BALANCED_COVER`
-* **Frozen Codebase Baseline:** Git commit `070f341` (and ancestor `fbfa5af`)
+* **Strategy Objective:** `BALANCED_COVER` (and benchmarked against `CONTRARIAN_HIGH_EV` and `RANDOM_RUSH`)
+* **Frozen Codebase Baseline:** Git commit `9a8d144` (with forward-looking macro constraint pruning)
 * **Beam Search Exploration Width:** Exactly `2,000` candidate combinations
 * **Fixed Portfolio Size:** Exactly `8 lines` per round (₦800 stake per slate)
 * **Pre-Fixed Macro Constraints:**
   * Minimum Draws: 2 | Maximum Draws: 5
-  * Minimum Homes: 3 | Maximum Homes: 8
+  * Minimum Homes: 3 | Maximum Homes: 9
   * Pairwise Minimum Distance: 2 to 4 picks per ticket pair
 
 ---
@@ -41,7 +41,7 @@ To prevent survivor bias and selective slate entry:
 To guarantee that predictions cannot be altered or retrofitted post-kickoff:
 
 1. **Full Canonical Serialization:** The SHA-256 fingerprint encompasses the complete experimental commitment:
-   * `protocolVersion` ("1.2.0")
+   * `protocolVersion` ("1.3.0")
    * `roundId` (period number)
    * `deadline` (timestamp)
    * `gitCommit` (short commit SHA)
@@ -60,29 +60,26 @@ To guarantee that predictions cannot be altered or retrofitted post-kickoff:
 
 ---
 
-## 5. Dual-Gate Decision Architecture & Success Criteria
+## 5. Explicit Commercial Gates & Decision Architecture
 
-Accuracy and commercial profitability are decoupled into two distinct primary outcomes:
+Experimental validity and commercial profitability are decoupled into two distinct sequential gates:
 
-### Primary Outcome 1: Prospective Pick Accuracy (Skill Test)
-* **Null Hypothesis ($H_0$):** The mean paired accuracy difference between `BALANCED_COVER` and the paired random baseline is zero ($\mu_{\text{diff}} = 0$).
-* **Alternative Hypothesis ($H_1$):** `BALANCED_COVER` achieves superior mean accuracy ($\mu_{\text{diff}} > 0$).
-* **Baseline Comparator:** Deterministic PRNG Random Rush generated with seed `periodNumber + 1337`, evaluated over identical slates.
-* **Gate 1 Acceptance Criteria:**
-  * Primary Test: Paired Student's $t$-test achieves $p < 0.05$ (one-tailed).
-  * Robustness Concurrence: 10,000 sign-flip permutation test achieves $p < 0.05$.
-  * Both parametric and non-parametric tests must concur to reject $H_0$. Effect size (mean picks/ticket, Cohen's $d$, 95% CI) must be reported.
+### Gate 1 — Scientific & Prediction Integrity
+* **Scope:** Verification that predictions are genuinely prospective, tamper-evident, and methodologically sound.
+* **Requirements:**
+  * Strict pre-kickoff SHA-256 commitment on `origin/main`.
+  * Bit-exact reproduction from frozen code (Git commit `9a8d144`).
+  * Paired accuracy advantage over random baseline across the full 50-round cohort ($p < 0.05$ on paired Student's $t$-test and sign-flip permutation test).
+* **Significance:** Passing Gate 1 proves predictive skill exists beyond chance, but **does not prove profitability**.
 
-### Primary Outcome 2: Realized Financial ROI (Commercial Test)
-* **Gate 2 Acceptance Criteria:** Cumulative Realized Net ROI > 0% across the 50-round sample.
-* **Dual-Track Payout Accounting:**
-  1. **Directly Verified Payouts:** Official cash payouts confirmed by operator results.
-  2. **Counterfactually Diluted Payouts:** Payouts requiring simulated pool sharing.
-
-### Formal Commercial Decision Rule
-* **Gate 1 Pass + Gate 2 Fail:** Confirms statistically significant predictive skill, but **rejects** commercial betting viability. Proves the prediction edge is insufficient to overcome house rake and prize distribution hurdles.
-* **Gate 1 Pass + Gate 2 Pass:** Certifies potential commercial viability under live conditions.
-* **Gate 1 Fail:** Rejects predictive advantage; historical edge was sample-specific or overfitted.
+### Gate 2 — Commercial Viability & Expected Net Profitability
+* **Scope:** Demonstration of repeatable, positive expected net return after accounting for operator takeout, ticket costs, and parimutuel prize dilution.
+* **Requirements:**
+  1. **Uncertainty Quantification:** Realized net return must be evaluated with full confidence bounds (e.g. 95% bootstrap confidence interval on cumulative net return). A single lucky jackpot hit or positive sample variance during a short run does not satisfy Gate 2 if the lower bound remains deeply negative.
+  2. **Rulebook Verification:** Consolation funding allocations (12% for 11/12, 3% for 10/12) and zero-winner rollover settlement must be verified against current official SportyBet terms, distinguishing confirmed operator payouts from theoretical simulation models.
+  3. **Expected Value Calibration:** The modeled expected net payout across typical slates must be strictly positive:
+     $$E[\text{Net}] = \sum_{j \in \{10,11,12\}} P(\text{score} = j) \times E[\text{Payout}_j \mid j] - \text{₦800} > 0$$
+* **Significance:** Passing Gate 1 is a mandatory prerequisite, but **only Gate 2 authorizes risking real capital**. If Gate 2 is not satisfied, the money-making decision is to keep stakes at ₦0.
 
 ---
 
@@ -100,10 +97,15 @@ Every round entry in `audit/prospective_ledger.json` follows an immutable append
 
 ---
 
-## 7. Epistemic Scope & Sample Boundaries of 50 Rounds
+## 7. Epistemic Scope, Payout Assumptions & Sample Boundaries
 
 1. **Accuracy Power:** A sample of 50 rounds (400 tickets) provides $> 95\%$ statistical power to detect an accuracy improvement of $\ge 0.5$ picks/ticket at $\alpha = 0.05$.
-2. **Jackpot Tail Uncertainty:** The theoretical probability of hitting a 12/12 Super Jackpot with 8 tickets on an individual round is on the order of $1.5 \times 10^{-5}$. Across 50 rounds, the cumulative probability of observing a 12/12 hit is $< 0.1\%$.
-3. **Interpretation Discipline:**
-   * A negative ROI over 50 rounds proves that standard consolation prize tiers (10/12 and 11/12) are insufficient to sustain an 8-line portfolio without jackpot hits.
-   * Conversely, if a single 12/12 jackpot were to occur during the 50 rounds, it must be acknowledged as an empirical sample event, not proof of permanent positive expectation.
+2. **Jackpot Tail Skewness:** The theoretical probability of hitting a 12/12 Super Jackpot with 8 tickets on an individual round is $\approx 1.5 \times 10^{-5}$. Across 50 rounds, the cumulative probability of observing a 12/12 hit is $< 0.1\%$.
+3. **Settlement Model Status:**
+   * **Direct Historical Archive Data:** For all rounds where public winners existed, payouts in `public/data/sportybet_history.json` reflect actual SportyBet operator settlements.
+   * **Consolation Fund Allocation:** The 12% (tier 11) and 3% (tier 10) sales distribution is an empirical model of standard Toto pool structures; operator rulebook changes or rake adjustments must be continuously audited.
+4. **Commercial Decision Rule:**
+   * If Gate 1 fails: The prediction model has no edge.
+   * If Gate 1 passes but Gate 2 fails: Prediction edge exists, but house rake and crowd sharing make real betting negative-EV. **Real stakes remain ₦0.**
+   * If Gate 1 and Gate 2 both pass: Potential commercial deployment may be considered under strict bankroll limits.
+
