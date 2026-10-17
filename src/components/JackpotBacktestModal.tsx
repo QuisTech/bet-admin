@@ -66,29 +66,51 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'SUMMARY' | 'ROUNDS_TABLE' | 'VS_RUSH'>('SUMMARY');
 
-  // Filter rounds by Rollover / Overlay surplus
+  // Filter rounds by Rollover / Overlay surplus (cleanly excluding void/un-ingested rounds with sales/pool === 0)
   const eligibleSportyRounds = useMemo(() => {
-    if (overlayFilter === 'ALL') return historicalRounds;
+    const valid = historicalRounds.filter(
+      (r) => r.sales && r.sales > 0 && r.matches && r.matches.length === 12
+    );
+    if (overlayFilter === 'ALL') return valid;
     const threshold = overlayFilter === 'ROLLOVER_50' ? 50 : 30;
-    return historicalRounds.filter((r) => getSportyRoundOverlayPct(r) >= threshold);
+    return valid.filter((r) => getSportyRoundOverlayPct(r) >= threshold);
   }, [historicalRounds, overlayFilter]);
 
   const eligible1xDraws = useMemo(() => {
-    if (overlayFilter === 'ALL') return historical1xBetDraws;
+    const valid = historical1xBetDraws.filter(
+      (d) => d.pool && d.pool > 0 && d.matches && d.matches.length === 14
+    );
+    if (overlayFilter === 'ALL') return valid;
     const threshold = overlayFilter === 'ROLLOVER_50' ? 50 : 30;
-    return historical1xBetDraws.filter((d) => get1xBetDrawOverlayPct(d) >= threshold);
+    return valid.filter((d) => get1xBetDrawOverlayPct(d) >= threshold);
   }, [historical1xBetDraws, overlayFilter]);
 
   const totalAvailable = is1xBet ? eligible1xDraws.length : eligibleSportyRounds.length;
 
-  // Filtered rounds to evaluate (default to latest 50, or all available)
+  // Filtered rounds to evaluate (supports sample count, All, Out-of-Sample, and In-Sample)
   const activeSportyRounds = useMemo(() => {
     if (eligibleSportyRounds.length === 0) return [];
+    if (sampleRoundsCount === -1) {
+      // Out-of-sample: 50% most recent rounds (untuned validation)
+      return eligibleSportyRounds.slice(0, Math.floor(eligibleSportyRounds.length / 2));
+    }
+    if (sampleRoundsCount === -2) {
+      // In-sample: 50% older rounds (historical training set)
+      return eligibleSportyRounds.slice(Math.floor(eligibleSportyRounds.length / 2));
+    }
     return eligibleSportyRounds.slice(0, Math.min(eligibleSportyRounds.length, sampleRoundsCount));
   }, [eligibleSportyRounds, sampleRoundsCount]);
 
   const active1xDraws = useMemo(() => {
     if (eligible1xDraws.length === 0) return [];
+    if (sampleRoundsCount === -1) {
+      // Out-of-sample: 50% most recent draws (untuned validation)
+      return eligible1xDraws.slice(0, Math.floor(eligible1xDraws.length / 2));
+    }
+    if (sampleRoundsCount === -2) {
+      // In-sample: 50% older draws (historical training set)
+      return eligible1xDraws.slice(Math.floor(eligible1xDraws.length / 2));
+    }
     return eligible1xDraws.slice(0, Math.min(eligible1xDraws.length, sampleRoundsCount));
   }, [eligible1xDraws, sampleRoundsCount]);
 
@@ -173,8 +195,8 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
                     : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
                 }`}>
                   {is1xBet
-                    ? `${historical1xBetDraws.length} Draws (#1153 down to #903)`
-                    : `${historicalRounds.length} Rounds (2018–2026)`}
+                    ? `${eligible1xDraws.length} Draws (#1153 down to #903)`
+                    : `${eligibleSportyRounds.length} Settled Rounds (2018–2026)`}
                 </span>
               </div>
             </div>
@@ -265,11 +287,13 @@ export const JackpotBacktestModal: React.FC<JackpotBacktestModalProps> = ({
                 onChange={(e) => setSampleRoundsCount(parseInt(e.target.value, 10))}
                 className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500 font-mono"
               >
-                <option value="25">25 {is1xBet ? 'Draws' : 'Rounds'}</option>
-                <option value="50">50 {is1xBet ? 'Draws' : 'Rounds'}</option>
-                <option value="100">100 {is1xBet ? 'Draws' : 'Rounds'}</option>
-                <option value="200">200 {is1xBet ? 'Draws' : 'Rounds'}</option>
-                <option value="500">All {totalAvailable} {overlayFilter !== 'ALL' ? 'Rollovers' : is1xBet ? 'Draws' : 'Rounds'}</option>
+                <option value="25">25 {is1xBet ? 'Draws' : 'Rounds'} (~6 Mos)</option>
+                <option value="50">50 {is1xBet ? 'Draws' : 'Rounds'} (~1 Year)</option>
+                <option value="100">100 {is1xBet ? 'Draws' : 'Rounds'} (~2 Yrs)</option>
+                <option value="200">200 {is1xBet ? 'Draws' : 'Rounds'} (~4 Yrs)</option>
+                <option value="500">All {totalAvailable} {overlayFilter !== 'ALL' ? 'Rollovers' : is1xBet ? 'Draws' : 'Settled Rounds'}</option>
+                <option value="-1">🧪 Out-of-Sample (50% Recent Untuned)</option>
+                <option value="-2">📚 In-Sample (50% Older Training Set)</option>
               </select>
             </div>
           </div>

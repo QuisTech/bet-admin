@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test": "node scripts/test_jackpot_settlement.mjs",
     "update:jackpot": "node scripts/fetch_sportybet_history.cjs",
     "update:1xbet": "node scripts/fetch_1xbet_history.cjs"
   },

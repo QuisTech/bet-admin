@@ -548,7 +548,7 @@ export function generateCoveringPortfolio(
   });
 
   // Globally optimal candidate generation using Beam Search (avoids depth-first traversal bias)
-  const beamWidth = 1500;
+  const beamWidth = 2000;
   let beam: {
     picks: JackpotOutcome[];
     prob: number;
@@ -1967,10 +1967,12 @@ export function runHistoricalBacktest(
   let totalScoreSum = 0;
   let totalTicketCount = 0;
 
-  for (const hr of rounds) {
-    // Skip void or un-ingested rounds with no recorded sales
-    if (!hr.sales || hr.sales === 0) continue;
+  // Filter out void or un-ingested rounds with no recorded sales or incomplete matches
+  const activeRounds = rounds.filter(
+    (hr) => hr.sales && hr.sales > 0 && hr.matches && hr.matches.length === 12
+  );
 
+  for (const hr of activeRounds) {
     const slate = historicalRoundToSlate(hr);
     let tickets: JackpotOutcome[][] = [];
 
@@ -2004,23 +2006,10 @@ export function runHistoricalBacktest(
     totalStakeNGN += stakeNGN;
 
     const actualResults = hr.matches.map((m) => m.actualResult);
-    let roundPayout = 0;
     let round12 = 0;
     let round11 = 0;
     let round10 = 0;
     let bestScore = 0;
-
-    // Actual historical settlement payouts from SportyBet archive
-    const win12Obj = hr.winnings.find((w) => w.correctEvents === 12);
-    const win11Obj = hr.winnings.find((w) => w.correctEvents === 11);
-    const win10Obj = hr.winnings.find((w) => w.correctEvents === 10);
-
-    // Official SportyBet Settlement:
-    // If a tier had winning tickets, each winning ticket received the documented perWinnings (in NGN for a 100 NGN stake).
-    // If zero public tickets won a tier, the prize rolled over (payout = 0).
-    const pay12 = win12Obj && win12Obj.perWinnings > 0 ? win12Obj.perWinnings : hr.maxWinnings;
-    const pay11 = win11Obj && win11Obj.perWinnings > 0 ? win11Obj.perWinnings : 0;
-    const pay10 = win10Obj && win10Obj.perWinnings > 0 ? win10Obj.perWinnings : 0;
 
     for (const t of tickets) {
       totalTicketCount++;
@@ -2034,19 +2023,53 @@ export function runHistoricalBacktest(
       if (score === 12) {
         round12++;
         total12Hits++;
-        const public12 = win12Obj ? win12Obj.winNum : 0;
-        roundPayout += pay12 / (public12 + 1);
       } else if (score === 11) {
         round11++;
         total11Hits++;
-        roundPayout += pay11;
       } else if (score === 10) {
         round10++;
         total10Hits++;
-        roundPayout += pay10;
       }
     }
 
+    // Official SportyBet Settlement with Counterfactual Parimutuel Pool Sharing:
+    // When a simulated ticket matches a tier, it counterfactually participates in and divides that tier's prize pool:
+    const win12Obj = hr.winnings.find((w) => w.correctEvents === 12);
+    const win11Obj = hr.winnings.find((w) => w.correctEvents === 11);
+    const win10Obj = hr.winnings.find((w) => w.correctEvents === 10);
+
+    const public12 = win12Obj ? win12Obj.winNum : 0;
+    const public11 = win11Obj ? win11Obj.winNum : 0;
+    const public10 = win10Obj ? win10Obj.winNum : 0;
+
+    // 1. 12/12 Jackpot: Advertised jackpot pool (hr.maxWinnings) is split equally among (public12 + simulated12) winners
+    let payout12 = 0;
+    if (round12 > 0) {
+      const totalWinners12 = public12 + round12;
+      payout12 = (round12 / totalWinners12) * hr.maxWinnings;
+    }
+
+    // 2. 11/12 Consolation Tier (12% of sales):
+    let payout11 = 0;
+    if (round11 > 0) {
+      const pool11 = win11Obj && win11Obj.perWinnings > 0
+        ? win11Obj.winNum * win11Obj.perWinnings
+        : hr.sales * 0.12;
+      const totalWinners11 = public11 + round11;
+      payout11 = totalWinners11 > 0 ? (round11 / totalWinners11) * pool11 : 0;
+    }
+
+    // 3. 10/12 Consolation Tier (3% of sales):
+    let payout10 = 0;
+    if (round10 > 0) {
+      const pool10 = win10Obj && win10Obj.perWinnings > 0
+        ? win10Obj.winNum * win10Obj.perWinnings
+        : hr.sales * 0.03;
+      const totalWinners10 = public10 + round10;
+      payout10 = totalWinners10 > 0 ? (round10 / totalWinners10) * pool10 : 0;
+    }
+
+    const roundPayout = payout12 + payout11 + payout10;
     const netProfit = roundPayout - stakeNGN;
     if (netProfit > 0) profitableRounds++;
     if (roundPayout > bestSingleRoundWinNGN) bestSingleRoundWinNGN = roundPayout;
@@ -2072,12 +2095,12 @@ export function runHistoricalBacktest(
 
   const netProfitNGN = totalPayoutNGN - totalStakeNGN;
   const roiPct = totalStakeNGN > 0 ? (netProfitNGN / totalStakeNGN) * 100 : 0;
-  const winRateRoundsPct = rounds.length > 0 ? (profitableRounds / rounds.length) * 100 : 0;
+  const winRateRoundsPct = activeRounds.length > 0 ? (profitableRounds / activeRounds.length) * 100 : 0;
   const averageScorePerTicket = totalTicketCount > 0 ? totalScoreSum / totalTicketCount : 0;
 
   return {
     strategy,
-    totalRounds: rounds.length,
+    totalRounds: activeRounds.length,
     ticketsPerRound,
     totalStakeNGN,
     totalPayoutNGN,
@@ -2121,7 +2144,12 @@ export function run1xBetHistoricalBacktest(
   let totalScoreSum = 0;
   let totalTicketCount = 0;
 
-  for (const dr of draws) {
+  // Filter out void or un-ingested draws with no recorded pool or incomplete matches
+  const activeDraws = draws.filter(
+    (dr) => dr.pool && dr.pool > 0 && dr.matches && dr.matches.length === 14
+  );
+
+  for (const dr of activeDraws) {
     const slate = historical1xBetDrawToSlate(dr);
     let tickets: JackpotOutcome[][] = [];
 
@@ -2163,6 +2191,9 @@ export function run1xBetHistoricalBacktest(
     let round9 = 0;
     let bestScore = 0;
 
+    // Track simulated winning variants per eligible tier
+    const roundTierHits: Record<number, number> = { 9: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0 };
+
     for (const t of tickets) {
       totalTicketCount++;
       let score = 0;
@@ -2193,12 +2224,31 @@ export function run1xBetHistoricalBacktest(
           total9Hits++;
         }
 
-        // Official 1xBet parimutuel rule: winning at tier S participates in and wins tier S and all lower eligible tiers down to 9
-        // Uses strictly verified payoutOn1CurrUnit coefficient (unitless multiplier on stake)
+        // Official 1xBet parimutuel rule: winning at tier S participates in tier S and all lower tiers down to 9
         for (let catNum = 9; catNum <= score; catNum++) {
-          const cat = dr.categories.find((c) => c.categoryNumber === catNum);
-          if (cat && cat.payoutOn1CurrUnit > 0) {
-            roundPayout += cat.payoutOn1CurrUnit * slate.stakePerComboNGN;
+          roundTierHits[catNum]++;
+        }
+      }
+    }
+
+    // Exact Counterfactual Parimutuel Settlement:
+    // Calculates payout taking into account public pool dilution when simulated variants win
+    for (let catNum = 9; catNum <= 14; catNum++) {
+      const simTickets = roundTierHits[catNum];
+      if (simTickets > 0) {
+        const cat = dr.categories.find((c) => c.categoryNumber === catNum);
+        if (cat) {
+          if (cat.guessedInCurr > 0) {
+            // Diluted multiplier: prizeFund / (public winning stake + simulated winning stakes)
+            const dilutedMultiplier = cat.prizeFund / (cat.guessedInCurr + simTickets);
+            roundPayout += simTickets * dilutedMultiplier * slate.stakePerComboNGN;
+          } else if (cat.payoutOn1CurrUnit > 0) {
+            roundPayout += simTickets * cat.payoutOn1CurrUnit * slate.stakePerComboNGN;
+          } else if (cat.prizeFund > 0) {
+            // Unwon category (e.g. 14/14 Super Jackpot): Simulated ticket is the sole winner
+            const ngnPerUnit = slate.stakePerComboNGN / (dr.pool / (dr.countVariants || 1));
+            const catFundNGN = cat.prizeFund * (ngnPerUnit || 1);
+            roundPayout += catFundNGN;
           }
         }
       }
@@ -2233,13 +2283,13 @@ export function run1xBetHistoricalBacktest(
 
   const netProfitNGN = totalPayoutNGN - totalStakeNGN;
   const roiPct = totalStakeNGN > 0 ? (netProfitNGN / totalStakeNGN) * 100 : 0;
-  const winRateRoundsPct = draws.length > 0 ? (profitableRounds / draws.length) * 100 : 0;
+  const winRateRoundsPct = activeDraws.length > 0 ? (profitableRounds / activeDraws.length) * 100 : 0;
   const averageScorePerTicket = totalTicketCount > 0 ? totalScoreSum / totalTicketCount : 0;
 
   return {
     strategy,
     platform: '1xbet',
-    totalRounds: draws.length,
+    totalRounds: activeDraws.length,
     ticketsPerRound,
     totalStakeNGN,
     totalPayoutNGN,
