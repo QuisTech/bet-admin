@@ -14,6 +14,7 @@
     "audit:significance": "node scripts/statistical_significance_test.mjs",
     "audit:reconcile": "node scripts/reconcile_payouts.mjs",
     "audit:calibration": "node scripts/audit_probability_calibration.mjs",
+    "audit:ev": "node scripts/audit_ev_and_overlays.mjs",
     "audit:prospective": "node scripts/prospective_jackpot_tracker.mjs",
     "update:jackpot": "node scripts/fetch_sportybet_history.cjs",
     "update:1xbet": "node scripts/fetch_1xbet_history.cjs"
