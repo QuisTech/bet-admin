@@ -1,4 +1,4 @@
-import { calculateShinDevig } from '../models/shinDevig';
+import { calculateShinDevig } from '../models/shinDevig.ts';
 
 export type JackpotPlatform = 'sportybet' | '1xbet';
 export type JackpotOutcome = '1' | 'X' | '2';
@@ -547,25 +547,45 @@ export function generateCoveringPortfolio(
     return m.recommendedDoubles;
   });
 
-  // Globally optimal candidate generation using Beam Search (avoids depth-first traversal bias)
+  const minDraws = config.minDraws ?? 2;
+  const maxDraws = config.maxDraws ?? 5;
+  const minHomes = config.minHomes ?? 3;
+  const maxHomes = config.maxHomes ?? 9;
+
+  // Globally optimal candidate generation using Beam Search with stateful macro constraint pruning
   const beamWidth = 2000;
   let beam: {
     picks: JackpotOutcome[];
     prob: number;
     evScore: number;
-  }[] = [{ picks: [], prob: 1.0, evScore: 1.0 }];
+    homes: number;
+    draws: number;
+    aways: number;
+  }[] = [{ picks: [], prob: 1.0, evScore: 1.0, homes: 0, draws: 0, aways: 0 }];
 
   for (let m = 0; m < numMatches; m++) {
     const match = matches[m];
     const opts = optionsPerMatch[m];
+    const remaining = numMatches - 1 - m;
     const nextCandidates: {
       picks: JackpotOutcome[];
       prob: number;
       evScore: number;
+      homes: number;
+      draws: number;
+      aways: number;
     }[] = [];
 
     for (const c of beam) {
       for (const opt of opts) {
+        const d = c.draws + (opt === 'X' ? 1 : 0);
+        const h = c.homes + (opt === '1' ? 1 : 0);
+        const a = c.aways + (opt === '2' ? 1 : 0);
+
+        // Forward-looking macro constraints: prune immediately if candidate cannot satisfy bounds
+        if (d > maxDraws || d + remaining < minDraws) continue;
+        if (h > maxHomes || h + remaining < minHomes) continue;
+
         let p = 0.33;
         let evVal = 1.0;
         if (opt === '1') {
@@ -583,6 +603,9 @@ export function generateCoveringPortfolio(
           picks: [...c.picks, opt],
           prob: c.prob * p,
           evScore: c.evScore * evVal,
+          homes: h,
+          draws: d,
+          aways: a,
         });
       }
     }
@@ -597,52 +620,20 @@ export function generateCoveringPortfolio(
     beam = nextCandidates.slice(0, beamWidth);
   }
 
-  // Filter beam candidates by macro constraints
+  // Beam candidates guaranteed to satisfy macro constraints
   const validCandidates: {
     picks: JackpotOutcome[];
     prob: number;
     evScore: number;
     macro: { homes: number; draws: number; aways: number };
-  }[] = [];
+  }[] = beam.map((c) => ({
+    picks: c.picks,
+    prob: c.prob,
+    evScore: c.evScore,
+    macro: { homes: c.homes, draws: c.draws, aways: c.aways },
+  }));
 
-  const minDraws = config.minDraws ?? 2;
-  const maxDraws = config.maxDraws ?? 5;
-  const minHomes = config.minHomes ?? 3;
-  const maxHomes = config.maxHomes ?? 9;
-
-  for (const c of beam) {
-    const homes = c.picks.filter((p) => p === '1').length;
-    const draws = c.picks.filter((p) => p === 'X').length;
-    const aways = c.picks.filter((p) => p === '2').length;
-
-    if (draws >= minDraws && draws <= maxDraws && homes >= minHomes && homes <= maxHomes) {
-      validCandidates.push({
-        picks: c.picks,
-        prob: c.prob,
-        evScore: c.evScore,
-        macro: { homes, draws, aways },
-      });
-    }
-  }
-
-  // If strict filter yielded fewer than targetTickets, accept relaxed candidates from beam
-  if (validCandidates.length < config.targetTickets) {
-    for (const c of beam) {
-      if (validCandidates.some((v) => v.picks.every((p, i) => p === c.picks[i]))) continue;
-      const homes = c.picks.filter((p) => p === '1').length;
-      const draws = c.picks.filter((p) => p === 'X').length;
-      const aways = c.picks.filter((p) => p === '2').length;
-      validCandidates.push({
-        picks: c.picks,
-        prob: c.prob,
-        evScore: c.evScore,
-        macro: { homes, draws, aways },
-      });
-      if (validCandidates.length >= config.targetTickets * 4) break;
-    }
-  }
-
-  // Fallback: If still empty, construct base lines
+  // Fallback: If still empty (e.g. conflicting custom user selections), construct base lines
   if (validCandidates.length === 0) {
     const basePicks = matches.map((m) => m.recommendedPick);
     for (let t = 0; t < config.targetTickets; t++) {
@@ -686,7 +677,9 @@ export function generateCoveringPortfolio(
     drawCount: prime.macro.draws,
     awayCount: prime.macro.aways,
     macroStats: prime.macro,
-    strategyTag: 'Primary Anchor Line (Max Probability)',
+    strategyTag: config.strategy === 'CONTRARIAN_HIGH_EV'
+      ? 'Primary Anchor Line (Contrarian Value)'
+      : 'Primary Anchor Line (Max Probability)',
     summaryString: prime.picks.join('-'),
     guaranteeTier: slate.matchCount === 12 ? '12/12 Hunt' : '14/14 Hunt',
   });
@@ -718,7 +711,11 @@ export function generateCoveringPortfolio(
         distanceQuality = minDistance >= 2 && minDistance <= 4 ? 14 : -3;
       }
 
-      const score = Math.log10(candidate.prob + 1e-15) * 0.4 + distanceQuality;
+      const qualityScore = config.strategy === 'CONTRARIAN_HIGH_EV'
+        ? Math.log10(candidate.evScore + 1e-15) * 1.5 + Math.log10(candidate.prob + 1e-15) * 0.4
+        : Math.log10(candidate.prob + 1e-15) * 0.4;
+
+      const score = qualityScore + distanceQuality;
 
       if (score > bestScore) {
         bestScore = score;
