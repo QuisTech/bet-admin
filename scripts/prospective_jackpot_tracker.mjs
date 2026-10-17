@@ -1,13 +1,13 @@
 /**
  * PROSPECTIVE JACKPOT EVALUATION TRACKER
  * 
- * Protocol:
- * 1. Freeze algorithm & parameters (Commit d6c4af3, Beam width 2000, BALANCED_COVER, Distance 2-4).
- * 2. Pre-register predictions on upcoming unseen slates BEFORE kickoff.
- * 3. Hash and commit the pre-registered ticket combinations to audit/prospective_ledger.json.
- * 4. Maintain an immutable append-only auditTrail for every state change.
- * 5. Track Prediction Accuracy and Realized Financial Return as separate primary outcomes.
- * 6. Explicitly tag whether payouts rely on counterfactual settlement assumptions.
+ * Formal Protocol Compliance (audit/PROSPECTIVE_PROTOCOL.md):
+ * 1. Strictly frozen algorithm (Commit fbfa5af, Beam width 2000, BALANCED_COVER, Distance 2-4).
+ * 2. Pre-registration hashes the ENTIRE canonical commitment (tickets, baseline, rules, stake, commit).
+ * 3. Settlement performs automatic bit-for-bit SHA-256 verification against registered commitment.
+ * 4. Immutable append-only auditTrail with idempotent lifecycle transitions (no silent overwrites).
+ * 5. Primary outcomes (Accuracy vs Financial Return) tracked under pre-declared Dual-Gate Decision Rule.
+ * 6. Explicit 50-round denominator tracking (accounting for Settled, Void, and Skipped slots).
  */
 
 import fs from 'fs';
@@ -15,8 +15,10 @@ import path from 'path';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
 
+const PROTOCOL_VERSION = '1.2.0';
 const LEDGER_PATH = path.resolve('audit/prospective_ledger.json');
 const HISTORY_PATH = path.resolve('public/data/sportybet_history.json');
+const TARGET_SAMPLE_SIZE = 50;
 
 // Ensure audit dir exists
 if (!fs.existsSync(path.resolve('audit'))) {
@@ -28,12 +30,13 @@ function loadLedger() {
     return JSON.parse(fs.readFileSync(LEDGER_PATH, 'utf8'));
   }
   return {
-    version: '1.1.0',
+    protocolVersion: PROTOCOL_VERSION,
     protocolDoc: 'audit/PROSPECTIVE_PROTOCOL.md',
     frozenStrategy: 'BALANCED_COVER',
     frozenBeamWidth: 2000,
     frozenConstraints: { minDraws: 2, maxDraws: 5, minHomes: 3, maxHomes: 8, minDistance: 2, maxDistance: 4 },
-    targetSampleSize: 50,
+    scoringRules: 'SPORTYBET_SUPER_12_PARIMUTUEL',
+    targetSampleSize: TARGET_SAMPLE_SIZE,
     records: []
   };
 }
@@ -46,8 +49,27 @@ function getCurrentGitCommit() {
   try {
     return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
   } catch {
-    return 'd6c4af3';
+    return 'fbfa5af';
   }
+}
+
+// Canonical deterministic SHA-256 hashing of the full experimental commitment
+function computeCanonicalCommitmentHash(commitment) {
+  const canonical = {
+    deadline: commitment.deadline,
+    frozenBeamWidth: commitment.frozenBeamWidth,
+    frozenConstraints: commitment.frozenConstraints,
+    gitCommit: commitment.gitCommit,
+    pairedBaselineTickets: [...commitment.pairedBaselineTickets].sort(),
+    protocolVersion: commitment.protocolVersion,
+    roundId: commitment.roundId,
+    scoringRules: commitment.scoringRules,
+    stake: commitment.stake,
+    strategy: commitment.strategy,
+    tickets: [...commitment.tickets].sort()
+  };
+  const serialized = JSON.stringify(canonical);
+  return crypto.createHash('sha256').update(serialized).digest('hex');
 }
 
 // Deterministic Mulberry32 PRNG for paired random baseline comparison
@@ -176,8 +198,9 @@ if (command === 'status') {
   console.log('\n=============================================================');
   console.log('   PROSPECTIVE JACKPOT EVALUATION LEDGER STATUS');
   console.log('=============================================================');
-  console.log(`Frozen Strategy: ${ledger.frozenStrategy} | Beam Width: ${ledger.frozenBeamWidth}`);
-  console.log(`Target Evaluation Window: ${ledger.targetSampleSize} slates | Logged: ${ledger.records.length}\n`);
+  console.log(`Protocol Version: ${ledger.protocolVersion} (${ledger.protocolDoc})`);
+  console.log(`Frozen Strategy:  ${ledger.frozenStrategy} | Beam Width: ${ledger.frozenBeamWidth}`);
+  console.log(`Target Sample:    ${ledger.targetSampleSize} consecutive slates | Logged: ${ledger.records.length} / ${ledger.targetSampleSize} slots\n`);
 
   if (ledger.records.length === 0) {
     console.log('No prospective rounds registered yet.');
@@ -188,7 +211,7 @@ if (command === 'status') {
     let settledCount = 0, voidCount = 0, skippedCount = 0;
     let directlyVerifiedPayout = 0, counterfactualPayout = 0;
 
-    console.log('| Round | Registered | Status | SHA-256 | Accuracy (Strat vs Base) | Gross Payout | Net ROI % | Counterfactual? |');
+    console.log('| Round | Registered | Status | Canonical Hash | Accuracy (Strat vs Base) | Gross Payout | Net ROI % | Counterfactual? |');
     console.log('|---|---|---|---|---|---|---|---|');
 
     for (const r of ledger.records) {
@@ -226,9 +249,12 @@ if (command === 'status') {
       }
     }
 
+    const slotsConsumed = settledCount + voidCount + skippedCount;
+    const progressPct = ((slotsConsumed / ledger.targetSampleSize) * 100).toFixed(1);
+
     console.log('\n-------------------------------------------------------------');
-    console.log('CUMULATIVE PROSPECTIVE SUMMARY:');
-    console.log(`  - Slates Logged: ${ledger.records.length} (Settled: ${settledCount}, Void: ${voidCount}, Skipped: ${skippedCount})`);
+    console.log(`SAMPLE COMPLETION: ${slotsConsumed} / ${ledger.targetSampleSize} slots (${progressPct}%) [Settled: ${settledCount}, Void: ${voidCount}, Skipped: ${skippedCount}]`);
+    console.log('-------------------------------------------------------------');
 
     if (settledCount > 0) {
       const meanStratAcc = totalStrategyScores / totalTickets;
@@ -239,7 +265,7 @@ if (command === 'status') {
       console.log(`\n  [PRIMARY OUTCOME 1: PROSPECTIVE PREDICTION ACCURACY]`);
       console.log(`    * Frozen Strategy Accuracy: ${meanStratAcc.toFixed(3)} / 12`);
       console.log(`    * Paired Random Baseline:   ${meanBaseAcc.toFixed(3)} / 12`);
-      console.log(`    * Paired Difference:        ${(meanStratAcc - meanBaseAcc >= 0 ? '+' : '')}${(meanStratAcc - meanBaseAcc).toFixed(3)} picks / ticket`);
+      console.log(`    * Mean Paired Difference:   ${(meanStratAcc - meanBaseAcc >= 0 ? '+' : '')}${(meanStratAcc - meanBaseAcc).toFixed(3)} picks / ticket`);
 
       console.log(`\n  [PRIMARY OUTCOME 2: REALIZED FINANCIAL RETURN]`);
       console.log(`    * Total Capital Invested:   ₦${totalInvested.toLocaleString()}`);
@@ -250,6 +276,13 @@ if (command === 'status') {
       console.log(`\n  [PAYOUT RELIABILITY AUDIT]`);
       console.log(`    * Directly Verified Payouts: ₦${Math.round(directlyVerifiedPayout).toLocaleString()}`);
       console.log(`    * Counterfactually Diluted:  ₦${Math.round(counterfactualPayout).toLocaleString()}`);
+
+      console.log(`\n  [DUAL-GATE COMMERCIAL DECISION STATUS]`);
+      const gate1Pass = (meanStratAcc - meanBaseAcc) > 0;
+      const gate2Pass = cumROI > 0;
+      console.log(`    * Gate 1 (Accuracy Improvement): ${gate1Pass ? 'ON TRACK (Pending final 50-round hypothesis test)' : 'FAILING'}`);
+      console.log(`    * Gate 2 (Commercial Net Profit): ${gate2Pass ? 'PASSING (Positive ROI)' : 'FAILING (Negative ROI)'}`);
+      console.log(`    * Commercial Certification:      ${gate1Pass && gate2Pass ? 'POTENTIALLY QUALIFIED' : 'UNQUALIFIED (Accuracy does not equal profitability)'}`);
     }
   }
   console.log('=============================================================\n');
@@ -269,8 +302,8 @@ if (command === 'status') {
 
   const ledger = loadLedger();
   if (ledger.records.some(r => r.roundId === roundId)) {
-    console.log(`Round ${roundId} is already pre-registered in prospective ledger.`);
-    process.exit(0);
+    console.error(`Error: Round ${roundId} is already pre-registered. Duplicate registration rejected.`);
+    process.exit(1);
   }
 
   const now = new Date().toISOString();
@@ -279,27 +312,33 @@ if (command === 'status') {
   const ticketStrings = tickets.map(t => t.join(''));
   const baselineTickets = generatePairedRandomBaseline(roundId, round.matches, 8);
 
-  const payloadToHash = `${roundId}_${round.deadline}_${commit}_${ticketStrings.join(',')}`;
-  const sha256 = crypto.createHash('sha256').update(payloadToHash).digest('hex');
-
-  const record = {
+  const commitmentPayload = {
+    protocolVersion: PROTOCOL_VERSION,
     roundId,
     deadline: round.deadline,
-    registeredAt: now,
     gitCommit: commit,
     strategy: 'BALANCED_COVER',
-    beamWidth: 2000,
-    status: 'PRE_REGISTERED',
-    tickets: ticketStrings,
-    pairedBaselineTickets: baselineTickets,
-    sha256,
+    frozenBeamWidth: 2000,
+    frozenConstraints: { minDraws: 2, maxDraws: 5, minHomes: 3, maxHomes: 8, minDistance: 2, maxDistance: 4 },
+    scoringRules: 'SPORTYBET_SUPER_12_PARIMUTUEL',
     stake: 800,
+    tickets: ticketStrings,
+    pairedBaselineTickets: baselineTickets
+  };
+
+  const canonicalHash = computeCanonicalCommitmentHash(commitmentPayload);
+
+  const record = {
+    ...commitmentPayload,
+    registeredAt: now,
+    status: 'PRE_REGISTERED',
+    sha256: canonicalHash,
     auditTrail: [
       {
         event: 'PRE_REGISTERED',
         timestamp: now,
         gitCommit: commit,
-        payloadHash: sha256,
+        canonicalHash,
         ticketsCount: ticketStrings.length
       }
     ]
@@ -309,17 +348,17 @@ if (command === 'status') {
   saveLedger(ledger);
 
   console.log('\n=============================================================');
-  console.log(`  ✅ PROSPECTIVE ROUND PRE-REGISTERED (FROZEN BEFORE KICKOFF)`);
+  console.log(`  ✅ PROSPECTIVE ROUND PRE-REGISTERED (FULL CANONICAL COMMITMENT)`);
   console.log('=============================================================');
   console.log(`Round: ${roundId} (Deadline: ${new Date(round.deadline).toUTCString()})`);
-  console.log(`Git Commit: ${commit} | Strategy: BALANCED_COVER | Lines: 8`);
-  console.log(`SHA-256 Verification Fingerprint: ${sha256}`);
+  console.log(`Git Commit: ${commit} | Strategy: BALANCED_COVER | Lines: 8 (₦800)`);
+  console.log(`Canonical Commitment SHA-256: ${canonicalHash}`);
   console.log(`Pre-registered Strategy Tickets:`);
   ticketStrings.forEach((t, i) => console.log(`  Line #${i + 1}: ${t}`));
   console.log(`Paired Random Baseline Tickets:`);
   baselineTickets.forEach((t, i) => console.log(`  Line #${i + 1}: ${t}`));
-  console.log(`\nCommitment recorded to audit/prospective_ledger.json.`);
-  console.log('Push this commit to origin/main to establish public external timestamp.');
+  console.log(`\nCommitment locked in audit/prospective_ledger.json.`);
+  console.log('Commit and push to origin/main to establish external public timestamp.');
   console.log('=============================================================\n');
 } else if (command === 'settle') {
   const roundId = args[1];
@@ -332,6 +371,21 @@ if (command === 'status') {
   const rec = ledger.records.find(r => r.roundId === roundId);
   if (!rec) {
     console.error(`Error: Round ${roundId} is not registered in the prospective ledger.`);
+    process.exit(1);
+  }
+
+  if (rec.status === 'SETTLED') {
+    console.error(`Error: Round ${roundId} has ALREADY been settled. Idempotency guard prevents duplicate settlement.`);
+    console.error(`To amend official settlement figures, use: node scripts/prospective_jackpot_tracker.mjs correct <roundId> <justification>`);
+    process.exit(1);
+  }
+
+  // Canonical Commitment Verification
+  const recomputedHash = computeCanonicalCommitmentHash(rec);
+  if (recomputedHash !== rec.sha256) {
+    console.error(`FATAL AUDIT TAMPERING ERROR: Canonical commitment hash mismatch for round ${roundId}!`);
+    console.error(`  Expected:   ${rec.sha256}`);
+    console.error(`  Recomputed: ${recomputedHash}`);
     process.exit(1);
   }
 
@@ -460,6 +514,7 @@ if (command === 'status') {
   console.log('\n=============================================================');
   console.log(`  ✅ PROSPECTIVE ROUND SETTLED: ROUND ${roundId}`);
   console.log('=============================================================');
+  console.log(`Canonical Commitment Verified: Bit-exact SHA-256 match ✅`);
   console.log(`Actual Match Results: ${rec.actualResults}`);
   console.log(`Ticket Performance:`);
   scoredLines.forEach(l => console.log(`  Line #${l.ticketIndex}: ${l.picks} -> ${l.score}/12`));
@@ -487,14 +542,16 @@ if (command === 'status') {
 
   if (!rec) {
     rec = {
+      protocolVersion: PROTOCOL_VERSION,
       roundId,
       registeredAt: now,
       gitCommit: getCurrentGitCommit(),
       strategy: 'BALANCED_COVER',
-      beamWidth: 2000,
+      frozenBeamWidth: 2000,
       tickets: [],
+      pairedBaselineTickets: [],
       stake: 0,
-      sha256: 'VOID',
+      sha256: 'VOID_NO_SLATE',
       auditTrail: []
     };
     ledger.records.push(rec);
@@ -520,24 +577,31 @@ if (command === 'status') {
   });
 
   saveLedger(ledger);
-  console.log(`Round ${roundId} marked as VOID: ${reason}. Stake refunded (₦0 net capital outflow).`);
+  console.log(`Round ${roundId} marked as VOID: ${reason}. Slot consumed; ₦800 stake refunded (₦0 net capital outflow).`);
 } else if (command === 'skip') {
   const roundId = args[1];
-  const reason = args.slice(2).join(' ') || 'User opted not to enter slate';
+  const reason = args.slice(2).join(' ');
+  if (!reason) {
+    console.error('Error: Audit protocol requires an explicit pre-declared justification for skipped rounds.');
+    console.error('Usage: node scripts/prospective_jackpot_tracker.mjs skip <roundId> <documented_reason>');
+    process.exit(1);
+  }
   const ledger = loadLedger();
   let rec = ledger.records.find(r => r.roundId === roundId);
   const now = new Date().toISOString();
 
   if (!rec) {
     rec = {
+      protocolVersion: PROTOCOL_VERSION,
       roundId,
       registeredAt: now,
       gitCommit: getCurrentGitCommit(),
       strategy: 'BALANCED_COVER',
-      beamWidth: 2000,
+      frozenBeamWidth: 2000,
       tickets: [],
+      pairedBaselineTickets: [],
       stake: 0,
-      sha256: 'SKIPPED',
+      sha256: 'SKIPPED_ROUND',
       auditTrail: []
     };
     ledger.records.push(rec);
@@ -561,10 +625,14 @@ if (command === 'status') {
   });
 
   saveLedger(ledger);
-  console.log(`Round ${roundId} marked as SKIPPED: ${reason}. Stake = ₦0.`);
+  console.log(`Round ${roundId} marked as SKIPPED: ${reason}. Slot consumed; stake = ₦0.`);
 } else if (command === 'correct') {
   const roundId = args[1];
   const note = args.slice(2).join(' ');
+  if (!note) {
+    console.error('Error: Please provide a detailed correction justification.');
+    process.exit(1);
+  }
   const ledger = loadLedger();
   const rec = ledger.records.find(r => r.roundId === roundId);
   if (!rec) {
