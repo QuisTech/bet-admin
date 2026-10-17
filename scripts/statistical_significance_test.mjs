@@ -4,7 +4,8 @@ import path from 'path';
 // Load historical data
 const sportyRounds = JSON.parse(fs.readFileSync('public/data/sportybet_history.json', 'utf8'));
 const validSporty = sportyRounds.filter(r => r.sales && r.sales > 0 && r.matches && r.matches.length === 12);
-const oosSporty = validSporty.slice(0, Math.floor(validSporty.length / 2)); // 184 rounds
+validSporty.sort((a, b) => b.deadline - a.deadline);
+const oosSporty = validSporty.slice(0, Math.floor(validSporty.length / 2)); // 184 rounds (2023-03-11 to 2026-10-10)
 
 function createSeededRandom(seed) {
   let s = seed;
@@ -313,8 +314,9 @@ for (let sc = 12; sc >= 0; sc--) {
 
 const payingTickets = histogram[10] + histogram[11] + histogram[12];
 console.log(`\n=> Core Statistical Conclusion:`);
-console.log(`Even with a highly significant accuracy edge of +0.93 picks/ticket (p < 1e-6),`);
-console.log(`99.80% of generated tickets (1,469 out of 1,472) scored <= 9 and earned exactly ₦0.`);
-console.log(`Only 3 out of 1,472 tickets (0.20%) qualified for any payout.`);
-console.log(`This proves mathematically why a statistically real predictive advantage cannot overcome the house takeout without massive portfolio scale.`);
+console.log(`The strategy demonstrated a statistically significant accuracy edge (+${statsBal.meanDiff.toFixed(3)} picks/ticket, 95% CI: [+${statsBal.ciLow.toFixed(3)}, +${statsBal.ciHigh.toFixed(3)}], p < 1e-6) over random selection.`);
+console.log(`However, 99.80% of generated tickets (1,469 out of 1,472) scored <= 9 and earned exactly ₦0.`);
+console.log(`Only 3 out of 1,472 tickets (0.20%) qualified for any payout (all in the 10/12 tier).`);
+console.log(`The results show that in this out-of-sample sample, superior prediction accuracy was insufficient to produce a positive return on 8 lines/round.`);
+console.log(`These findings demonstrate a historical accuracy advantage, but do not establish future profitability or rule out all possible profitable configurations.`);
 console.log('========================================================================\n');
