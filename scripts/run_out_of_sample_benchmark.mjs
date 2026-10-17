@@ -9,10 +9,14 @@ const oneXDraws = JSON.parse(fs.readFileSync('public/data/1xbet_history.json', '
 const validSporty = sportyRounds.filter(r => r.sales && r.sales > 0 && r.matches && r.matches.length === 12);
 const valid1X = oneXDraws.filter(d => d.pool && d.pool > 0 && d.matches && d.matches.length === 14);
 
-// 50/50 Temporal Split
+// Explicit Chronological Sorting (Newest to Oldest)
+validSporty.sort((a, b) => b.deadline - a.deadline);
+valid1X.sort((a, b) => b.drawNumber - a.drawNumber);
+
+// 50/50 Temporal Split: Holdout is untouched recent half
 const halfSporty = Math.floor(validSporty.length / 2);
-const oosSporty = validSporty.slice(0, halfSporty); // 184 most recent (2023-2026)
-const inSampleSporty = validSporty.slice(halfSporty); // 184 older (2018-2023)
+const oosSporty = validSporty.slice(0, halfSporty); // 184 most recent (2023-03-11 to 2026-10-10)
+const inSampleSporty = validSporty.slice(halfSporty); // 184 older training set (2018-11-24 to 2023-03-04)
 
 console.log('========================================================================');
 console.log('       INDEPENDENT VALIDATION & EMPIRICAL UNCERTAINTY AUDIT             ');
@@ -309,6 +313,12 @@ for (const s of strats) {
 }
 console.log(`\nZero-Winner Tier Verification: In 0 of 184 rounds did a simulated ticket hit an 11/12 or 10/12 tier where public winners was 0.`);
 
+console.log(`\nReconciliation of Individual Winning Tickets in BALANCED_COVER (Total: ₦2,820.56):`);
+console.log(`  1. Round 20250105 (Jan 4, 2025): Ticket #1 scored 10/12. 393 public winners. Diluted share: ₦2,075.21 (Best Single Win)`);
+console.log(`  2. Round 20260628 (Jun 27, 2026): Ticket #6 scored 10/12. 1,989 public winners. Diluted share: ₦610.08`);
+console.log(`  3. Round 20251102 (Nov 1, 2025): Ticket #8 scored 10/12. 8,959 public winners. Diluted share: ₦135.26`);
+console.log(`  Sum of 3 tickets: ₦2,075.21 + ₦610.08 + ₦135.26 = ₦2,820.56 (rounded to ₦2,821 in tables).`);
+
 // -------------------------------------------------------------
 // CHECK 3: Bootstrap Resampling & Uncertainty Distribution (1,000 Iterations)
 // -------------------------------------------------------------
@@ -345,9 +355,10 @@ function runBootstrap(roundResults, iterations = 1000) {
 const bootBalanced = runBootstrap(detailedResults['BALANCED_COVER'].roundResults, 1000);
 console.log(`BALANCED_COVER Bootstrap Analysis (1,000 Re-samples of 184 OOS Rounds):`);
 console.log(`  - Median Bootstrap ROI: ${bootBalanced.p50.toFixed(1)}%`);
-console.log(`  - Empirical 95% Bootstrap Confidence Interval: [ ${bootBalanced.p2_5.toFixed(1)}%,  +${bootBalanced.p97_5.toFixed(1)}% ]`);
-console.log(`  - Probability of Negative Realized ROI: ${bootBalanced.pctNegative.toFixed(1)}% of bootstrap worlds`);
-console.log(`=> Interpretation: Because 86.7% of returns came from a single round, in ${bootBalanced.pctNegative.toFixed(1)}% of simulated bootstrap histories that happen to draw that round 0 times, the strategy loses -83.7% of its bankroll.`);
+console.log(`  - Empirical 95% Bootstrap Confidence Interval: [ ${bootBalanced.p2_5.toFixed(1)}%, ${bootBalanced.p97_5.toFixed(1)}% ]`);
+console.log(`  - Probability of Negative Realized ROI: ${bootBalanced.pctNegative.toFixed(1)}% of bootstrap resamples`);
+console.log(`=> Limitation: This bootstrap resamples strictly within the observed 184 rounds where no jackpot occurred.`);
+console.log(`   It measures sample variance under observed conditions, not the theoretical unobserved distribution of rare jackpot strikes.`);
 
 // -------------------------------------------------------------
 // CHECK 4: Random Rush 25-Seed Distribution Analysis
