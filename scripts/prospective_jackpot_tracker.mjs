@@ -14,8 +14,9 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
+import { generateCoveringPortfolio, createSportyMatch } from '../src/services/jackpotService.ts';
 
-const PROTOCOL_VERSION = '1.2.0';
+const PROTOCOL_VERSION = '1.6.0';
 const LEDGER_PATH = path.resolve('audit/prospective_ledger.json');
 const HISTORY_PATH = path.resolve('public/data/sportybet_history.json');
 const TARGET_SAMPLE_SIZE = 50;
@@ -34,7 +35,7 @@ function loadLedger() {
     protocolDoc: 'audit/PROSPECTIVE_PROTOCOL.md',
     frozenStrategy: 'BALANCED_COVER',
     frozenBeamWidth: 2000,
-    frozenConstraints: { minDraws: 2, maxDraws: 5, minHomes: 3, maxHomes: 8, minDistance: 2, maxDistance: 4 },
+    frozenConstraints: { minDraws: 2, maxDraws: 5, minHomes: 3, maxHomes: 9, minDistance: 2, maxDistance: 4 },
     scoringRules: 'SPORTYBET_SUPER_12_PARIMUTUEL',
     targetSampleSize: TARGET_SAMPLE_SIZE,
     records: []
@@ -84,93 +85,25 @@ function createSeededRandom(seed) {
   };
 }
 
-// Frozen portfolio generator (exact match to src/services/jackpotService.ts)
+// Frozen portfolio generator directly calling production implementation (src/services/jackpotService.ts)
 function generateCoveringPortfolioExact(slateMatches, targetTickets = 8) {
-  const numMatches = slateMatches.length;
-  const beamWidth = 2000;
-  let beam = [{ picks: [], prob: 1.0 }];
-
-  for (let m = 0; m < numMatches; m++) {
-    const match = slateMatches[m];
-    const opts = ['1', 'X', '2'];
-    const nextCandidates = [];
-
-    const oH = match.odds?.home || 2.5;
-    const oD = match.odds?.draw || 3.2;
-    const oA = match.odds?.away || 2.8;
-    const rH = 1 / oH, rD = 1 / oD, rA = 1 / oA;
-    const sum = rH + rD + rA;
-    const pH = rH / sum, pD = rD / sum, pA = rA / sum;
-
-    for (const c of beam) {
-      for (const opt of opts) {
-        const p = opt === '1' ? pH : opt === 'X' ? pD : pA;
-        nextCandidates.push({
-          picks: [...c.picks, opt],
-          prob: c.prob * p
-        });
-      }
-    }
-    nextCandidates.sort((a, b) => b.prob - a.prob);
-    beam = nextCandidates.slice(0, beamWidth);
-  }
-
-  const minDraws = 2, maxDraws = 5, minHomes = 3, maxHomes = 8;
-  const validCandidates = [];
-  for (const c of beam) {
-    const draws = c.picks.filter(p => p === 'X').length;
-    const homes = c.picks.filter(p => p === '1').length;
-    if (draws >= minDraws && draws <= maxDraws && homes >= minHomes && homes <= maxHomes) {
-      validCandidates.push(c);
-    }
-  }
-
-  if (validCandidates.length < targetTickets) {
-    for (const c of beam) {
-      if (!validCandidates.some(v => v.picks.every((p, i) => p === c.picks[i]))) {
-        validCandidates.push(c);
-        if (validCandidates.length >= targetTickets * 4) break;
-      }
-    }
-  }
-
-  validCandidates.sort((a, b) => b.prob - a.prob);
-  const selected = [validCandidates[0]];
-
-  for (let k = 1; k < targetTickets; k++) {
-    let bestIdx = -1;
-    let bestScore = -Infinity;
-
-    for (let c = 1; c < validCandidates.length; c++) {
-      const cand = validCandidates[c];
-      if (selected.some(t => t.picks.every((p, idx) => p === cand.picks[idx]))) continue;
-
-      let minDistance = Infinity;
-      for (const s of selected) {
-        let dist = 0;
-        for (let i = 0; i < numMatches; i++) {
-          if (cand.picks[i] !== s.picks[i]) dist++;
-        }
-        if (dist < minDistance) minDistance = dist;
-      }
-
-      const distanceQuality = minDistance >= 2 && minDistance <= 4 ? 14 : -3;
-      const score = Math.log10(cand.prob + 1e-15) * 0.4 + distanceQuality;
-      if (score > bestScore) {
-        bestScore = score;
-        bestIdx = c;
-      }
-    }
-
-    if (bestIdx >= 0) {
-      selected.push(validCandidates[bestIdx]);
-    } else {
-      selected.push(validCandidates[k % validCandidates.length]);
-    }
-  }
-
-  return selected.map(s => s.picks);
+  const slate = {
+    platform: 'sportybet',
+    roundId: 'PROSPECTIVE',
+    roundNumber: 'PROSPECTIVE',
+    matchCount: slateMatches.length,
+    totalGames: slateMatches.length,
+    matches: slateMatches.map((m, idx) => {
+      const oH = m.odds?.home || 2.5;
+      const oD = m.odds?.draw || 3.2;
+      const oA = m.odds?.away || 2.8;
+      return createSportyMatch(m.no || idx + 1, '', '', '', '', '', oH, oD, oA);
+    })
+  };
+  const tickets = generateCoveringPortfolio(slate, { targetTickets, strategy: 'BALANCED_COVER' });
+  return tickets.map(t => t.picksArray);
 }
+
 
 // Generate pre-paired random rush baseline line-by-line
 function generatePairedRandomBaseline(roundId, slateMatches, targetTickets = 8) {

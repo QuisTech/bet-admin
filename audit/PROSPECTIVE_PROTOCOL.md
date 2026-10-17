@@ -50,7 +50,7 @@ To prevent survivor bias and selective slate entry:
 To guarantee that predictions cannot be altered or retrofitted post-kickoff:
 
 1. **Full Canonical Serialization:** The SHA-256 fingerprint encompasses the complete experimental commitment:
-   * `protocolVersion` ("1.5.0")
+   * `protocolVersion` ("1.6.0")
    * `roundId` (period number)
    * `deadline` (timestamp)
    * `gitCommit` (short commit SHA)
@@ -61,9 +61,10 @@ To guarantee that predictions cannot be altered or retrofitted post-kickoff:
    * `stake` (800)
    * `tickets` (8 strategy lines)
    * `pairedBaselineTickets` (8 deterministically seeded random lines)
-2. **Pre-Kickoff External Timestamping:**
+2. **Pre-Kickoff External Timestamping & Prospective Integrity:**
    * The registered record is committed to `audit/prospective_ledger.json` and pushed to `origin/main` on GitHub prior to the scheduled kickoff time of the earliest match.
    * The public Git commit SHA and GitHub commit timestamp serve as external, third-party proof of pre-kickoff commitment.
+   * *Critical Epistemic Boundary on Cryptographic Proof:* A SHA-256 commitment published to GitHub proves immutability after commitment (that predictions, model inputs, timestamp, and verification procedure were not retrofitted post-kickoff). It cannot independently prove that predictions were generated without lookahead; lookahead prevention requires auditing that input odds and fixtures were pre-match and produced strictly by frozen code without retrospective knowledge.
 3. **Settlement Verification Gate:**
    * When `scripts/prospective_jackpot_tracker.mjs settle <roundId>` is invoked, the engine recomputes the canonical hash from the ledger entry and asserts bit-for-bit equivalence against the stored `sha256`. Any discrepancy aborts settlement immediately.
 
@@ -78,9 +79,10 @@ Experimental validity and commercial profitability are decoupled into two distin
 * **Requirements:**
   1. **Strict Pre-Kickoff Commitment:** Canonical SHA-256 hash committed to `origin/main` before kickoff.
   2. **Primary Benchmark & Test:** Paired Student's $t$-test (df = 49) and 10,000-iteration sign-flip permutation test against primary deterministic PRNG baseline (`periodNumber + 1337`).
-  3. **Secondary Benchmark Distribution (Defined Procedure):**
-     * The 10 pre-registered independent random seeds ($s \in \{101, 102, \dots, 110\}$, initialized as `periodNumber + s`) serve as a **descriptive spread baseline** to report ensemble mean, standard error, and empirical range.
-     * Inferential comparison is conducted strictly on identical rounds via paired tests (controlling for slate difficulty). The strategy must demonstrate a statistically significant paired advantage over the ensemble grand mean ($p < 0.05$ on paired $t$-test across rounds).
+  3. **Secondary Benchmark & Ensemble Procedure:**
+     * *Correction on Small-Sample Benchmark:* Requiring a strategy to rank above the 95th percentile of an empirical distribution generated from just 10 random seeds (or assuming $z > 1.645$) is statistically flawed because $N=10$ cannot reliably estimate extreme percentiles or reference distributions.
+     * *Descriptive Spread Baseline:* The 10 pre-registered independent random seeds ($s \in \{101, 102, \dots, 110\}$, initialized as `periodNumber + s`) serve strictly as a **descriptive spread baseline** to report ensemble mean, standard error, and empirical range across rounds.
+     * *Inferential Comparisons:* All inferential hypothesis tests are conducted on identical rounds to control for slate difficulty. If an inferential ensemble comparison is conducted, it requires a substantially larger pre-registered random-seed ensemble ($B \ge 1,000$ seeds or paired permutation null distribution) evaluated over the fixed 50-round horizon, reporting 95% paired confidence intervals and applying Holm-Bonferroni step-down correction across all evaluated strategies.
   4. **Effect Size & Confidence Bounds:** Must report mean paired difference in picks/ticket, Cohen's $d$, and 95% paired $t$ confidence interval.
   5. **Probabilistic Scoring:** Multi-class Brier Score ($BS$) and Log Loss ($LL$) evaluated against closing pre-match devigged probabilities.
   6. **Multiple Testing Correction:** When testing $K$ strategies simultaneously (`BALANCED_COVER`, `CONTRARIAN_HIGH_EV`), apply **Holm-Bonferroni step-down correction** to maintain family-wise error rate at $\alpha = 0.05$.
@@ -92,9 +94,9 @@ Experimental validity and commercial profitability are decoupled into two distin
   1. **Complete Payout Distribution Model:** Expected net value must account for the full 13-state score distribution:
      $$E[\text{Net}] = \sum_{j=0}^{12} P(\text{score} = j) \times E[\text{Payout} \mid j] - \text{Ticket Costs}$$
      where for $j < 10$, $E[\text{Payout} \mid j] \equiv 0$. Probabilities $P(j)$ and conditional dilution expectations $E[\text{Payout} \mid j]$ must be estimated strictly ex-ante using pre-match odds and crowd competition models, with zero post-hoc tuning.
-  2. **Dilution Modeling & Stress-Testing:**
+  2. **Dilution Modeling, Probability Distributions & Stress-Testing:**
      * Expected public winners must be derived from an explicit crowd selection proxy ($Q$), not arbitrary assumptions.
-     * In addition, parametric sensitivity bounds must be stress-tested across three distinct public winner regimes (Solo: $W_{12} = 0$, Moderate: $W_{12} \in [1, 5]$, Heavy: $W_{12} \in [10, 50]$). Positive expected value cannot rely solely on the favorable solo scenario.
+     * *Caution on Stress Tests vs. Probability Distributions:* Stress-testing across three distinct public winner regimes (Solo: $W_{12} = 0$, Moderate: $W_{12} \in [1, 5]$, Heavy: $W_{12} \in [10, 50]$) provides sensitivity bounds, but these scenarios do not constitute an empirical probability distribution. Demonstrating that a strategy passes several hypothetical scenarios does not, by itself, demonstrate positive expected value. To calculate expected value, the model requires defensible estimates or conservative bounds for how likely each competing-winner count is.
   3. **Dual Uncertainty Quantification:**
      * **Consolation Tiers (10/12 and 11/12):** Evaluated via empirical 95% bootstrap confidence interval on cumulative net return over the 50 observed rounds.
      * **Jackpot Tail (12/12):** Evaluated via parametric sensitivity bounds combining exact sum-of-ticket probabilities with conservative crowd dilution scenarios. A point estimate $> 0$ does not satisfy Gate 2 if the lower confidence bound is negative.

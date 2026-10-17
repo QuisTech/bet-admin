@@ -17,7 +17,7 @@
     "audit:ev": "node scripts/audit_ev_and_overlays.mjs",
     "audit:optimizer": "node scripts/audit_ev_optimal_optimizer.mjs",
     "audit:holdout": "node --experimental-strip-types scripts/audit_production_holdout.mjs",
-    "audit:prospective": "node scripts/prospective_jackpot_tracker.mjs",
+    "audit:prospective": "node --experimental-strip-types scripts/prospective_jackpot_tracker.mjs",
     "update:jackpot": "node scripts/fetch_sportybet_history.cjs",
     "update:1xbet": "node scripts/fetch_1xbet_history.cjs"
   },
