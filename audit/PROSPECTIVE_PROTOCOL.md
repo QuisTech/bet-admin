@@ -59,6 +59,7 @@ To guarantee that predictions cannot be altered or retrofitted post-kickoff:
    * `frozenConstraints` (draws, homes, distance bounds)
    * `scoringRules` ("SPORTYBET_SUPER_12_PARIMUTUEL")
    * `stake` (800)
+   * `matchOddsSnapshot` (fixture names, match numbers, closing pre-match market odds)
    * `tickets` (8 strategy lines)
    * `pairedBaselineTickets` (8 deterministically seeded random lines)
 2. **Pre-Kickoff External Timestamping & Prospective Integrity:**
@@ -78,7 +79,10 @@ Experimental validity and commercial profitability are decoupled into two distin
 * **Scope:** Verification that predictions are genuinely prospective, tamper-evident, and statistically superior to chance.
 * **Requirements:**
   1. **Strict Pre-Kickoff Commitment:** Canonical SHA-256 hash committed to `origin/main` before kickoff.
-  2. **Primary Benchmark & Test:** Paired Student's $t$-test (df = 49) and 10,000-iteration sign-flip permutation test against primary deterministic PRNG baseline (`periodNumber + 1337`).
+  2. **Pre-Registered Primary Metric & Statistical Test Design:**
+     * *Primary Metric:* Mean paired round difference $\Delta = \frac{1}{R} \sum_{r=1}^{R} (\bar{S}_{\text{strat}, r} - \bar{S}_{\text{base}, r})$, where $\bar{S}_r$ is the average accuracy (picks out of 12) across the 8 tickets in round $r$ on identical slates.
+     * *Paired Student's $t$-test (df = 49):* Two-tailed test ($\alpha = 0.05$) assuming independent round-level paired differences approximately normally distributed by the Central Limit Theorem across 50 slates.
+     * *Sign-Flip Permutation Test (10,000 iterations):* Non-parametric exact test under $H_0: \Delta = 0$ assuming exchangeability and symmetry of paired differences under the null (flipping signs of round-level differences with probability 0.5).
   3. **Secondary Benchmark & Ensemble Procedure:**
      * *Correction on Small-Sample Benchmark:* Requiring a strategy to rank above the 95th percentile of an empirical distribution generated from just 10 random seeds (or assuming $z > 1.645$) is statistically flawed because $N=10$ cannot reliably estimate extreme percentiles or reference distributions.
      * *Descriptive Spread Baseline:* The 10 pre-registered independent random seeds ($s \in \{101, 102, \dots, 110\}$, initialized as `periodNumber + s`) serve strictly as a **descriptive spread baseline** to report ensemble mean, standard error, and empirical range across rounds.

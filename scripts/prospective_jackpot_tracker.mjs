@@ -61,6 +61,16 @@ function computeCanonicalCommitmentHash(commitment) {
     frozenBeamWidth: commitment.frozenBeamWidth,
     frozenConstraints: commitment.frozenConstraints,
     gitCommit: commitment.gitCommit,
+    matchOddsSnapshot: (commitment.matchOddsSnapshot || []).map(m => ({
+      no: m.no,
+      home: m.home,
+      away: m.away,
+      odds: {
+        home: m.odds?.home ?? null,
+        draw: m.odds?.draw ?? null,
+        away: m.odds?.away ?? null
+      }
+    })),
     pairedBaselineTickets: [...commitment.pairedBaselineTickets].sort(),
     protocolVersion: commitment.protocolVersion,
     roundId: commitment.roundId,
@@ -239,11 +249,30 @@ if (command === 'status') {
     process.exit(1);
   }
 
+  const deadlineMs = typeof round.deadline === 'number' ? round.deadline : new Date(round.deadline).getTime();
+  if (Date.now() > deadlineMs && process.env.ALLOW_HISTORICAL_REGISTRATION !== 'true') {
+    console.error(`\nFATAL LOOKAHEAD ERROR: Round ${roundId} registration deadline (${new Date(deadlineMs).toISOString()}) has passed!`);
+    console.error(`Current system time: ${new Date().toISOString()}`);
+    console.error(`Protocol v1.6.0 strictly prohibits retroactive registration to prevent lookahead bias.`);
+    process.exit(1);
+  }
+
   const now = new Date().toISOString();
   const commit = getCurrentGitCommit();
   const tickets = generateCoveringPortfolioExact(round.matches, 8);
   const ticketStrings = tickets.map(t => t.join(''));
   const baselineTickets = generatePairedRandomBaseline(roundId, round.matches, 8);
+
+  const matchOddsSnapshot = round.matches.map(m => ({
+    no: m.no,
+    home: m.home,
+    away: m.away,
+    odds: {
+      home: m.odds?.home ?? null,
+      draw: m.odds?.draw ?? null,
+      away: m.odds?.away ?? null
+    }
+  }));
 
   const commitmentPayload = {
     protocolVersion: PROTOCOL_VERSION,
@@ -252,9 +281,10 @@ if (command === 'status') {
     gitCommit: commit,
     strategy: 'BALANCED_COVER',
     frozenBeamWidth: 2000,
-    frozenConstraints: { minDraws: 2, maxDraws: 5, minHomes: 3, maxHomes: 8, minDistance: 2, maxDistance: 4 },
+    frozenConstraints: { minDraws: 2, maxDraws: 5, minHomes: 3, maxHomes: 9, minDistance: 2, maxDistance: 4 },
     scoringRules: 'SPORTYBET_SUPER_12_PARIMUTUEL',
     stake: 800,
+    matchOddsSnapshot,
     tickets: ticketStrings,
     pairedBaselineTickets: baselineTickets
   };
