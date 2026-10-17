@@ -278,16 +278,35 @@ if (command === 'status') {
   const pub10 = w10 ? w10.winNum : 0;
 
   let pay12 = 0;
-  if (hits12 > 0) pay12 = (hits12 / (pub12 + hits12)) * round.maxWinnings;
+  const counterfactualNotes = [];
+  let dependsOnCounterfactualAssumption = false;
+
+  if (hits12 > 0) {
+    dependsOnCounterfactualAssumption = true;
+    pay12 = (hits12 / (pub12 + hits12)) * round.maxWinnings;
+    counterfactualNotes.push(`12/12 Super Jackpot: Assumed pool ₦${round.maxWinnings.toLocaleString()} divided by (${pub12} public + ${hits12} simulated).`);
+  }
 
   let pay11 = 0;
-  if (hits11 > 0 && pub11 > 0 && w11?.perWinnings > 0) {
-    pay11 = (hits11 / (pub11 + hits11)) * (pub11 * w11.perWinnings);
+  if (hits11 > 0) {
+    if (pub11 > 0 && w11?.perWinnings > 0) {
+      dependsOnCounterfactualAssumption = true;
+      pay11 = (hits11 / (pub11 + hits11)) * (pub11 * w11.perWinnings);
+      counterfactualNotes.push(`11/12 Consolation: Diluted official payout among ${pub11} public + ${hits11} simulated.`);
+    } else {
+      counterfactualNotes.push(`11/12 Consolation: 0 public winners recorded; strictly credited ₦0 (unwon pool).`);
+    }
   }
 
   let pay10 = 0;
-  if (hits10 > 0 && pub10 > 0 && w10?.perWinnings > 0) {
-    pay10 = (hits10 / (pub10 + hits10)) * (pub10 * w10.perWinnings);
+  if (hits10 > 0) {
+    if (pub10 > 0 && w10?.perWinnings > 0) {
+      dependsOnCounterfactualAssumption = true;
+      pay10 = (hits10 / (pub10 + hits10)) * (pub10 * w10.perWinnings);
+      counterfactualNotes.push(`10/12 Consolation: Diluted official payout among ${pub10} public + ${hits10} simulated.`);
+    } else {
+      counterfactualNotes.push(`10/12 Consolation: 0 public winners recorded; strictly credited ₦0 (unwon pool).`);
+    }
   }
 
   const totalPayout = pay12 + pay11 + pay10;
@@ -298,6 +317,24 @@ if (command === 'status') {
   rec.settledAt = new Date().toISOString();
   rec.actualResults = actuals.join('');
   rec.scoredLines = scoredLines;
+
+  // Separate primary outcomes
+  rec.accuracyOutcome = {
+    totalCorrect: totalScore,
+    avgAccuracy: totalScore / rec.tickets.length,
+    picksPerTicket: scoredLines.map(s => s.score)
+  };
+
+  rec.financialOutcome = {
+    grossPayout: totalPayout,
+    stakeCharged: rec.stake,
+    netProfit: netProfit,
+    netROI: netROI,
+    dependsOnCounterfactualAssumption,
+    counterfactualNotes
+  };
+
+  // Backwards compatible top-level shortcuts
   rec.totalScore = totalScore;
   rec.avgAccuracy = totalScore / rec.tickets.length;
   rec.hits12 = hits12;
@@ -315,16 +352,66 @@ if (command === 'status') {
   console.log(`Actual Match Results: ${rec.actualResults}`);
   console.log(`Ticket Performance:`);
   scoredLines.forEach(l => console.log(`  Line #${l.ticketIndex}: ${l.picks} -> ${l.score}/12`));
-  console.log(`\nSummary:`);
+  console.log(`\n[PRIMARY OUTCOME 1: PREDICTION ACCURACY]`);
   console.log(`  Average Accuracy: ${(rec.avgAccuracy).toFixed(2)} / 12`);
   console.log(`  Tier Hits: 12/12: ${hits12} | 11/12: ${hits11} | 10/12: ${hits10}`);
-  console.log(`  Invested: ₦${rec.stake.toLocaleString()} | Payout: ₦${Math.round(totalPayout).toLocaleString()} | Net: ₦${Math.round(netProfit).toLocaleString()}`);
+  console.log(`\n[PRIMARY OUTCOME 2: FINANCIAL RETURN]`);
+  console.log(`  Invested: ₦${rec.stake.toLocaleString()} | Gross Payout: ₦${Math.round(totalPayout).toLocaleString()} | Net: ₦${Math.round(netProfit).toLocaleString()}`);
   console.log(`  Realized Prospective ROI: ${netROI.toFixed(1)}%`);
+  console.log(`  Counterfactual Assumption Dependency: ${dependsOnCounterfactualAssumption ? 'YES' : 'NO'}`);
+  if (counterfactualNotes.length > 0) {
+    counterfactualNotes.forEach(n => console.log(`    * ${n}`));
+  }
   console.log('=============================================================\n');
+} else if (command === 'void') {
+  const roundId = args[1];
+  const reason = args.slice(2).join(' ') || 'Operator cancelled/voided match';
+  const ledger = loadLedger();
+  let rec = ledger.records.find(r => r.roundId === roundId);
+  if (!rec) {
+    rec = { roundId, registeredAt: new Date().toISOString(), tickets: [], stake: 0, sha256: 'VOID' };
+    ledger.records.push(rec);
+  }
+  rec.status = 'VOID';
+  rec.voidReason = reason;
+  rec.voidedAt = new Date().toISOString();
+  saveLedger(ledger);
+  console.log(`Round ${roundId} marked as VOID: ${reason}`);
+} else if (command === 'skip') {
+  const roundId = args[1];
+  const reason = args.slice(2).join(' ') || 'User opted not to enter slate';
+  const ledger = loadLedger();
+  let rec = ledger.records.find(r => r.roundId === roundId);
+  if (!rec) {
+    rec = { roundId, registeredAt: new Date().toISOString(), tickets: [], stake: 0, sha256: 'SKIPPED' };
+    ledger.records.push(rec);
+  }
+  rec.status = 'SKIPPED';
+  rec.skipReason = reason;
+  rec.skippedAt = new Date().toISOString();
+  saveLedger(ledger);
+  console.log(`Round ${roundId} marked as SKIPPED: ${reason}`);
+} else if (command === 'correct') {
+  const roundId = args[1];
+  const note = args.slice(2).join(' ');
+  const ledger = loadLedger();
+  const rec = ledger.records.find(r => r.roundId === roundId);
+  if (!rec) {
+    console.error(`Error: Round ${roundId} not found in ledger.`);
+    process.exit(1);
+  }
+  rec.settlementCorrectionNote = note;
+  rec.correctedAt = new Date().toISOString();
+  saveLedger(ledger);
+  console.log(`Settlement correction recorded for Round ${roundId}: ${note}`);
 } else {
   console.log(`Unknown command: ${command}`);
   console.log('Available commands:');
   console.log('  node scripts/prospective_jackpot_tracker.mjs status');
   console.log('  node scripts/prospective_jackpot_tracker.mjs register <roundPeriodNumber>');
   console.log('  node scripts/prospective_jackpot_tracker.mjs settle <roundPeriodNumber>');
+  console.log('  node scripts/prospective_jackpot_tracker.mjs void <roundPeriodNumber> <reason>');
+  console.log('  node scripts/prospective_jackpot_tracker.mjs skip <roundPeriodNumber> <reason>');
+  console.log('  node scripts/prospective_jackpot_tracker.mjs correct <roundPeriodNumber> <note>');
 }
+

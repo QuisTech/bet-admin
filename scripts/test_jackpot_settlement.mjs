@@ -57,7 +57,17 @@ console.log('=============================================================\n');
  *        * Nigerian ticket stake of ₦100 corresponds to 1 standard pool variant (~50 RUB equivalent base stake).
  *        * Dilution from 1 simulated winning variant adds 50 RUB to the denominator:
  *          Diluted_Multiplier = Category_PrizeFund / (Total_Guessed_Stakes + 50 RUB).
+ *
+ * 3. AUDIT EPISTEMOLOGY & ASSUMPTION CAVEATS:
+ *    - Crucial Distinction: Passing the 34 unit tests confirms that the code matches the encoded mathematical assumptions.
+ *      It does NOT independently guarantee that the operator's actual live backend rules never deviate from these specifications.
+ *    - Specific assumptions requiring live ongoing verification:
+ *        a) Whether SportyBet's `maxWinnings` is precisely the pool allocated to 12/12 winners on unwon vs won slates.
+ *        b) Whether consolation rollover pools are strictly retained or partially added to subsequent rounds.
+ *        c) Whether 1xBet's `guessedInCurr` exactly represents currency-denominated winning stake volume.
+ *    - Conclusion: The unit tests provide necessary software verification; prospective live tracking provides empirical validation.
  */
+
 
 // -------------------------------------------------------------
 // TEST 1: SportyBet Settlement Reconciliation (12, 11, 10, 9, 8)

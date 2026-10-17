@@ -368,12 +368,13 @@ console.log(`  - Empirical 95% Bootstrap Confidence Interval: [ ${bootBalanced.p
 console.log(`  - Probability of Negative Realized ROI: ${bootBalanced.pctNegative.toFixed(1)}% of bootstrap resamples`);
 console.log(`=> Methodological Note & Scope of Inference:`);
 console.log(`   - The bootstrap resamples with replacement directly from the 184 observed per-round payout records.`);
-console.log(`   - It models the empirical sample variance and extreme skew across realized draws: because 100% of bootstrap`);
-console.log(`     replicates resulted in severe financial loss (95% CI: [ ${bootBalanced.p2_5.toFixed(1)}%, ${bootBalanced.p97_5.toFixed(1)}% ]), the negative return`);
-console.log(`     is not an artifact of random sampling noise under the observed prize allocations.`);
-console.log(`   - Fundamental Boundary: Because zero 12/12 Super Jackpot events occurred in this 184-round window, the bootstrap`);
-console.log(`     distribution estimates performance conditional on non-jackpot outcomes. It cannot quantify the expected value`);
-console.log(`     of rare, multi-million-Naira tail events that exist in theory but were not realized historically.`);
+console.log(`   - The interval [ ${bootBalanced.p2_5.toFixed(1)}%, ${bootBalanced.p97_5.toFixed(1)}% ] is informative about resampled historical outcomes.`);
+console.log(`     It models the empirical sample variance and extreme skew across realized draws: because 100% of bootstrap`);
+console.log(`     replicates resulted in severe financial loss, the negative historical return was not an artifact of random sampling noise.`);
+console.log(`   - Critical Distinction: Zero profitable bootstrap draws does NOT prove that future losses are nearly certain,`);
+console.log(`     nor is it a complete confidence interval for true long-run ROI. Because zero 12/12 Super Jackpot events occurred`);
+console.log(`     in this 184-round window, the bootstrap estimates performance conditional on non-jackpot outcomes and cannot`);
+console.log(`     quantify the expected value of rare, unobserved jackpot tail events.`);
 
 // -------------------------------------------------------------
 // CHECK 4: Random Rush 25-Seed Distribution Analysis

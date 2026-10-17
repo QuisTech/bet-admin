@@ -314,9 +314,14 @@ for (let sc = 12; sc >= 0; sc--) {
 
 const payingTickets = histogram[10] + histogram[11] + histogram[12];
 console.log(`\n=> Core Statistical Conclusion:`);
-console.log(`The strategy demonstrated a statistically significant accuracy edge (+${statsBal.meanDiff.toFixed(3)} picks/ticket, 95% CI: [+${statsBal.ciLow.toFixed(3)}, +${statsBal.ciHigh.toFixed(3)}], p < 1e-6) over random selection.`);
-console.log(`However, 99.80% of generated tickets (1,469 out of 1,472) scored <= 9 and earned exactly ₦0.`);
-console.log(`Only 3 out of 1,472 tickets (0.20%) qualified for any payout (all in the 10/12 tier).`);
-console.log(`The results show that in this out-of-sample sample, superior prediction accuracy was insufficient to produce a positive return on 8 lines/round.`);
-console.log(`These findings demonstrate a historical accuracy advantage, but do not establish future profitability or rule out all possible profitable configurations.`);
+console.log(`1. Accuracy Edge: Statistically significant improvement in historical pick accuracy versus the specified`);
+console.log(`   random baseline (+${statsBal.meanDiff.toFixed(3)} picks/ticket, 95% CI: [+${statsBal.ciLow.toFixed(3)}, +${statsBal.ciHigh.toFixed(3)}], p < 1e-6 across identical`);
+console.log(`   8-line portfolios over the exact same 184 rounds). Profitability and future predictive performance remain unestablished.`);
+console.log(`2. Payout Disconnect: 99.80% of generated tickets (1,469 out of 1,472) scored <= 9 and earned exactly ₦0.`);
+console.log(`   Only 3 out of 1,472 tickets (0.20%) reached a paying tier (all 10/12 consolation wins).`);
+console.log(`3. Financial Realization: The historical accuracy edge did not overcome ticket costs, operator rake, and the steep`);
+console.log(`   scoring threshold under 8 lines/round.`);
+console.log(`4. Epistemic Limitation: Passing unit tests and low p-values confirm internal algorithmic consistency and sample accuracy,`);
+console.log(`   not commercial betting profitability. Prospective evaluation on future live slates is required.`);
 console.log('========================================================================\n');
+
