@@ -2052,21 +2052,27 @@ export function runHistoricalBacktest(
     // 2. 11/12 Consolation Tier (12% of sales):
     let payout11 = 0;
     if (round11 > 0) {
-      const pool11 = win11Obj && win11Obj.perWinnings > 0
-        ? win11Obj.winNum * win11Obj.perWinnings
-        : hr.sales * 0.12;
-      const totalWinners11 = public11 + round11;
-      payout11 = totalWinners11 > 0 ? (round11 / totalWinners11) * pool11 : 0;
+      if (public11 > 0 && win11Obj && win11Obj.perWinnings > 0) {
+        const pool11 = public11 * win11Obj.perWinnings;
+        const totalWinners11 = public11 + round11;
+        payout11 = (round11 / totalWinners11) * pool11;
+      } else {
+        // Strict historical rule: When archive records 0 public winners, tier rolled over (payout = 0)
+        payout11 = 0;
+      }
     }
 
     // 3. 10/12 Consolation Tier (3% of sales):
     let payout10 = 0;
     if (round10 > 0) {
-      const pool10 = win10Obj && win10Obj.perWinnings > 0
-        ? win10Obj.winNum * win10Obj.perWinnings
-        : hr.sales * 0.03;
-      const totalWinners10 = public10 + round10;
-      payout10 = totalWinners10 > 0 ? (round10 / totalWinners10) * pool10 : 0;
+      if (public10 > 0 && win10Obj && win10Obj.perWinnings > 0) {
+        const pool10 = public10 * win10Obj.perWinnings;
+        const totalWinners10 = public10 + round10;
+        payout10 = (round10 / totalWinners10) * pool10;
+      } else {
+        // Strict historical rule: When archive records 0 public winners, tier rolled over (payout = 0)
+        payout10 = 0;
+      }
     }
 
     const roundPayout = payout12 + payout11 + payout10;
