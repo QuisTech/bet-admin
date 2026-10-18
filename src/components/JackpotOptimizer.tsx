@@ -165,12 +165,9 @@ export const JackpotOptimizer: React.FC = () => {
   const handlePlatformChange = (p: JackpotPlatform) => {
     setPlatform(p);
     setSelectedRoundId('active');
-    if (p === 'sportybet') {
-      setSlate(SPORTYBET_ROUND_20261018);
-    } else {
-      setSlate(ONEXBET_TOTO_DRAW_1154);
-    }
-    setUserSelections({});
+    const target = p === 'sportybet' ? SPORTYBET_ROUND_20261018 : ONEXBET_TOTO_DRAW_1154;
+    setSlate(target);
+    handleApplySweetspot(target);
     setCopiedTicketId(null);
     setCopiedConsoleId(null);
     setCopiedBatch(false);
@@ -358,7 +355,7 @@ export const JackpotOptimizer: React.FC = () => {
     const parsed = parseJackpotInput(rawHtmlInput, platform);
     if (parsed) {
       setSlate(parsed);
-      setUserSelections({});
+      handleApplySweetspot(parsed);
       setIsIngestOpen(false);
       setRawHtmlInput('');
     } else {
