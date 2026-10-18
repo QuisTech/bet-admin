@@ -1,0 +1,206 @@
+{
+  "protocolVersion": "1.6.0",
+  "platform": "1xbet",
+  "protocolDoc": "audit/PROSPECTIVE_PROTOCOL.md",
+  "frozenStrategy": "BALANCED_COVER",
+  "frozenBeamWidth": 2000,
+  "frozenConstraints": {
+    "minDraws": 2,
+    "maxDraws": 5,
+    "minHomes": 5,
+    "maxHomes": 9,
+    "minDistance": 2,
+    "maxDistance": 4
+  },
+  "scoringRules": "ONEXBET_TOTO_14_PARIMUTUEL",
+  "targetSampleSize": 50,
+  "records": [
+    {
+      "protocolVersion": "1.6.0",
+      "roundId": "1155",
+      "deadline": 1792522800000,
+      "earliestKickoff": "2026-10-20T19:00:00.000Z",
+      "oddsSource": "ONEXBET_TOTO_14_OFFICIAL_PRE_MATCH",
+      "oddsCapturedAt": "2026-10-18T15:00:00+01:00",
+      "gitCommit": "30fb21c",
+      "strategy": "BALANCED_COVER",
+      "frozenBeamWidth": 2000,
+      "frozenConstraints": {
+        "minDraws": 2,
+        "maxDraws": 5,
+        "minHomes": 5,
+        "maxHomes": 9,
+        "minDistance": 2,
+        "maxDistance": 4
+      },
+      "scoringRules": "ONEXBET_TOTO_14_PARIMUTUEL",
+      "stake": 3200,
+      "matchOddsSnapshot": [
+        {
+          "no": 1,
+          "home": "Paris Saint-Germain",
+          "away": "Barcelona",
+          "odds": {
+            "home": 2.38,
+            "draw": 5.88,
+            "away": 2.44
+          }
+        },
+        {
+          "no": 2,
+          "home": "VfB Stuttgart",
+          "away": "Atletico Madrid",
+          "odds": {
+            "home": 3.13,
+            "draw": 4.76,
+            "away": 2.13
+          }
+        },
+        {
+          "no": 3,
+          "home": "Lille OSC",
+          "away": "Galatasaray",
+          "odds": {
+            "home": 2.04,
+            "draw": 4.55,
+            "away": 3.45
+          }
+        },
+        {
+          "no": 4,
+          "home": "Como",
+          "away": "Manchester United",
+          "odds": {
+            "home": 2.22,
+            "draw": 4.55,
+            "away": 3.03
+          }
+        },
+        {
+          "no": 5,
+          "home": "Club Brugge",
+          "away": "RC Lens",
+          "odds": {
+            "home": 1.96,
+            "draw": 4.55,
+            "away": 3.7
+          }
+        },
+        {
+          "no": 6,
+          "home": "Bayern Munich",
+          "away": "Arsenal",
+          "odds": {
+            "home": 2.04,
+            "draw": 4.76,
+            "away": 3.33
+          }
+        },
+        {
+          "no": 7,
+          "home": "Celtic",
+          "away": "Celta",
+          "odds": {
+            "home": 3.13,
+            "draw": 4.17,
+            "away": 2.27
+          }
+        },
+        {
+          "no": 8,
+          "home": "Bournemouth",
+          "away": "Milan",
+          "odds": {
+            "home": 2.08,
+            "draw": 4.35,
+            "away": 3.45
+          }
+        },
+        {
+          "no": 9,
+          "home": "TSG 1899 Hoffenheim",
+          "away": "Lyon",
+          "odds": {
+            "home": 1.82,
+            "draw": 5,
+            "away": 4
+          }
+        },
+        {
+          "no": 10,
+          "home": "Celje",
+          "away": "FC Salzburg",
+          "odds": {
+            "home": 5.26,
+            "draw": 5,
+            "away": 1.64
+          }
+        },
+        {
+          "no": 11,
+          "home": "Jagiellonia Bialystok",
+          "away": "Anderlecht",
+          "odds": {
+            "home": 3.13,
+            "draw": 4.17,
+            "away": 2.27
+          }
+        },
+        {
+          "no": 12,
+          "home": "Besiktas",
+          "away": "Crystal Palace",
+          "odds": {
+            "home": 2.08,
+            "draw": 4.55,
+            "away": 3.33
+          }
+        },
+        {
+          "no": 13,
+          "home": "Crvena Zvezda",
+          "away": "Copenhagen",
+          "odds": {
+            "home": 2.44,
+            "draw": 4.35,
+            "away": 2.78
+          }
+        },
+        {
+          "no": 14,
+          "home": "Ajax",
+          "away": "Atalanta",
+          "odds": {
+            "home": 3.03,
+            "draw": 4.35,
+            "away": 2.27
+          }
+        }
+      ],
+      "pairedBaselineTickets": [
+        "X1222122X1X2X1",
+        "X121111XX221X2",
+        "X1X2X112XXX211",
+        "21X21X2X1X2XX1"
+      ],
+      "tickets": [
+        "121X112112211X",
+        "1211112X12211X",
+        "121111211221XX",
+        "12111121122X1X"
+      ],
+      "registeredAt": "2026-10-18T15:04:45.636Z",
+      "status": "PRE_REGISTERED",
+      "sha256": "4e510819e279ec2e8206258702766596ed9571fdbbe4000c706dd7d1d8f4e1dd",
+      "auditTrail": [
+        {
+          "event": "PRE_REGISTERED",
+          "timestamp": "2026-10-18T15:04:45.636Z",
+          "gitCommit": "30fb21c",
+          "canonicalHash": "4e510819e279ec2e8206258702766596ed9571fdbbe4000c706dd7d1d8f4e1dd",
+          "ticketsCount": 4
+        }
+      ]
+    }
+  ]
+}
