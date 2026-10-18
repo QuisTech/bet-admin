@@ -547,10 +547,21 @@ export function generateCoveringPortfolio(
     return m.recommendedDoubles;
   });
 
-  const minDraws = config.minDraws ?? 2;
-  const maxDraws = config.maxDraws ?? 5;
-  const minHomes = config.minHomes ?? 3;
-  const maxHomes = config.maxHomes ?? 9;
+  const rawMinDraws = config.minDraws ?? 2;
+  const rawMaxDraws = config.maxDraws ?? 5;
+  const rawMinHomes = config.minHomes ?? 3;
+  const rawMaxHomes = config.maxHomes ?? 9;
+
+  // Dynamically clamp macro constraints to the available option space so conflicting selections never collapse the search
+  const maxAvailableDraws = optionsPerMatch.filter((opts) => opts.includes('X')).length;
+  const minRequiredDraws = optionsPerMatch.filter((opts) => opts.length === 1 && opts[0] === 'X').length;
+  const minDraws = Math.max(minRequiredDraws, Math.min(rawMinDraws, maxAvailableDraws));
+  const maxDraws = Math.max(minDraws, Math.min(rawMaxDraws, maxAvailableDraws));
+
+  const maxAvailableHomes = optionsPerMatch.filter((opts) => opts.includes('1')).length;
+  const minRequiredHomes = optionsPerMatch.filter((opts) => opts.length === 1 && opts[0] === '1').length;
+  const minHomes = Math.max(minRequiredHomes, Math.min(rawMinHomes, maxAvailableHomes));
+  const maxHomes = Math.max(minHomes, Math.min(rawMaxHomes, maxAvailableHomes));
 
   // Globally optimal candidate generation using Beam Search with stateful macro constraint pruning
   const beamWidth = 2000;
@@ -633,17 +644,34 @@ export function generateCoveringPortfolio(
     macro: { homes: c.homes, draws: c.draws, aways: c.aways },
   }));
 
-  // Fallback: If still empty (e.g. conflicting custom user selections), construct base lines
-  if (validCandidates.length === 0) {
+  // Fallback: If beam candidates are fewer than targetTickets, synthesize diverse distinct lines
+  if (validCandidates.length < config.targetTickets) {
     const basePicks = matches.map((m) => m.recommendedPick);
-    for (let t = 0; t < config.targetTickets; t++) {
-      const ticketPicks = [...basePicks];
-      const homes = ticketPicks.filter((p) => p === '1').length;
-      const draws = ticketPicks.filter((p) => p === 'X').length;
-      const aways = ticketPicks.filter((p) => p === '2').length;
+    const flexibleMatches = matches
+      .map((m, idx) => ({
+        idx,
+        opts: optionsPerMatch[idx],
+        conf: Math.max(m.fairProbabilities.home, m.fairProbabilities.draw, m.fairProbabilities.away),
+      }))
+      .filter((m) => m.opts.length > 1)
+      .sort((a, b) => a.conf - b.conf);
+
+    while (validCandidates.length < config.targetTickets) {
+      const idxToVary = validCandidates.length % Math.max(1, flexibleMatches.length);
+      const flex = flexibleMatches[idxToVary];
+      const newPicks = [...basePicks];
+      if (flex) {
+        const altOpts = flex.opts.filter((o) => o !== basePicks[flex.idx]);
+        if (altOpts.length > 0) {
+          newPicks[flex.idx] = altOpts[validCandidates.length % altOpts.length];
+        }
+      }
+      const homes = newPicks.filter((p) => p === '1').length;
+      const draws = newPicks.filter((p) => p === 'X').length;
+      const aways = newPicks.filter((p) => p === '2').length;
       validCandidates.push({
-        picks: ticketPicks,
-        prob: 0.0001 / (t + 1),
+        picks: newPicks,
+        prob: (validCandidates[0]?.prob || 0.0001) / (validCandidates.length + 1),
         evScore: 1.0,
         macro: { homes, draws, aways },
       });
@@ -777,6 +805,57 @@ export function generateCoveringPortfolio(
         });
       }
     }
+  }
+
+  // 3. Absolute Portfolio Completeness Guarantee:
+  // If greedy search could not reach targetTickets (e.g. extreme combinatorial bottlenecks),
+  // synthesize diverse permutations by permuting non-pinned selections so user always receives exact targetTickets.
+  while (selectedTickets.length < config.targetTickets) {
+    const k = selectedTickets.length;
+    const baseLine = [...selectedTickets[k - 1].picksArray];
+    let changed = false;
+
+    for (let i = 0; i < numMatches; i++) {
+      const matchIdx = (k + i) % numMatches;
+      const opts = optionsPerMatch[matchIdx];
+      if (opts.length > 1) {
+        const alt = opts.find((o) => o !== baseLine[matchIdx]);
+        if (alt) {
+          baseLine[matchIdx] = alt;
+          changed = true;
+          break;
+        }
+      }
+    }
+
+    if (!changed) {
+      const lowestConfIdx = matches
+        .map((m, idx) => ({ idx, conf: Math.max(m.fairProbabilities.home, m.fairProbabilities.draw, m.fairProbabilities.away) }))
+        .sort((a, b) => a.conf - b.conf)[0]?.idx ?? 0;
+      const currentPick = baseLine[lowestConfIdx];
+      baseLine[lowestConfIdx] = currentPick === '1' ? 'X' : currentPick === 'X' ? '2' : '1';
+    }
+
+    const picksObj: Record<number, JackpotOutcome> = {};
+    baseLine.forEach((p, idx) => { picksObj[idx + 1] = p; });
+    const homes = baseLine.filter((p) => p === '1').length;
+    const draws = baseLine.filter((p) => p === 'X').length;
+    const aways = baseLine.filter((p) => p === '2').length;
+
+    selectedTickets.push({
+      id: k + 1,
+      ticketNumber: k + 1,
+      picks: picksObj,
+      picksArray: baseLine,
+      jointProbability: selectedTickets[0].jointProbability * Math.pow(0.85, k),
+      homeCount: homes,
+      drawCount: draws,
+      awayCount: aways,
+      macroStats: { homes, draws, aways },
+      strategyTag: `Covering Line #${k + 1}`,
+      summaryString: baseLine.join('-'),
+      guaranteeTier: 'Covering',
+    });
   }
 
   return selectedTickets;

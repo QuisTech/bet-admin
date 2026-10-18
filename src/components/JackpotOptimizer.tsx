@@ -248,13 +248,54 @@ export const JackpotOptimizer: React.FC = () => {
       setMaxHomes(9);
     }
 
-    // Auto-lock Bankers as single picks; set volatile/hedges to recommended doubles
+    // Syndicate Banker Allocation:
+    // Lock only the top true anchors (max 3 for 12 games, max 4 for 14 games)
+    const maxBankers = isSporty ? 3 : 4;
+    const sortedByConfidence = [...targetSlate.matches].sort((a, b) => {
+      const maxA = Math.max(a.fairProbabilities.home, a.fairProbabilities.draw, a.fairProbabilities.away);
+      const maxB = Math.max(b.fairProbabilities.home, b.fairProbabilities.draw, b.fairProbabilities.away);
+      return maxB - maxA;
+    });
+
+    const bankerMatchNos = new Set(
+      sortedByConfidence
+        .filter((m) => {
+          const topP = Math.max(m.fairProbabilities.home, m.fairProbabilities.draw, m.fairProbabilities.away);
+          return topP >= (isSporty ? 0.44 : 0.48);
+        })
+        .slice(0, maxBankers)
+        .map((m) => m.no)
+    );
+
+    // Auto-lock True Bankers as singles; hedge non-bankers with Draw protection & multi-covers
     const autoPicks: { [matchNo: number]: JackpotOutcome[] } = {};
     targetSlate.matches.forEach((m) => {
-      if (m.role === 'BANKER') {
+      if (bankerMatchNos.has(m.no)) {
         autoPicks[m.no] = [m.recommendedOutcome];
       } else {
-        autoPicks[m.no] = m.recommendedDoubles;
+        const p1 = m.fairProbabilities.home;
+        const pX = m.fairProbabilities.draw;
+        const p2 = m.fairProbabilities.away;
+        const sortedProbs = [
+          { out: '1' as JackpotOutcome, p: p1 },
+          { out: 'X' as JackpotOutcome, p: pX },
+          { out: '2' as JackpotOutcome, p: p2 },
+        ].sort((a, b) => b.p - a.p);
+
+        const margin = sortedProbs[0].p - sortedProbs[1].p;
+
+        if (margin <= 0.06 || m.role === 'DOUBLE_HEDGE' || m.role === 'COIN_FLIP') {
+          // Volatile dead heat: 3-way cover to maximize combinatorial flexibility
+          autoPicks[m.no] = ['1', 'X', '2'];
+        } else if (m.recommendedOutcome === '1') {
+          // Home favorite + draw protection (1X)
+          autoPicks[m.no] = ['1', 'X'];
+        } else if (m.recommendedOutcome === '2') {
+          // Away favorite + draw protection (X2)
+          autoPicks[m.no] = ['X', '2'];
+        } else {
+          autoPicks[m.no] = ['1', 'X', '2'];
+        }
       }
     });
     setUserSelections(autoPicks);
