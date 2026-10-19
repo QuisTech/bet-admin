@@ -1,19 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShieldCheck,
   Scale,
-  CheckCircle2,
-  AlertTriangle,
   RotateCw,
   X,
-  ExternalLink,
-  Layers,
-  Award,
-  TrendingDown,
-  TrendingUp,
-  FileText,
   Lock,
-  ArrowRight,
   Sparkles,
 } from 'lucide-react';
 import type { JackpotPlatform } from '../services/jackpotService';
@@ -164,6 +156,17 @@ export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
     }
   };
 
+  // Lock background scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const records = ledger?.records || [];
@@ -198,37 +201,37 @@ export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
   const netROI = totalInvested > 0 ? (netProfit / totalInvested) * 100 : 0;
   const accuracyAdvantage = meanStrategyAcc - meanBaselineAcc;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-in fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl shadow-emerald-950/40 overflow-hidden">
-        {/* Header */}
-        <div className="p-5 border-b border-slate-800/80 flex items-start justify-between gap-4 bg-slate-950/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <ShieldCheck className="w-5 h-5" />
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+        {/* Compact Modal Header */}
+        <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/70 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-black text-white">Prospective Protocol &amp; Live Settlement Audit</h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                <h2 className="text-sm font-black text-white">Prospective Protocol &amp; Live Settlement Audit</h2>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                   Protocol v1.6.0
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Pre-registered canonical commitments • Bit-exact SHA-256 verification • Strict ₦0 real-money directive
+              <p className="text-[11px] text-slate-400">
+                Pre-registered canonical commitments • Bit-exact SHA-256 verification • Strict ₦0 real stakes
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+            className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Platform Selector Tabs */}
-        <div className="px-5 pt-3 pb-2 border-b border-slate-800/60 bg-slate-950/20 flex flex-wrap items-center justify-between gap-3">
+        {/* Platform Selector Tabs & Quick Refresh Bar */}
+        <div className="px-5 py-2.5 border-b border-slate-800/60 bg-slate-950/40 flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0">
           <div className="flex items-center gap-1.5 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
             <button
               onClick={() => setPlatform('sportybet')}
@@ -265,7 +268,7 @@ export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-5 overflow-y-auto space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {/* Cohort Progress & Decision Rule Banner */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
@@ -491,20 +494,21 @@ export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-800/80 bg-slate-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-slate-400 font-mono">
+        {/* Compact Footer */}
+        <div className="px-5 py-2.5 border-t border-slate-800/80 bg-slate-950/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs shrink-0">
+          <div className="flex items-center gap-2 text-slate-400 font-mono text-[11px]">
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
             <span>Zero-Capital Paper Trading Active (₦0 Staked)</span>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition cursor-pointer"
           >
             Close Audit View
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
