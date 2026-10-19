@@ -48,6 +48,7 @@ import {
   runJackpotMonteCarlo,
 } from '../services/jackpotService';
 import { JackpotBacktestModal } from './JackpotBacktestModal';
+import { ProspectiveAuditModal } from './ProspectiveAuditModal';
 
 export const JackpotOptimizer: React.FC = () => {
   const [platform, setPlatform] = useState<JackpotPlatform>('sportybet');
@@ -58,6 +59,7 @@ export const JackpotOptimizer: React.FC = () => {
   const [historical1xBetDraws, setHistorical1xBetDraws] = useState<Historical1xBetDraw[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState<string>('active');
   const [isBacktestModalOpen, setIsBacktestModalOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isSyncingJackpot, setIsSyncingJackpot] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
@@ -610,6 +612,16 @@ export const JackpotOptimizer: React.FC = () => {
                 {syncFeedback}
               </span>
             )}
+
+            <button
+              onClick={() => setIsAuditModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/50 text-emerald-300 hover:text-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+              title="Audit live finished rounds against immutable SHA-256 pre-registered commitments on GitHub"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Live Protocol Audit</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            </button>
 
             <button
               onClick={() => setIsHelpOpen(true)}
@@ -1712,6 +1724,13 @@ export const JackpotOptimizer: React.FC = () => {
         onLoadRoundToOptimizer={handleRoundSelect}
         onSync={handleSyncJackpot}
         isSyncing={isSyncingJackpot}
+      />
+
+      {/* Prospective Protocol & Live Settlement Audit Modal */}
+      <ProspectiveAuditModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        activePlatform={platform}
       />
     </div>
   );

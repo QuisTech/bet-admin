@@ -1,0 +1,312 @@
+{
+  "protocolVersion": "1.6.0",
+  "protocolDoc": "audit/PROSPECTIVE_PROTOCOL.md",
+  "frozenStrategy": "BALANCED_COVER",
+  "frozenBeamWidth": 2000,
+  "frozenConstraints": {
+    "minDraws": 2,
+    "maxDraws": 5,
+    "minHomes": 3,
+    "maxHomes": 9,
+    "minDistance": 2,
+    "maxDistance": 4
+  },
+  "scoringRules": "SPORTYBET_SUPER_12_PARIMUTUEL",
+  "targetSampleSize": 50,
+  "records": [
+    {
+      "protocolVersion": "1.6.0",
+      "roundId": "20261018",
+      "deadline": 1792245600000,
+      "earliestKickoff": "2026-10-17T14:00:00.000Z",
+      "oddsSource": "SPORTYBET_NG_OFFICIAL_PRE_MATCH",
+      "oddsCapturedAt": "2026-10-17T12:00:00+01:00",
+      "gitCommit": "65567cf",
+      "strategy": "BALANCED_COVER",
+      "frozenBeamWidth": 2000,
+      "frozenConstraints": {
+        "minDraws": 2,
+        "maxDraws": 5,
+        "minHomes": 3,
+        "maxHomes": 9,
+        "minDistance": 2,
+        "maxDistance": 4
+      },
+      "scoringRules": "SPORTYBET_SUPER_12_PARIMUTUEL",
+      "stake": 800,
+      "matchOddsSnapshot": [
+        {
+          "no": 1,
+          "home": "Brentford",
+          "away": "Liverpool",
+          "odds": {
+            "home": 2.44,
+            "draw": 3.8,
+            "away": 2.8
+          }
+        },
+        {
+          "no": 2,
+          "home": "Bristol City",
+          "away": "Sheffield United",
+          "odds": {
+            "home": 2.13,
+            "draw": 3.55,
+            "away": 3.36
+          }
+        },
+        {
+          "no": 3,
+          "home": "Derby County",
+          "away": "Stoke City",
+          "odds": {
+            "home": 2.59,
+            "draw": 3.41,
+            "away": 2.7
+          }
+        },
+        {
+          "no": 4,
+          "home": "Newcastle",
+          "away": "Aston Villa",
+          "odds": {
+            "home": 2.28,
+            "draw": 3.77,
+            "away": 3.07
+          }
+        },
+        {
+          "no": 5,
+          "home": "Valencia",
+          "away": "Athletic Bilbao",
+          "odds": {
+            "home": 3.35,
+            "draw": 3.42,
+            "away": 2.28
+          }
+        },
+        {
+          "no": 6,
+          "home": "Angers",
+          "away": "Marseille",
+          "odds": {
+            "home": 3.26,
+            "draw": 3.72,
+            "away": 2.15
+          }
+        },
+        {
+          "no": 7,
+          "home": "Bournemouth",
+          "away": "Sunderland AFC",
+          "odds": {
+            "home": 2.11,
+            "draw": 3.6,
+            "away": 3.46
+          }
+        },
+        {
+          "no": 8,
+          "home": "Leeds United",
+          "away": "Man Utd",
+          "odds": {
+            "home": 2.43,
+            "draw": 3.66,
+            "away": 2.81
+          }
+        },
+        {
+          "no": 9,
+          "home": "Celta",
+          "away": "Alaves",
+          "odds": {
+            "home": 2.16,
+            "draw": 3.33,
+            "away": 3.6
+          }
+        },
+        {
+          "no": 10,
+          "home": "Le Havre",
+          "away": "AJ Auxerre",
+          "odds": {
+            "home": 2.36,
+            "draw": 3.43,
+            "away": 3.08
+          }
+        },
+        {
+          "no": 11,
+          "home": "Paris FC",
+          "away": "Rennes",
+          "odds": {
+            "home": 2.24,
+            "draw": 3.62,
+            "away": 3.15
+          }
+        },
+        {
+          "no": 12,
+          "home": "Malaga CF",
+          "away": "Real Sociedad",
+          "odds": {
+            "home": 3.25,
+            "draw": 3.55,
+            "away": 2.22
+          }
+        }
+      ],
+      "tickets": [
+        "11X122111X12",
+        "11X1221X1112",
+        "11X12211X112",
+        "X1X122111112",
+        "1111221X1X12",
+        "11112211XX12",
+        "X11122111X12",
+        "1111221XX112"
+      ],
+      "pairedBaselineTickets": [
+        "1XX1112X2212",
+        "1111221X1X22",
+        "22X111X2112X",
+        "2XX12XXXXX1X",
+        "22121112XX22",
+        "XXX12XXX2XX2",
+        "12122221X212",
+        "1XX21X2221X2"
+      ],
+      "registeredAt": "2026-10-17T11:32:02.188Z",
+      "status": "SETTLED",
+      "sha256": "28897d95f61a5feda28b1cb49269e49b6fb7a7e023924b7ffac9d4145c3e546e",
+      "auditTrail": [
+        {
+          "event": "PRE_REGISTERED",
+          "timestamp": "2026-10-17T11:32:02.188Z",
+          "gitCommit": "65567cf",
+          "canonicalHash": "28897d95f61a5feda28b1cb49269e49b6fb7a7e023924b7ffac9d4145c3e546e",
+          "ticketsCount": 8
+        },
+        {
+          "event": "SETTLED",
+          "timestamp": "2026-10-19T08:00:24.117Z",
+          "actualResults": "2222X21X1212",
+          "accuracyOutcome": {
+            "totalCorrect": 40,
+            "avgAccuracy": 5,
+            "picksPerTicket": [
+              5,
+              6,
+              4,
+              5,
+              6,
+              4,
+              5,
+              5
+            ],
+            "baselineTotalCorrect": 30,
+            "baselineAvgAccuracy": 3.75,
+            "baselinePicksPerTicket": [
+              4,
+              5,
+              3,
+              3,
+              5,
+              2,
+              6,
+              2
+            ],
+            "pairedDifference": 1.25
+          },
+          "financialOutcome": {
+            "stakeCharged": 800,
+            "grossPayout": 0,
+            "netProfit": -800,
+            "netROI": -100,
+            "dependsOnCounterfactualAssumption": false,
+            "counterfactualNotes": []
+          }
+        }
+      ],
+      "settledAt": "2026-10-19T08:00:24.117Z",
+      "actualResults": "2222X21X1212",
+      "scoredLines": [
+        {
+          "ticketIndex": 1,
+          "picks": "11X122111X12",
+          "score": 5
+        },
+        {
+          "ticketIndex": 2,
+          "picks": "11X1221X1112",
+          "score": 6
+        },
+        {
+          "ticketIndex": 3,
+          "picks": "11X12211X112",
+          "score": 4
+        },
+        {
+          "ticketIndex": 4,
+          "picks": "X1X122111112",
+          "score": 5
+        },
+        {
+          "ticketIndex": 5,
+          "picks": "1111221X1X12",
+          "score": 6
+        },
+        {
+          "ticketIndex": 6,
+          "picks": "11112211XX12",
+          "score": 4
+        },
+        {
+          "ticketIndex": 7,
+          "picks": "X11122111X12",
+          "score": 5
+        },
+        {
+          "ticketIndex": 8,
+          "picks": "1111221XX112",
+          "score": 5
+        }
+      ],
+      "accuracyOutcome": {
+        "totalCorrect": 40,
+        "avgAccuracy": 5,
+        "picksPerTicket": [
+          5,
+          6,
+          4,
+          5,
+          6,
+          4,
+          5,
+          5
+        ],
+        "baselineTotalCorrect": 30,
+        "baselineAvgAccuracy": 3.75,
+        "baselinePicksPerTicket": [
+          4,
+          5,
+          3,
+          3,
+          5,
+          2,
+          6,
+          2
+        ],
+        "pairedDifference": 1.25
+      },
+      "financialOutcome": {
+        "stakeCharged": 800,
+        "grossPayout": 0,
+        "netProfit": -800,
+        "netROI": -100,
+        "dependsOnCounterfactualAssumption": false,
+        "counterfactualNotes": []
+      }
+    }
+  ]
+}

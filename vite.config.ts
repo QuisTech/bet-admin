@@ -43,6 +43,53 @@ function jackpotSyncPlugin(): Plugin {
           res.end(JSON.stringify({ error: err?.message || '1xBet sync failed' }));
         }
       });
+
+      server.middlewares.use('/api/prospective-ledger', async (req, res) => {
+        try {
+          const url = new URL(req.url || '', 'http://localhost');
+          const platform = url.searchParams.get('platform') || 'sportybet';
+          // @ts-expect-error JS helper lacks type declarations
+          const { loadProspectiveLedger } = await import('./scripts/prospectiveAuditHelper.js');
+          const ledger = loadProspectiveLedger(platform);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(ledger));
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err?.message || 'Failed to read prospective ledger' }));
+        }
+      });
+
+      server.middlewares.use('/api/prospective-settle', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        }
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const data = JSON.parse(body || '{}');
+            const platform = data.platform || 'sportybet';
+            const roundId = data.roundId;
+            if (!roundId) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: 'Missing roundId' }));
+            }
+            // @ts-expect-error JS helper lacks type declarations
+            const { settleProspectiveRound } = await import('./scripts/prospectiveAuditHelper.js');
+            const result = settleProspectiveRound(platform, roundId);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(result));
+          } catch (err: any) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err?.message || 'Failed to settle prospective round' }));
+          }
+        });
+      });
     },
   };
 }
