@@ -1,5 +1,189 @@
 [
   {
+    "periodNumber": "20261018",
+    "periodId": "260907110855per36255529",
+    "deadline": 1792245600000,
+    "maxWinnings": 74747330,
+    "sales": 0,
+    "totalCombinationsBought": 0,
+    "winnings": [
+      {
+        "correctEvents": 12,
+        "winNum": 1,
+        "perWinnings": 0
+      },
+      {
+        "correctEvents": 11,
+        "winNum": 10,
+        "perWinnings": 0
+      },
+      {
+        "correctEvents": 10,
+        "winNum": 81,
+        "perWinnings": 0
+      }
+    ],
+    "isJackpotWon": true,
+    "matches": [
+      {
+        "no": 1,
+        "home": "Brentford",
+        "away": "Liverpool",
+        "homeScore": 1,
+        "awayScore": 2,
+        "actualResult": "2",
+        "odds": {
+          "home": 2.76,
+          "draw": 3.72,
+          "away": 2.57
+        }
+      },
+      {
+        "no": 2,
+        "home": "Bristol City",
+        "away": "Sheffield United",
+        "homeScore": 0,
+        "awayScore": 1,
+        "actualResult": "2",
+        "odds": {
+          "home": 2.05,
+          "draw": 3.55,
+          "away": 3.83
+        }
+      },
+      {
+        "no": 3,
+        "home": "Derby County",
+        "away": "Stoke City",
+        "homeScore": 0,
+        "awayScore": 1,
+        "actualResult": "2",
+        "odds": {
+          "home": 2.5,
+          "draw": 3.5,
+          "away": 2.75
+        }
+      },
+      {
+        "no": 4,
+        "home": "Newcastle",
+        "away": "Aston Villa",
+        "homeScore": 0,
+        "awayScore": 1,
+        "actualResult": "2",
+        "odds": {
+          "home": 2.45,
+          "draw": 3.79,
+          "away": 2.87
+        }
+      },
+      {
+        "no": 5,
+        "home": "Valencia",
+        "away": "Athletic Bilbao",
+        "homeScore": 0,
+        "awayScore": 0,
+        "actualResult": "X",
+        "odds": {
+          "home": 3.34,
+          "draw": 3.39,
+          "away": 2.35
+        }
+      },
+      {
+        "no": 6,
+        "home": "Angers",
+        "away": "Marseille",
+        "homeScore": 2,
+        "awayScore": 5,
+        "actualResult": "2",
+        "odds": {
+          "home": 3.6,
+          "draw": 3.9,
+          "away": 2.06
+        }
+      },
+      {
+        "no": 7,
+        "home": "Bournemouth",
+        "away": "Sunderland AFC",
+        "homeScore": 2,
+        "awayScore": 0,
+        "actualResult": "1",
+        "odds": {
+          "home": 2.2,
+          "draw": 3.56,
+          "away": 3.5
+        }
+      },
+      {
+        "no": 8,
+        "home": "Leeds United",
+        "away": "Man Utd",
+        "homeScore": 1,
+        "awayScore": 1,
+        "actualResult": "X",
+        "odds": {
+          "home": 2.45,
+          "draw": 3.7,
+          "away": 2.92
+        }
+      },
+      {
+        "no": 9,
+        "home": "Celta",
+        "away": "Alaves",
+        "homeScore": 2,
+        "awayScore": 1,
+        "actualResult": "1",
+        "odds": {
+          "home": 2.29,
+          "draw": 3.38,
+          "away": 3.47
+        }
+      },
+      {
+        "no": 10,
+        "home": "Le Havre",
+        "away": "AJ Auxerre",
+        "homeScore": 1,
+        "awayScore": 3,
+        "actualResult": "2",
+        "odds": {
+          "home": 2.38,
+          "draw": 3.52,
+          "away": 3.17
+        }
+      },
+      {
+        "no": 11,
+        "home": "Paris FC",
+        "away": "Rennes",
+        "homeScore": 4,
+        "awayScore": 3,
+        "actualResult": "1",
+        "odds": {
+          "home": 2.38,
+          "draw": 3.65,
+          "away": 3.06
+        }
+      },
+      {
+        "no": 12,
+        "home": "Malaga CF",
+        "away": "Real Sociedad",
+        "homeScore": 2,
+        "awayScore": 5,
+        "actualResult": "2",
+        "odds": {
+          "home": 3.38,
+          "draw": 3.61,
+          "away": 2.24
+        }
+      }
+    ]
+  },
+  {
     "periodNumber": "20261011",
     "periodId": "260831122237per04252483",
     "deadline": 1791640800000,
