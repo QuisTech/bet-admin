@@ -226,9 +226,49 @@
             "dependsOnCounterfactualAssumption": false,
             "counterfactualNotes": []
           }
+        },
+        {
+          "event": "SETTLED",
+          "timestamp": "2026-10-19T08:47:53.953Z",
+          "actualResults": "2222X21X1212",
+          "accuracyOutcome": {
+            "totalCorrect": 40,
+            "avgAccuracy": 5,
+            "picksPerTicket": [
+              5,
+              6,
+              4,
+              5,
+              6,
+              4,
+              5,
+              5
+            ],
+            "baselineTotalCorrect": 30,
+            "baselineAvgAccuracy": 3.75,
+            "baselinePicksPerTicket": [
+              4,
+              5,
+              3,
+              3,
+              5,
+              2,
+              6,
+              2
+            ],
+            "pairedDifference": 1.25
+          },
+          "financialOutcome": {
+            "stakeCharged": 800,
+            "grossPayout": 0,
+            "netProfit": -800,
+            "netROI": -100,
+            "dependsOnCounterfactualAssumption": false,
+            "counterfactualNotes": []
+          }
         }
       ],
-      "settledAt": "2026-10-19T08:00:24.117Z",
+      "settledAt": "2026-10-19T08:47:53.953Z",
       "actualResults": "2222X21X1212",
       "scoredLines": [
         {
@@ -307,6 +347,181 @@
         "dependsOnCounterfactualAssumption": false,
         "counterfactualNotes": []
       }
+    },
+    {
+      "protocolVersion": "1.6.0",
+      "roundId": "20261025",
+      "deadline": 1792850400000,
+      "earliestKickoff": "2026-10-24T14:00:00.000Z",
+      "oddsSource": "SPORTYBET_NG_OFFICIAL_PRE_MATCH",
+      "oddsCapturedAt": "2026-10-20T19:21:20.094Z",
+      "gitCommit": "7225d95",
+      "strategy": "BALANCED_COVER",
+      "frozenBeamWidth": 2000,
+      "frozenConstraints": {
+        "minDraws": 2,
+        "maxDraws": 5,
+        "minHomes": 3,
+        "maxHomes": 9,
+        "minDistance": 2,
+        "maxDistance": 4
+      },
+      "scoringRules": "SPORTYBET_SUPER_12_PARIMUTUEL",
+      "stake": 800,
+      "matchOddsSnapshot": [
+        {
+          "no": 1,
+          "home": "Coventry City",
+          "away": "Fulham",
+          "odds": {
+            "home": 2.93,
+            "draw": 3.57,
+            "away": 2.45
+          }
+        },
+        {
+          "no": 2,
+          "home": "Napoli",
+          "away": "Roma",
+          "odds": {
+            "home": 2.83,
+            "draw": 3.41,
+            "away": 2.61
+          }
+        },
+        {
+          "no": 3,
+          "home": "Valencia",
+          "away": "Villarreal",
+          "odds": {
+            "home": 3.2,
+            "draw": 3.67,
+            "away": 2.25
+          }
+        },
+        {
+          "no": 4,
+          "home": "Lens",
+          "away": "Paris FC",
+          "odds": {
+            "home": 2.34,
+            "draw": 3.68,
+            "away": 2.93
+          }
+        },
+        {
+          "no": 5,
+          "home": "PSV Eindhoven",
+          "away": "Feyenoord",
+          "odds": {
+            "home": 2.03,
+            "draw": 4.11,
+            "away": 3.08
+          }
+        },
+        {
+          "no": 6,
+          "home": "Genoa",
+          "away": "Venezia FC",
+          "odds": {
+            "home": 2.15,
+            "draw": 3.48,
+            "away": 3.49
+          }
+        },
+        {
+          "no": 7,
+          "home": "Monaco",
+          "away": "Lille",
+          "odds": {
+            "home": 2.19,
+            "draw": 3.48,
+            "away": 3.38
+          }
+        },
+        {
+          "no": 8,
+          "home": "Crystal Palace",
+          "away": "Newcastle",
+          "odds": {
+            "home": 2.82,
+            "draw": 3.64,
+            "away": 2.44
+          }
+        },
+        {
+          "no": 9,
+          "home": "Liverpool",
+          "away": "Brighton",
+          "odds": {
+            "home": 2.19,
+            "draw": 3.78,
+            "away": 3.13
+          }
+        },
+        {
+          "no": 10,
+          "home": "Hoffenheim",
+          "away": "Bayer Leverkusen",
+          "odds": {
+            "home": 2.7,
+            "draw": 3.96,
+            "away": 2.4
+          }
+        },
+        {
+          "no": 11,
+          "home": "Celta",
+          "away": "Betis",
+          "odds": {
+            "home": 2.81,
+            "draw": 3.48,
+            "away": 2.52
+          }
+        },
+        {
+          "no": 12,
+          "home": "Sunderland AFC",
+          "away": "Leeds United",
+          "odds": {
+            "home": 2.94,
+            "draw": 3.3,
+            "away": 2.52
+          }
+        }
+      ],
+      "pairedBaselineTickets": [
+        "X222X212222X",
+        "X22X111XX21X",
+        "21X12X121121",
+        "212212212X1X",
+        "1X222X1X1X22",
+        "1XXX122X1211",
+        "211X1212XX21",
+        "X1122X2212XX"
+      ],
+      "tickets": [
+        "2X211112122X",
+        "2X21111212X2",
+        "2221111212XX",
+        "XX2111121222",
+        "X2211112122X",
+        "2X21111X1222",
+        "2221111X122X",
+        "X221111212X2"
+      ],
+      "registeredAt": "2026-10-20T19:21:20.161Z",
+      "status": "PRE_REGISTERED",
+      "sha256": "ee53f3896bb27ea199fb9827958fcc51c86d8b56c85730e6ad7072f6c84108ba",
+      "auditTrail": [
+        {
+          "event": "PRE_REGISTERED",
+          "timestamp": "2026-10-20T19:21:20.161Z",
+          "gitCommit": "7225d95",
+          "canonicalHash": "ee53f3896bb27ea199fb9827958fcc51c86d8b56c85730e6ad7072f6c84108ba",
+          "ticketsCount": 8
+        }
+      ]
     }
   ]
 }

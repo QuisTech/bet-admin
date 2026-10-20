@@ -90,6 +90,30 @@ function jackpotSyncPlugin(): Plugin {
           }
         });
       });
+
+      server.middlewares.use('/api/prospective-register', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        }
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const data = JSON.parse(body || '{}');
+            // @ts-expect-error JS helper lacks type declarations
+            const { registerProspectiveRound } = await import('./scripts/prospectiveAuditHelper.js');
+            const result = registerProspectiveRound(data);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(result));
+          } catch (err: any) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err?.message || 'Failed to register prospective round' }));
+          }
+        });
+      });
     },
   };
 }

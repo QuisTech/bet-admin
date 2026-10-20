@@ -22,6 +22,7 @@ import {
   BarChart3,
   Activity,
   RotateCw,
+  Lock,
 } from 'lucide-react';
 import type { LoggedBet } from '../types';
 import { getLoggedBets, saveLoggedBets, notifyLedgerUpdated } from '../services/ledgerService';
@@ -35,6 +36,7 @@ import {
   type MonteCarloResult,
   type HistoricalRound,
   type Historical1xBetDraw,
+  SPORTYBET_ROUND_20261025,
   SPORTYBET_ROUND_20261018,
   ONEXBET_TOTO_DRAW_1154,
   historicalRoundToSlate,
@@ -52,7 +54,7 @@ import { ProspectiveAuditModal } from './ProspectiveAuditModal';
 
 export const JackpotOptimizer: React.FC = () => {
   const [platform, setPlatform] = useState<JackpotPlatform>('sportybet');
-  const [slate, setSlate] = useState<JackpotSlate>(SPORTYBET_ROUND_20261018);
+  const [slate, setSlate] = useState<JackpotSlate>(SPORTYBET_ROUND_20261025);
 
   // Historical archive & backtester state
   const [historicalRounds, setHistoricalRounds] = useState<HistoricalRound[]>([]);
@@ -60,8 +62,11 @@ export const JackpotOptimizer: React.FC = () => {
   const [selectedRoundId, setSelectedRoundId] = useState<string>('active');
   const [isBacktestModalOpen, setIsBacktestModalOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [isAuditRegisterOpen, setIsAuditRegisterOpen] = useState(false);
   const [isSyncingJackpot, setIsSyncingJackpot] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [isEditingPrize, setIsEditingPrize] = useState(false);
+  const [customPrizeInput, setCustomPrizeInput] = useState('');
 
   React.useEffect(() => {
     // Load SportyBet history
@@ -136,7 +141,9 @@ export const JackpotOptimizer: React.FC = () => {
         }
       }
     } else {
-      if (periodNumber === 'active') {
+      if (periodNumber === 'active' || periodNumber === '20261025') {
+        setSlate(SPORTYBET_ROUND_20261025);
+      } else if (periodNumber === '20261018') {
         setSlate(SPORTYBET_ROUND_20261018);
       } else {
         const hr = historicalRounds.find((r) => r.periodNumber === periodNumber);
@@ -167,7 +174,7 @@ export const JackpotOptimizer: React.FC = () => {
   const handlePlatformChange = (p: JackpotPlatform) => {
     setPlatform(p);
     setSelectedRoundId('active');
-    const target = p === 'sportybet' ? SPORTYBET_ROUND_20261018 : ONEXBET_TOTO_DRAW_1154;
+    const target = p === 'sportybet' ? SPORTYBET_ROUND_20261025 : ONEXBET_TOTO_DRAW_1154;
     setSlate(target);
     handleApplySweetspot(target);
     setCopiedTicketId(null);
@@ -531,8 +538,9 @@ export const JackpotOptimizer: React.FC = () => {
                   onChange={(e) => handleRoundSelect(e.target.value)}
                   className="w-full bg-slate-900 text-xs font-bold text-slate-200 py-1.5 px-3 rounded-xl border border-slate-800 focus:outline-none focus:border-amber-500/60 cursor-pointer font-mono truncate"
                 >
-                  <option value="active">🟢 Live Active: Round 20261018 (₦74.7M - Mega Rollover)</option>
-                  <optgroup label="Archived Rounds (Exact Odds & Real Scores)">
+                  <option value="active">🟢 Live Active: Round 20261025 (₦75.0M - Sat 15:00 WAT)</option>
+                  <optgroup label="Prospective & Archived Rounds">
+                    <option value="20261018">Round 20261018 (Settled • ₦74.7M)</option>
                     {historicalRounds.map((hr) => (
                       <option key={hr.periodNumber} value={hr.periodNumber}>
                         Round {hr.periodNumber} ({hr.isJackpotWon ? 'Won' : 'Rollover'} • ₦{(hr.maxWinnings / 1e6).toFixed(1)}M)
@@ -570,8 +578,20 @@ export const JackpotOptimizer: React.FC = () => {
             </div>
           )}
 
-          {/* Action Tools: Backtest, Sync, Guide */}
+          {/* Action Tools: Lock SHA-256, Backtest, Sync, Audit, Guide */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setIsAuditRegisterOpen(true);
+                setIsAuditModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/50 text-emerald-300 hover:text-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+              title="Create immutable SHA-256 pre-registered commitment for this round ahead of kickoff"
+            >
+              <Lock className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Lock SHA-256</span>
+            </button>
+
             <button
               onClick={() => setIsBacktestModalOpen(true)}
               className={`px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm ${
@@ -614,12 +634,15 @@ export const JackpotOptimizer: React.FC = () => {
             )}
 
             <button
-              onClick={() => setIsAuditModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/50 text-emerald-300 hover:text-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+              onClick={() => {
+                setIsAuditRegisterOpen(false);
+                setIsAuditModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-emerald-400 hover:text-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
               title="Audit live finished rounds against immutable SHA-256 pre-registered commitments on GitHub"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Live Protocol Audit</span>
+              <span>Protocol Audit</span>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             </button>
 
@@ -740,14 +763,67 @@ export const JackpotOptimizer: React.FC = () => {
                 </span>
               )}
             </div>
-            <span className="text-[10px] font-mono font-bold text-slate-400">
-              {platform === 'sportybet' ? `Round ${slate.roundNumber}` : `Draw no. ${slate.roundNumber}`}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-bold text-slate-400">
+                {platform === 'sportybet' ? `Round ${slate.roundNumber}` : `Draw no. ${slate.roundNumber}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomPrizeInput(String(slate.jackpotPrizeNGN));
+                  setIsEditingPrize(!isEditingPrize);
+                }}
+                className="text-[10px] text-amber-400/80 hover:text-amber-300 underline font-mono cursor-pointer"
+                title="Edit prize pool amount"
+              >
+                {isEditingPrize ? 'Cancel' : 'Edit'}
+              </button>
+            </div>
           </div>
           <div className="my-2">
-            <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight flex items-baseline gap-2">
-              <span>₦{slate.jackpotPrizeNGN.toLocaleString()}</span>
-            </div>
+            {isEditingPrize ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const parsedNum = parseInt(customPrizeInput.replace(/[^0-9]/g, ''), 10);
+                  if (!isNaN(parsedNum) && parsedNum > 0) {
+                    setSlate((prev) => ({
+                      ...prev,
+                      jackpotPrizeNGN: parsedNum,
+                      consolationTiers: prev.consolationTiers?.map((t) =>
+                        t.requiredPicks === (platform === 'sportybet' ? 12 : 14)
+                          ? { ...t, shareDescription: `Super Jackpot Prize (₦${parsedNum.toLocaleString()} pool share)` }
+                          : t
+                      ),
+                    }));
+                  }
+                  setIsEditingPrize(false);
+                }}
+                className="flex items-center gap-2 my-1"
+              >
+                <div className="relative flex-1">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono font-bold">₦</span>
+                  <input
+                    type="text"
+                    value={customPrizeInput}
+                    onChange={(e) => setCustomPrizeInput(e.target.value)}
+                    className="w-full pl-6 pr-2 py-1 text-sm font-mono font-bold bg-slate-950 border border-amber-500/50 rounded-xl text-white focus:outline-none focus:border-amber-400"
+                    placeholder="48,420,400"
+                    autoFocus
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition cursor-pointer"
+                >
+                  Save
+                </button>
+              </form>
+            ) : (
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight flex items-baseline gap-2">
+                <span>₦{slate.jackpotPrizeNGN.toLocaleString()}</span>
+              </div>
+            )}
             {overlayAnalysis.isRollover && (
               <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-emerald-400 font-mono">
                 <Sparkles className="w-3 h-3 text-emerald-400 shrink-0" />
@@ -1578,12 +1654,26 @@ export const JackpotOptimizer: React.FC = () => {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setIsAuditModalOpen(true)}
+              onClick={() => {
+                setIsAuditRegisterOpen(true);
+                setIsAuditModalOpen(true);
+              }}
               className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/50 text-emerald-300 hover:text-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+              title="Lock these generated covering tickets into the immutable SHA-256 Prospective Ledger ahead of kickoff"
+            >
+              <Lock className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Lock SHA-256 Commitment</span>
+            </button>
+            <button
+              onClick={() => {
+                setIsAuditRegisterOpen(false);
+                setIsAuditModalOpen(true);
+              }}
+              className="py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-emerald-400 hover:text-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
               title="Audit live finished rounds against immutable SHA-256 pre-registered commitments on GitHub"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Live Protocol Audit</span>
+              <span>Live Audit</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
             </button>
             <button
@@ -1738,8 +1828,13 @@ export const JackpotOptimizer: React.FC = () => {
       {/* Prospective Protocol & Live Settlement Audit Modal */}
       <ProspectiveAuditModal
         isOpen={isAuditModalOpen}
-        onClose={() => setIsAuditModalOpen(false)}
+        onClose={() => {
+          setIsAuditModalOpen(false);
+          setIsAuditRegisterOpen(false);
+        }}
         activePlatform={platform}
+        initialSlate={slate}
+        initialOpenRegister={isAuditRegisterOpen}
       />
     </div>
   );

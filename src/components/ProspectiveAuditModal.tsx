@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ShieldCheck,
@@ -7,8 +7,17 @@ import {
   X,
   Lock,
   Sparkles,
+  Copy,
+  Check,
+  CheckCircle2,
+  Calendar,
 } from 'lucide-react';
-import type { JackpotPlatform } from '../services/jackpotService';
+import {
+  type JackpotPlatform,
+  type JackpotSlate,
+  parseJackpotInput,
+  generateCoveringPortfolio,
+} from '../services/jackpotService';
 
 export interface ProspectiveRecord {
   protocolVersion: string;
@@ -73,12 +82,16 @@ interface ProspectiveAuditModalProps {
   isOpen: boolean;
   onClose: () => void;
   activePlatform: JackpotPlatform;
+  initialSlate?: JackpotSlate;
+  initialOpenRegister?: boolean;
 }
 
 export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
   isOpen,
   onClose,
   activePlatform,
+  initialSlate,
+  initialOpenRegister = false,
 }) => {
   const [platform, setPlatform] = useState<JackpotPlatform>(activePlatform);
   const [ledger, setLedger] = useState<ProspectiveLedger | null>(null);
@@ -86,6 +99,120 @@ export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
   const [isSettling, setIsSettling] = useState<boolean>(false);
   const [settleFeedback, setSettleFeedback] = useState<string | null>(null);
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
+
+  // Pre-registration drawer state
+  const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(initialOpenRegister);
+  const [registerInput, setRegisterInput] = useState<string>('');
+  const [parsedPreview, setParsedPreview] = useState<JackpotSlate | null>(initialSlate || null);
+  const [isRegistering, setIsRegistering] = useState<boolean>(false);
+  const [registerFeedback, setRegisterFeedback] = useState<string | null>(null);
+  const [copiedGitCmd, setCopiedGitCmd] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen && initialOpenRegister) {
+      setIsRegisterOpen(true);
+      if (initialSlate) {
+        setParsedPreview(initialSlate);
+      }
+    }
+  }, [isOpen, initialOpenRegister, initialSlate]);
+
+  const previewTickets = useMemo(() => {
+    if (!parsedPreview) return [];
+    const optTickets = platform === '1xbet' ? 4 : 8;
+    return generateCoveringPortfolio(parsedPreview, {
+      targetTickets: optTickets,
+      strategy: 'BALANCED_COVER',
+      minDraws: 2,
+      maxDraws: 5,
+      minHomes: platform === '1xbet' ? 5 : 3,
+      maxHomes: 9,
+    });
+  }, [parsedPreview, platform]);
+
+  const earliestKickoffIso = useMemo(() => {
+    if (!parsedPreview) return '';
+    const matchKickoffs = parsedPreview.matches.map((m) => {
+      if (m.date && m.time) {
+        const parts = m.date.split('/');
+        if (parts.length === 3) {
+          return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${m.time}:00+01:00`).getTime();
+        }
+      }
+      return null;
+    }).filter((k): k is number => k !== null && !isNaN(k));
+    if (matchKickoffs.length > 0) {
+      return new Date(Math.min(...matchKickoffs)).toISOString();
+    }
+    return new Date(Date.now() + 86400000).toISOString();
+  }, [parsedPreview]);
+
+  const handleParseInput = (val: string) => {
+    setRegisterInput(val);
+    setRegisterFeedback(null);
+    if (!val.trim()) {
+      setParsedPreview(null);
+      return;
+    }
+    const parsed = parseJackpotInput(val, platform);
+    if (parsed) {
+      setParsedPreview(parsed);
+    }
+  };
+
+  const handleCommitRegistration = async () => {
+    if (!parsedPreview) return;
+    setIsRegistering(true);
+    setRegisterFeedback('⚡ Generating covering portfolio & computing canonical SHA-256 fingerprint...');
+    try {
+      const ticketStrings = previewTickets.map((t) => t.picksArray.join(''));
+      const earliestKickoffMs = new Date(earliestKickoffIso).getTime();
+
+      const payload = {
+        platform,
+        roundId: parsedPreview.roundNumber,
+        deadline: earliestKickoffMs,
+        earliestKickoff: earliestKickoffIso,
+        oddsSource: platform === '1xbet' ? 'ONEXBET_TOTO_14_OFFICIAL_PRE_MATCH' : 'SPORTYBET_NG_OFFICIAL_PRE_MATCH',
+        oddsCapturedAt: new Date().toISOString(),
+        matchOddsSnapshot: parsedPreview.matches.map((m) => ({
+          no: m.no,
+          home: m.homeTeam,
+          away: m.awayTeam,
+          odds: {
+            home: m.odds.home,
+            draw: m.odds.draw,
+            away: m.odds.away,
+          },
+        })),
+        tickets: ticketStrings,
+        stake: platform === '1xbet' ? 3200 : 800,
+      };
+
+      const res = await fetch('/api/prospective-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRegisterFeedback(`✅ Successfully pre-registered Round ${data.roundId}! Canonical SHA-256: ${data.canonicalHash}`);
+        await loadLedgerData(platform);
+        setSelectedRoundId(data.roundId);
+        setTimeout(() => {
+          setIsRegisterOpen(false);
+          setRegisterInput('');
+        }, 4000);
+      } else {
+        setRegisterFeedback(`❌ Registration note: ${data.error || 'Server error'}`);
+      }
+    } catch (err: any) {
+      setRegisterFeedback(`❌ Communication error: ${err?.message || 'Failed to reach registration API'}`);
+    } finally {
+      setIsRegistering(false);
+    }
+  };
 
   useEffect(() => {
     setPlatform(activePlatform);
@@ -257,18 +384,164 @@ export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
             </button>
           </div>
 
-          <button
-            onClick={() => loadLedgerData(platform)}
-            disabled={isLoading}
-            className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-          >
-            <RotateCw className={`w-3.5 h-3.5 text-slate-400 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Refresh Ledger</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsRegisterOpen(!isRegisterOpen)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 border ${
+                isRegisterOpen
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
+              }`}
+              title="Pre-register an upcoming jackpot slate with an immutable SHA-256 fingerprint"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>{isRegisterOpen ? 'Close Register Drawer' : '+ Pre-Register Round (SHA-256)'}</span>
+            </button>
+
+            <button
+              onClick={() => loadLedgerData(platform)}
+              disabled={isLoading}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+            >
+              <RotateCw className={`w-3.5 h-3.5 text-slate-400 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
         {/* Modal Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {/* Pre-Registration Drawer */}
+          {isRegisterOpen && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950/30 border border-emerald-500/40 space-y-4 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Pre-Register Prospective Jackpot Round
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Paste upcoming fixtures &amp; odds to compute the bit-exact covering portfolio and lock an immutable SHA-256 fingerprint ahead of kickoff.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsRegisterOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Paste Textarea */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <label className="text-slate-300 font-bold flex items-center gap-1.5">
+                    <span>Paste Jackpot Table / Odds Text</span>
+                    <span className="text-[10px] text-slate-500 font-mono">(from SportyBet Super 12 or 1xBet TOTO)</span>
+                  </label>
+                  {initialSlate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParsedPreview(initialSlate);
+                        setRegisterFeedback(null);
+                      }}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-mono cursor-pointer"
+                    >
+                      ⚡ Use Active Loaded Slate (Round {initialSlate.roundNumber})
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={registerInput}
+                  onChange={(e) => handleParseInput(e.target.value)}
+                  placeholder={`Paste table or print text directly from SportyBet or 1xBet, e.g.:\nRound No. 20261025\n1  24/10/2026 15:00  Coventry City vs Fulham  2.93  3.57  2.45\n2  24/10/2026 17:00  Napoli vs Roma  2.83  3.41  2.61...`}
+                  rows={4}
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-mono placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/60"
+                />
+              </div>
+
+              {/* Preview of Parsed Slate */}
+              {parsedPreview && (
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/60 pb-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span className="font-bold text-white font-mono">
+                        Round #{parsedPreview.roundNumber} ({parsedPreview.matches.length} Matches Detected)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
+                      <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Earliest Kickoff: <strong className="text-amber-300">{new Date(earliestKickoffIso).toLocaleString('en-GB')}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Generated Covering Tickets Preview */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Frozen Covering Lines (BALANCED_COVER, {previewTickets.length} Tickets • ₦{(previewTickets.length * (platform === '1xbet' ? 800 : 100)).toLocaleString()}):</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 font-mono text-[11px]">
+                      {previewTickets.map((t, idx) => (
+                        <div key={idx} className="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 truncate">
+                          #{idx + 1}: <span className="text-emerald-400 font-bold">{t.picksArray.join('')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pre-Register Action Button */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <div className="text-[11px] text-slate-400 font-mono">
+                      <span>Commitment will be hashed with bit-exact canonical SHA-256 and locked before kickoff.</span>
+                    </div>
+                    <button
+                      onClick={handleCommitRegistration}
+                      disabled={isRegistering}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs transition flex items-center gap-2 cursor-pointer shadow-lg disabled:opacity-50 active:scale-95"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>{isRegistering ? 'Computing & Locking Hash...' : `🔒 Generate & Lock SHA-256 for Round ${parsedPreview.roundNumber}`}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback Alert */}
+              {registerFeedback && (
+                <div className={`p-3 rounded-xl border text-xs font-mono space-y-1.5 ${
+                  registerFeedback.startsWith('✅')
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    : registerFeedback.startsWith('⚡')
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                }`}>
+                  <div>{registerFeedback}</div>
+                  {registerFeedback.startsWith('✅') && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          const cmd = `git add audit/ public/data/ && git commit -m "feat(audit): pre-register prospective round with canonical SHA-256" && git push origin main`;
+                          navigator.clipboard.writeText(cmd);
+                          setCopiedGitCmd(true);
+                          setTimeout(() => setCopiedGitCmd(false), 3000);
+                        }}
+                        className="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 hover:bg-slate-800 text-[11px] text-slate-300 flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedGitCmd ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
+                        <span>{copiedGitCmd ? 'Copied Git Command!' : 'Copy Git Push Command (for GitHub Timestamp)'}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {/* Cohort Progress & Decision Rule Banner */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">

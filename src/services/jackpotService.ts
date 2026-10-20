@@ -474,7 +474,39 @@ export const SPORTYBET_ROUND_20261018: JackpotSlate = {
   ],
 };
 
-export const DEFAULT_SPORTYBET_SLATE = SPORTYBET_ROUND_20261018;
+export const SPORTYBET_ROUND_20261025: JackpotSlate = {
+  platform: 'sportybet',
+  roundId: 'Round No. 20261025',
+  roundNumber: '20261025',
+  matchCount: 12,
+  totalGames: 12,
+  ticketCostNGN: 100,
+  stakePerComboNGN: 100,
+  jackpotPrizeNGN: 48420400,
+  timeRemaining: '4 Days (Cutoff Sat 24/10 15:00 WAT)',
+  consolations: 'Super Jackpot: 12/12 • 2nd Prize: 11/12 • 3rd Prize: 10/12',
+  consolationTiers: [
+    { requiredPicks: 12, shareDescription: 'Super Jackpot Prize (₦48,420,400 pool share)' },
+    { requiredPicks: 11, shareDescription: '2nd Tier Consolation Prize Pool' },
+    { requiredPicks: 10, shareDescription: '3rd Tier Consolation Prize Pool' },
+  ],
+  matches: [
+    createSportyMatch(1, '24/10/2026', '15:00', 'Championship', 'Coventry City', 'Fulham', 2.93, 3.57, 2.45),
+    createSportyMatch(2, '24/10/2026', '17:00', 'Serie A', 'Napoli', 'Roma', 2.83, 3.41, 2.61),
+    createSportyMatch(3, '24/10/2026', '17:30', 'La Liga', 'Valencia', 'Villarreal', 3.20, 3.67, 2.25),
+    createSportyMatch(4, '24/10/2026', '19:45', 'Ligue 1', 'Lens', 'Paris FC', 2.34, 3.68, 2.93),
+    createSportyMatch(5, '25/10/2026', '14:30', 'Eredivisie', 'PSV Eindhoven', 'Feyenoord', 2.03, 4.11, 3.08),
+    createSportyMatch(6, '25/10/2026', '15:00', 'Serie A', 'Genoa', 'Venezia FC', 2.15, 3.48, 3.49),
+    createSportyMatch(7, '25/10/2026', '15:00', 'Ligue 1', 'Monaco', 'Lille', 2.19, 3.48, 3.38),
+    createSportyMatch(8, '25/10/2026', '15:00', 'Premier League', 'Crystal Palace', 'Newcastle', 2.82, 3.64, 2.44),
+    createSportyMatch(9, '25/10/2026', '15:00', 'Premier League', 'Liverpool', 'Brighton', 2.19, 3.78, 3.13),
+    createSportyMatch(10, '25/10/2026', '15:30', 'Bundesliga', 'Hoffenheim', 'Bayer Leverkusen', 2.70, 3.96, 2.40),
+    createSportyMatch(11, '25/10/2026', '16:15', 'La Liga', 'Celta', 'Betis', 2.81, 3.48, 2.52),
+    createSportyMatch(12, '25/10/2026', '17:30', 'Championship', 'Sunderland AFC', 'Leeds United', 2.94, 3.30, 2.52),
+  ],
+};
+
+export const DEFAULT_SPORTYBET_SLATE = SPORTYBET_ROUND_20261025;
 
 /**
  * Built-in active slate for 1xBet TOTO-Football (Draw no. 1154)
@@ -1468,7 +1500,7 @@ export function parseOneXBetTotoHTML(html: string): JackpotMatch[] {
 export function parseJackpotPlainText(
   text: string,
   platform: JackpotPlatform
-): { matches: JackpotMatch[]; roundNumber?: string } {
+): { matches: JackpotMatch[]; roundNumber?: string; jackpotPrizeNGN?: number } {
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -1476,13 +1508,30 @@ export function parseJackpotPlainText(
 
   const maxGames = platform === 'sportybet' ? 12 : 14;
   let extractedRound: string | undefined = undefined;
+  let extractedPrize: number | undefined = undefined;
 
-  // Extract round / draw number if present in header
-  for (const line of lines) {
-    const roundMatch = line.match(/(?:Round|Draw|Super Jackpot)[\s#:]*(\d{4,10}|\d{3,6})/i);
-    if (roundMatch) {
-      extractedRound = roundMatch[1];
-      break;
+  // Extract round / draw number & prize if present in header
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const prev = lines[i - 1] || '';
+
+    if (!extractedRound) {
+      const roundMatch = line.match(/(?:Round|Draw|Super Jackpot)(?:[\s#:\.]*(?:No\.?|Number|#)?)?\s*(\d{4,10}|\d{3,6})/i);
+      if (roundMatch) {
+        extractedRound = roundMatch[1];
+      }
+    }
+
+    if (!extractedPrize) {
+      const prizeMatch = line.match(/(?:(?:Predict|Win|Jackpot|Prize|Pool)[\s\w:]*)?(?:NGN|₦)[\s:]*([1-9]\d{0,2}(?:,\d{3}){1,3}|\d{7,10})/i);
+      if (prizeMatch) {
+        extractedPrize = parseInt(prizeMatch[1].replace(/,/g, ''), 10);
+      } else if (
+        (prev.includes('Win') || prev.includes('Jackpot') || prev.includes('Prize') || prev.includes('Predict')) &&
+        /^([1-9]\d{0,2}(?:,\d{3}){1,3}|\d{7,10})$/.test(line)
+      ) {
+        extractedPrize = parseInt(line.replace(/,/g, ''), 10);
+      }
     }
   }
 
@@ -1533,7 +1582,7 @@ export function parseJackpotPlainText(
   }
 
   if (singleLineMatches.length >= 6) {
-    return { matches: singleLineMatches, roundNumber: extractedRound };
+    return { matches: singleLineMatches, roundNumber: extractedRound, jackpotPrizeNGN: extractedPrize };
   }
 
   // Strategy 2: Multi-line chunking (one element per line from smartphone screen copy or print table view)
@@ -1827,7 +1876,7 @@ export function parseJackpotPlainText(
     }
   });
 
-  return { matches: finalMatches, roundNumber: extractedRound };
+  return { matches: finalMatches, roundNumber: extractedRound, jackpotPrizeNGN: extractedPrize };
 }
 
 /**
@@ -1867,12 +1916,19 @@ export function parseJackpotInput(input: string, platform: JackpotPlatform): Jac
   const plainResult = parseJackpotPlainText(input, platform);
   if (plainResult.matches.length >= 6) {
     const defaultSlate = platform === 'sportybet' ? DEFAULT_SPORTYBET_SLATE : DEFAULT_1XBET_SLATE;
+    const prize = plainResult.jackpotPrizeNGN || defaultSlate.jackpotPrizeNGN;
     return {
       ...defaultSlate,
       matches: plainResult.matches,
       totalGames: plainResult.matches.length,
       matchCount: platform === 'sportybet' ? 12 : 14,
       roundNumber: plainResult.roundNumber || defaultSlate.roundNumber,
+      jackpotPrizeNGN: prize,
+      consolationTiers: [
+        { requiredPicks: platform === 'sportybet' ? 12 : 14, shareDescription: `Super Jackpot Prize (₦${prize.toLocaleString()} pool share)` },
+        { requiredPicks: platform === 'sportybet' ? 11 : 13, shareDescription: '2nd Tier Consolation Prize Pool' },
+        { requiredPicks: platform === 'sportybet' ? 10 : 12, shareDescription: '3rd Tier Consolation Prize Pool' },
+      ],
     };
   }
 

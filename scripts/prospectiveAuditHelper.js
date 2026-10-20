@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -9,11 +10,17 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 
 const SPORTY_LEDGER_PATH = path.resolve(ROOT_DIR, 'audit/prospective_ledger.json');
 const ONEX_LEDGER_PATH = path.resolve(ROOT_DIR, 'audit/prospective_ledger_1xbet.json');
+const SPORTY_PUBLIC_LEDGER_PATH = path.resolve(ROOT_DIR, 'public/data/prospective_ledger.json');
+const ONEX_PUBLIC_LEDGER_PATH = path.resolve(ROOT_DIR, 'public/data/prospective_ledger_1xbet.json');
 const SPORTY_HISTORY_PATH = path.resolve(ROOT_DIR, 'public/data/sportybet_history.json');
 const ONEX_HISTORY_PATH = path.resolve(ROOT_DIR, 'public/data/1xbet_history.json');
 
 function getLedgerPath(platform = 'sportybet') {
   return platform === '1xbet' ? ONEX_LEDGER_PATH : SPORTY_LEDGER_PATH;
+}
+
+function getPublicLedgerPath(platform = 'sportybet') {
+  return platform === '1xbet' ? ONEX_PUBLIC_LEDGER_PATH : SPORTY_PUBLIC_LEDGER_PATH;
 }
 
 function getHistoryPath(platform = 'sportybet') {
@@ -52,6 +59,12 @@ export function loadProspectiveLedger(platform = 'sportybet') {
 export function saveProspectiveLedger(ledger, platform = 'sportybet') {
   const p = getLedgerPath(platform);
   fs.writeFileSync(p, JSON.stringify(ledger, null, 2), 'utf8');
+  try {
+    const pub = getPublicLedgerPath(platform);
+    fs.writeFileSync(pub, JSON.stringify(ledger, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Could not mirror ledger to public/data:', err);
+  }
 }
 
 export function computeCanonicalCommitmentHash(commitment) {
@@ -247,3 +260,139 @@ export function settleProspectiveRound(platform, roundId) {
     updatedLedger: ledger
   };
 }
+
+function getCurrentGitCommit() {
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: ROOT_DIR, encoding: 'utf8' }).trim();
+  } catch {
+    return '7225d95';
+  }
+}
+
+function createSeededRandom(seed) {
+  let s = seed;
+  return function () {
+    s |= 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return (t >>> 0) / 4294967296;
+  };
+}
+
+export function registerProspectiveRound({
+  platform = 'sportybet',
+  roundId,
+  deadline,
+  earliestKickoff,
+  oddsSource,
+  oddsCapturedAt,
+  gitCommit,
+  matchOddsSnapshot,
+  tickets,
+  pairedBaselineTickets,
+  stake,
+}) {
+  if (!roundId) throw new Error('Missing roundId');
+  if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
+    throw new Error('Missing tickets array');
+  }
+
+  const ledger = loadProspectiveLedger(platform);
+  const exists = ledger.records.some(r => String(r.roundId) === String(roundId));
+  if (exists) {
+    throw new Error(`Round ${roundId} is already pre-registered in ${platform} prospective ledger.`);
+  }
+
+  const numMatches = platform === '1xbet' ? 14 : 12;
+  const commit = gitCommit || getCurrentGitCommit();
+  const now = new Date().toISOString();
+
+  // If paired baseline tickets are not provided, generate them deterministically
+  let baseline = pairedBaselineTickets;
+  if (!baseline || !Array.isArray(baseline) || baseline.length === 0) {
+    const rng = createSeededRandom(parseInt(roundId, 10) + 1337);
+    baseline = [];
+    for (let t = 0; t < tickets.length; t++) {
+      const line = [];
+      for (let m = 0; m < numMatches; m++) {
+        const rand = Math.floor(rng() * 3) + 1;
+        line.push(rand === 1 ? '1' : rand === 2 ? 'X' : '2');
+      }
+      baseline.push(line.join(''));
+    }
+  }
+
+  const frozenConstraints = platform === '1xbet'
+    ? { minDraws: 2, maxDraws: 5, minHomes: 5, maxHomes: 9, minDistance: 2, maxDistance: 4 }
+    : { minDraws: 2, maxDraws: 5, minHomes: 3, maxHomes: 9, minDistance: 2, maxDistance: 4 };
+
+  const deadlineMs = typeof deadline === 'number' ? deadline : new Date(deadline).getTime();
+
+  const commitmentPayload = {
+    protocolVersion: '1.6.0',
+    roundId: String(roundId),
+    deadline: deadlineMs,
+    earliestKickoff: new Date(earliestKickoff).toISOString(),
+    oddsSource: oddsSource || (platform === '1xbet' ? 'ONEXBET_TOTO_14_OFFICIAL_PRE_MATCH' : 'SPORTYBET_NG_OFFICIAL_PRE_MATCH'),
+    oddsCapturedAt: oddsCapturedAt || now,
+    gitCommit: commit,
+    strategy: 'BALANCED_COVER',
+    frozenBeamWidth: 2000,
+    frozenConstraints,
+    scoringRules: platform === '1xbet' ? 'ONEXBET_TOTO_14_PARIMUTUEL' : 'SPORTYBET_SUPER_12_PARIMUTUEL',
+    stake: stake || (platform === '1xbet' ? 3200 : 800),
+    matchOddsSnapshot: (matchOddsSnapshot || []).map((m, idx) => ({
+      no: m.no || idx + 1,
+      home: m.home,
+      away: m.away,
+      odds: {
+        home: m.odds?.home ?? null,
+        draw: m.odds?.draw ?? null,
+        away: m.odds?.away ?? null
+      }
+    })),
+    pairedBaselineTickets: [...baseline].sort(),
+    tickets: [...tickets].sort()
+  };
+
+  const canonicalHash = computeCanonicalCommitmentHash(commitmentPayload);
+
+  const fullRecord = {
+    ...commitmentPayload,
+    tickets: [...tickets], // natural order
+    pairedBaselineTickets: [...baseline],
+    registeredAt: now,
+    status: 'PRE_REGISTERED',
+    sha256: canonicalHash,
+    auditTrail: [
+      {
+        event: 'PRE_REGISTERED',
+        timestamp: now,
+        gitCommit: commit,
+        canonicalHash,
+        ticketsCount: tickets.length
+      }
+    ]
+  };
+
+  ledger.records.push(fullRecord);
+  saveProspectiveLedger(ledger, platform);
+
+  // Independent disk verification check
+  const diskLedger = loadProspectiveLedger(platform);
+  const diskRecord = diskLedger.records.find(r => String(r.roundId) === String(roundId));
+  const recomputedDiskHash = computeCanonicalCommitmentHash(diskRecord);
+  if (recomputedDiskHash !== canonicalHash) {
+    throw new Error(`Integrity verification failed! Disk hash ${recomputedDiskHash} !== computed ${canonicalHash}`);
+  }
+
+  return {
+    success: true,
+    roundId: String(roundId),
+    canonicalHash,
+    record: fullRecord,
+    updatedLedger: ledger
+  };
+}
+
