@@ -190,7 +190,7 @@
         "12111121122X1X"
       ],
       "registeredAt": "2026-10-18T15:04:45.636Z",
-      "status": "PRE_REGISTERED",
+      "status": "SETTLED",
       "sha256": "4e510819e279ec2e8206258702766596ed9571fdbbe4000c706dd7d1d8f4e1dd",
       "auditTrail": [
         {
@@ -199,8 +199,91 @@
           "gitCommit": "30fb21c",
           "canonicalHash": "4e510819e279ec2e8206258702766596ed9571fdbbe4000c706dd7d1d8f4e1dd",
           "ticketsCount": 4
+        },
+        {
+          "event": "SETTLED",
+          "timestamp": "2026-10-23T08:55:20.826Z",
+          "actualResults": "1X211X211X2XX1",
+          "accuracyOutcome": {
+            "totalCorrect": 28,
+            "avgAccuracy": 7,
+            "picksPerTicket": [
+              6,
+              6,
+              8,
+              8
+            ],
+            "baselineTotalCorrect": 20,
+            "baselineAvgAccuracy": 5,
+            "baselinePicksPerTicket": [
+              4,
+              5,
+              2,
+              9
+            ],
+            "pairedDifference": 2
+          },
+          "financialOutcome": {
+            "stakeCharged": 3200,
+            "grossPayout": 0,
+            "netProfit": -3200,
+            "netROI": -100,
+            "dependsOnCounterfactualAssumption": false,
+            "counterfactualNotes": []
+          }
         }
-      ]
+      ],
+      "settledAt": "2026-10-23T08:55:20.826Z",
+      "actualResults": "1X211X211X2XX1",
+      "scoredLines": [
+        {
+          "ticketIndex": 1,
+          "picks": "121X112112211X",
+          "score": 6
+        },
+        {
+          "ticketIndex": 2,
+          "picks": "1211112X12211X",
+          "score": 6
+        },
+        {
+          "ticketIndex": 3,
+          "picks": "121111211221XX",
+          "score": 8
+        },
+        {
+          "ticketIndex": 4,
+          "picks": "12111121122X1X",
+          "score": 8
+        }
+      ],
+      "accuracyOutcome": {
+        "totalCorrect": 28,
+        "avgAccuracy": 7,
+        "picksPerTicket": [
+          6,
+          6,
+          8,
+          8
+        ],
+        "baselineTotalCorrect": 20,
+        "baselineAvgAccuracy": 5,
+        "baselinePicksPerTicket": [
+          4,
+          5,
+          2,
+          9
+        ],
+        "pairedDifference": 2
+      },
+      "financialOutcome": {
+        "stakeCharged": 3200,
+        "grossPayout": 0,
+        "netProfit": -3200,
+        "netROI": -100,
+        "dependsOnCounterfactualAssumption": false,
+        "counterfactualNotes": []
+      }
     },
     {
       "protocolVersion": "1.6.0",
@@ -377,7 +460,7 @@
         "11121212X12X12"
       ],
       "registeredAt": "2026-10-20T19:36:06.217Z",
-      "status": "PRE_REGISTERED",
+      "status": "SETTLED",
       "sha256": "8f24bbb35b9ba056dfadb98ff892b36553055b0a962219e7fc69e09d1e60687c",
       "auditTrail": [
         {
@@ -386,8 +469,91 @@
           "gitCommit": "7225d95",
           "canonicalHash": "8f24bbb35b9ba056dfadb98ff892b36553055b0a962219e7fc69e09d1e60687c",
           "ticketsCount": 4
+        },
+        {
+          "event": "SETTLED",
+          "timestamp": "2026-10-23T08:22:44.512Z",
+          "actualResults": "22X21X12X12211",
+          "accuracyOutcome": {
+            "totalCorrect": 29,
+            "avgAccuracy": 7.25,
+            "picksPerTicket": [
+              7,
+              7,
+              7,
+              8
+            ],
+            "baselineTotalCorrect": 19,
+            "baselineAvgAccuracy": 4.75,
+            "baselinePicksPerTicket": [
+              6,
+              1,
+              4,
+              8
+            ],
+            "pairedDifference": 2.5
+          },
+          "financialOutcome": {
+            "stakeCharged": 3200,
+            "grossPayout": 0,
+            "netProfit": -3200,
+            "netROI": -100,
+            "dependsOnCounterfactualAssumption": false,
+            "counterfactualNotes": []
+          }
         }
-      ]
+      ],
+      "settledAt": "2026-10-23T08:22:44.512Z",
+      "actualResults": "22X21X12X12211",
+      "scoredLines": [
+        {
+          "ticketIndex": 1,
+          "picks": "11121212X1X112",
+          "score": 7
+        },
+        {
+          "ticketIndex": 2,
+          "picks": "1112X212X12112",
+          "score": 7
+        },
+        {
+          "ticketIndex": 3,
+          "picks": "11121212XX2112",
+          "score": 7
+        },
+        {
+          "ticketIndex": 4,
+          "picks": "11121212X12X12",
+          "score": 8
+        }
+      ],
+      "accuracyOutcome": {
+        "totalCorrect": 29,
+        "avgAccuracy": 7.25,
+        "picksPerTicket": [
+          7,
+          7,
+          7,
+          8
+        ],
+        "baselineTotalCorrect": 19,
+        "baselineAvgAccuracy": 4.75,
+        "baselinePicksPerTicket": [
+          6,
+          1,
+          4,
+          8
+        ],
+        "pairedDifference": 2.5
+      },
+      "financialOutcome": {
+        "stakeCharged": 3200,
+        "grossPayout": 0,
+        "netProfit": -3200,
+        "netROI": -100,
+        "dependsOnCounterfactualAssumption": false,
+        "counterfactualNotes": []
+      }
     }
   ]
 }

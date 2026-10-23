@@ -80,7 +80,7 @@ function jackpotSyncPlugin(): Plugin {
             }
             // @ts-expect-error JS helper lacks type declarations
             const { settleProspectiveRound } = await import('./scripts/prospectiveAuditHelper.js');
-            const result = settleProspectiveRound(platform, roundId);
+            const result = await settleProspectiveRound(platform, roundId);
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(result));
           } catch (err: any) {

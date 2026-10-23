@@ -1,5 +1,861 @@
 [
   {
+    "drawNumber": 1155,
+    "status": "Settled",
+    "jackpot": 281386480,
+    "pool": 32538754,
+    "prizeFund": 29284878,
+    "countBets": 5822,
+    "countVariants": 36962,
+    "countUnique": 33124,
+    "updateDate": 1792702920000,
+    "isJackpotWon": false,
+    "matches": [
+      {
+        "no": 1,
+        "home": "Paris Saint-Germain",
+        "away": "Barcelona",
+        "champ": "UEFA Champions League",
+        "startDate": 1792522800000,
+        "homeScore": 4,
+        "awayScore": 2,
+        "score": "4:2",
+        "actualResult": "1",
+        "odds": {
+          "home": 2.38,
+          "draw": 5.88,
+          "away": 2.44
+        },
+        "publicPercents": {
+          "home": 43.39,
+          "draw": 10.51,
+          "away": 46.1
+        },
+        "bookPercents": {
+          "home": 42,
+          "draw": 17,
+          "away": 41
+        }
+      },
+      {
+        "no": 2,
+        "home": "VfB Stuttgart",
+        "away": "Atletico Madrid",
+        "champ": "UEFA Champions League",
+        "startDate": 1792522800000,
+        "homeScore": 1,
+        "awayScore": 1,
+        "score": "1:1",
+        "actualResult": "X",
+        "odds": {
+          "home": 3.13,
+          "draw": 4.76,
+          "away": 2.13
+        },
+        "publicPercents": {
+          "home": 16.21,
+          "draw": 13.34,
+          "away": 70.45
+        },
+        "bookPercents": {
+          "home": 32,
+          "draw": 21,
+          "away": 47
+        }
+      },
+      {
+        "no": 3,
+        "home": "Lille OSC",
+        "away": "Galatasaray",
+        "champ": "UEFA Champions League",
+        "startDate": 1792601100000,
+        "homeScore": 2,
+        "awayScore": 4,
+        "score": "2:4",
+        "actualResult": "2",
+        "odds": {
+          "home": 2.04,
+          "draw": 4.55,
+          "away": 3.45
+        },
+        "publicPercents": {
+          "home": 65.99,
+          "draw": 14.69,
+          "away": 19.31
+        },
+        "bookPercents": {
+          "home": 49,
+          "draw": 22,
+          "away": 29
+        }
+      },
+      {
+        "no": 4,
+        "home": "Como",
+        "away": "Manchester United",
+        "champ": "UEFA Champions League",
+        "startDate": 1792601100000,
+        "homeScore": 4,
+        "awayScore": 1,
+        "score": "4:1",
+        "actualResult": "1",
+        "odds": {
+          "home": 2.22,
+          "draw": 4.55,
+          "away": 3.03
+        },
+        "publicPercents": {
+          "home": 48.27,
+          "draw": 11.94,
+          "away": 39.79
+        },
+        "bookPercents": {
+          "home": 45,
+          "draw": 22,
+          "away": 33
+        }
+      },
+      {
+        "no": 5,
+        "home": "Club Brugge",
+        "away": "RC Lens",
+        "champ": "UEFA Champions League",
+        "startDate": 1792609200000,
+        "homeScore": 3,
+        "awayScore": 0,
+        "score": "3:0",
+        "actualResult": "1",
+        "odds": {
+          "home": 1.96,
+          "draw": 4.55,
+          "away": 3.7
+        },
+        "publicPercents": {
+          "home": 74.8,
+          "draw": 11.57,
+          "away": 13.63
+        },
+        "bookPercents": {
+          "home": 51,
+          "draw": 22,
+          "away": 27
+        }
+      },
+      {
+        "no": 6,
+        "home": "Bayern Munich",
+        "away": "Arsenal",
+        "champ": "UEFA Champions League",
+        "startDate": 1792609200000,
+        "homeScore": 2,
+        "awayScore": 2,
+        "score": "2:2",
+        "actualResult": "X",
+        "odds": {
+          "home": 2.04,
+          "draw": 4.76,
+          "away": 3.33
+        },
+        "publicPercents": {
+          "home": 72.08,
+          "draw": 13.29,
+          "away": 14.63
+        },
+        "bookPercents": {
+          "home": 49,
+          "draw": 21,
+          "away": 30
+        }
+      },
+      {
+        "no": 7,
+        "home": "Celtic",
+        "away": "Celta",
+        "champ": "UEFA Europa League",
+        "startDate": 1792695600000,
+        "homeScore": 1,
+        "awayScore": 2,
+        "score": "1:2",
+        "actualResult": "2",
+        "odds": {
+          "home": 3.13,
+          "draw": 4.17,
+          "away": 2.27
+        },
+        "publicPercents": {
+          "home": 33.6,
+          "draw": 30.49,
+          "away": 35.91
+        },
+        "bookPercents": {
+          "home": 32,
+          "draw": 24,
+          "away": 44
+        }
+      },
+      {
+        "no": 8,
+        "home": "Bournemouth",
+        "away": "Milan",
+        "champ": "UEFA Europa League",
+        "startDate": 1792695600000,
+        "homeScore": 3,
+        "awayScore": 0,
+        "score": "3:0",
+        "actualResult": "1",
+        "odds": {
+          "home": 2.08,
+          "draw": 4.35,
+          "away": 3.45
+        },
+        "publicPercents": {
+          "home": 64.83,
+          "draw": 15.27,
+          "away": 19.9
+        },
+        "bookPercents": {
+          "home": 48,
+          "draw": 23,
+          "away": 29
+        }
+      },
+      {
+        "no": 9,
+        "home": "TSG 1899 Hoffenheim",
+        "away": "Lyon",
+        "champ": "UEFA Europa League",
+        "startDate": 1792695600000,
+        "homeScore": 3,
+        "awayScore": 0,
+        "score": "3:0",
+        "actualResult": "1",
+        "odds": {
+          "home": 1.82,
+          "draw": 5,
+          "away": 4
+        },
+        "publicPercents": {
+          "home": 69.26,
+          "draw": 12.49,
+          "away": 18.25
+        },
+        "bookPercents": {
+          "home": 55,
+          "draw": 20,
+          "away": 25
+        }
+      },
+      {
+        "no": 10,
+        "home": "Celje",
+        "away": "FC Salzburg",
+        "champ": "UEFA Europa League",
+        "startDate": 1792695600000,
+        "homeScore": 2,
+        "awayScore": 2,
+        "score": "2:2",
+        "actualResult": "X",
+        "odds": {
+          "home": 5.26,
+          "draw": 5,
+          "away": 1.64
+        },
+        "publicPercents": {
+          "home": 4,
+          "draw": 4.83,
+          "away": 91.17
+        },
+        "bookPercents": {
+          "home": 19,
+          "draw": 20,
+          "away": 61
+        }
+      },
+      {
+        "no": 11,
+        "home": "Jagiellonia Bialystok",
+        "away": "Anderlecht",
+        "champ": "UEFA Europa League",
+        "startDate": 1792695600000,
+        "homeScore": 0,
+        "awayScore": 3,
+        "score": "0:3",
+        "actualResult": "2",
+        "odds": {
+          "home": 3.13,
+          "draw": 4.17,
+          "away": 2.27
+        },
+        "publicPercents": {
+          "home": 17.91,
+          "draw": 15.87,
+          "away": 66.21
+        },
+        "bookPercents": {
+          "home": 32,
+          "draw": 24,
+          "away": 44
+        }
+      },
+      {
+        "no": 12,
+        "home": "Besiktas",
+        "away": "Crystal Palace",
+        "champ": "UEFA Europa League",
+        "startDate": 1792695600000,
+        "homeScore": 2,
+        "awayScore": 2,
+        "score": "2:2",
+        "actualResult": "X",
+        "odds": {
+          "home": 2.08,
+          "draw": 4.55,
+          "away": 3.33
+        },
+        "publicPercents": {
+          "home": 70.47,
+          "draw": 12.42,
+          "away": 17.12
+        },
+        "bookPercents": {
+          "home": 48,
+          "draw": 22,
+          "away": 30
+        }
+      },
+      {
+        "no": 13,
+        "home": "Crvena Zvezda",
+        "away": "Copenhagen",
+        "champ": "UEFA Conference League",
+        "startDate": 1792687500000,
+        "homeScore": 2,
+        "awayScore": 2,
+        "score": "2:2",
+        "actualResult": "X",
+        "odds": {
+          "home": 2.44,
+          "draw": 4.35,
+          "away": 2.78
+        },
+        "publicPercents": {
+          "home": 45.55,
+          "draw": 12.99,
+          "away": 41.47
+        },
+        "bookPercents": {
+          "home": 41,
+          "draw": 23,
+          "away": 36
+        }
+      },
+      {
+        "no": 14,
+        "home": "Ajax",
+        "away": "Atalanta",
+        "champ": "UEFA Conference League",
+        "startDate": 1792695600000,
+        "homeScore": 2,
+        "awayScore": 0,
+        "score": "2:0",
+        "actualResult": "1",
+        "odds": {
+          "home": 3.03,
+          "draw": 4.35,
+          "away": 2.27
+        },
+        "publicPercents": {
+          "home": 60.83,
+          "draw": 14.97,
+          "away": 24.2
+        },
+        "bookPercents": {
+          "home": 33,
+          "draw": 23,
+          "away": 44
+        }
+      }
+    ],
+    "categories": [
+      {
+        "categoryNumber": 14,
+        "percent": 10,
+        "prizeFund": 284314959,
+        "guessed": 0,
+        "guessedInCurr": 0,
+        "payoutOn1CurrUnit": 0
+      },
+      {
+        "categoryNumber": 13,
+        "percent": 10,
+        "prizeFund": 2928479,
+        "guessed": 0,
+        "guessedInCurr": 0,
+        "payoutOn1CurrUnit": 0
+      },
+      {
+        "categoryNumber": 12,
+        "percent": 10,
+        "prizeFund": 2928479,
+        "guessed": 1,
+        "guessedInCurr": 923,
+        "payoutOn1CurrUnit": 3173.74
+      },
+      {
+        "categoryNumber": 11,
+        "percent": 15,
+        "prizeFund": 4392719,
+        "guessed": 20,
+        "guessedInCurr": 17566,
+        "payoutOn1CurrUnit": 250.07
+      },
+      {
+        "categoryNumber": 10,
+        "percent": 20,
+        "prizeFund": 5856976,
+        "guessed": 170,
+        "guessedInCurr": 149054,
+        "payoutOn1CurrUnit": 39.29
+      },
+      {
+        "categoryNumber": 9,
+        "percent": 35,
+        "prizeFund": 10249695,
+        "guessed": 865,
+        "guessedInCurr": 754427,
+        "payoutOn1CurrUnit": 13.59
+      }
+    ]
+  },
+  {
+    "drawNumber": 1154,
+    "status": "Settled",
+    "jackpot": 279126820,
+    "pool": 8369068,
+    "prizeFund": 7532160,
+    "countBets": 5280,
+    "countVariants": 8710,
+    "countUnique": 7588,
+    "updateDate": 1792443420000,
+    "isJackpotWon": false,
+    "matches": [
+      {
+        "no": 1,
+        "home": "Brentford",
+        "away": "Liverpool",
+        "champ": "England. Premier League",
+        "startDate": 1792245600000,
+        "homeScore": 1,
+        "awayScore": 2,
+        "score": "1:2",
+        "actualResult": "2",
+        "odds": {
+          "home": 2.38,
+          "draw": 4.35,
+          "away": 2.86
+        },
+        "publicPercents": {
+          "home": 34.5,
+          "draw": 18.74,
+          "away": 46.76
+        },
+        "bookPercents": {
+          "home": 42,
+          "draw": 23,
+          "away": 35
+        }
+      },
+      {
+        "no": 2,
+        "home": "Newcastle United",
+        "away": "Aston Villa",
+        "champ": "England. Premier League",
+        "startDate": 1792254600000,
+        "homeScore": 0,
+        "awayScore": 1,
+        "score": "0:1",
+        "actualResult": "2",
+        "odds": {
+          "home": 2.08,
+          "draw": 4.55,
+          "away": 3.33
+        },
+        "publicPercents": {
+          "home": 50.95,
+          "draw": 17.72,
+          "away": 31.33
+        },
+        "bookPercents": {
+          "home": 48,
+          "draw": 22,
+          "away": 30
+        }
+      },
+      {
+        "no": 3,
+        "home": "Leeds United",
+        "away": "Manchester United",
+        "champ": "England. Premier League",
+        "startDate": 1792328400000,
+        "homeScore": 1,
+        "awayScore": 1,
+        "score": "1:1",
+        "actualResult": "X",
+        "odds": {
+          "home": 2.5,
+          "draw": 4.35,
+          "away": 2.7
+        },
+        "publicPercents": {
+          "home": 40.42,
+          "draw": 21.16,
+          "away": 38.42
+        },
+        "bookPercents": {
+          "home": 40,
+          "draw": 23,
+          "away": 37
+        }
+      },
+      {
+        "no": 4,
+        "home": "Schalke 04",
+        "away": "1. FSV Mainz 05",
+        "champ": "Germany. Bundesliga",
+        "startDate": 1792243800000,
+        "homeScore": 0,
+        "awayScore": 1,
+        "score": "0:1",
+        "actualResult": "2",
+        "odds": {
+          "home": 3.33,
+          "draw": 4.17,
+          "away": 2.17
+        },
+        "publicPercents": {
+          "home": 28.17,
+          "draw": 19.27,
+          "away": 52.56
+        },
+        "bookPercents": {
+          "home": 30,
+          "draw": 24,
+          "away": 46
+        }
+      },
+      {
+        "no": 5,
+        "home": "Elversberg",
+        "away": "Augsburg",
+        "champ": "Germany. Bundesliga",
+        "startDate": 1792243800000,
+        "homeScore": 4,
+        "awayScore": 3,
+        "score": "4:3",
+        "actualResult": "1",
+        "odds": {
+          "home": 2.44,
+          "draw": 4.76,
+          "away": 2.63
+        },
+        "publicPercents": {
+          "home": 36.06,
+          "draw": 18.79,
+          "away": 45.14
+        },
+        "bookPercents": {
+          "home": 41,
+          "draw": 21,
+          "away": 38
+        }
+      },
+      {
+        "no": 6,
+        "home": "Valencia",
+        "away": "Athletic Bilbao",
+        "champ": "Spain. La Liga",
+        "startDate": 1792263600000,
+        "homeScore": 0,
+        "awayScore": 0,
+        "score": "0:0",
+        "actualResult": "X",
+        "odds": {
+          "home": 4.17,
+          "draw": 4,
+          "away": 1.96
+        },
+        "publicPercents": {
+          "home": 18.59,
+          "draw": 20.36,
+          "away": 61.06
+        },
+        "bookPercents": {
+          "home": 24,
+          "draw": 25,
+          "away": 51
+        }
+      },
+      {
+        "no": 7,
+        "home": "Celta",
+        "away": "Deportivo Alaves",
+        "champ": "Spain. La Liga",
+        "startDate": 1792332900000,
+        "homeScore": 2,
+        "awayScore": 1,
+        "score": "2:1",
+        "actualResult": "1",
+        "odds": {
+          "home": 1.96,
+          "draw": 3.85,
+          "away": 4.35
+        },
+        "publicPercents": {
+          "home": 65.24,
+          "draw": 19.54,
+          "away": 15.22
+        },
+        "bookPercents": {
+          "home": 51,
+          "draw": 26,
+          "away": 23
+        }
+      },
+      {
+        "no": 8,
+        "home": "Malaga",
+        "away": "Real Sociedad",
+        "champ": "Spain. La Liga",
+        "startDate": 1792341000000,
+        "homeScore": 2,
+        "awayScore": 5,
+        "score": "2:5",
+        "actualResult": "2",
+        "odds": {
+          "home": 3.57,
+          "draw": 4,
+          "away": 2.13
+        },
+        "publicPercents": {
+          "home": 14.13,
+          "draw": 18.19,
+          "away": 67.68
+        },
+        "bookPercents": {
+          "home": 28,
+          "draw": 25,
+          "away": 47
+        }
+      },
+      {
+        "no": 9,
+        "home": "Getafe",
+        "away": "Rayo Vallecano",
+        "champ": "Spain. La Liga",
+        "startDate": 1792436400000,
+        "homeScore": 1,
+        "awayScore": 1,
+        "score": "1:1",
+        "actualResult": "X",
+        "odds": {
+          "home": 3.03,
+          "draw": 3.33,
+          "away": 2.7
+        },
+        "publicPercents": {
+          "home": 33.26,
+          "draw": 33.04,
+          "away": 33.7
+        },
+        "bookPercents": {
+          "home": 33,
+          "draw": 30,
+          "away": 37
+        }
+      },
+      {
+        "no": 10,
+        "home": "Monza 1912",
+        "away": "Cagliari Calcio",
+        "champ": "Italy. Serie A",
+        "startDate": 1792427400000,
+        "homeScore": 4,
+        "awayScore": 0,
+        "score": "4:0",
+        "actualResult": "1",
+        "odds": {
+          "home": 2.22,
+          "draw": 3.45,
+          "away": 3.85
+        },
+        "publicPercents": {
+          "home": 49.05,
+          "draw": 20.22,
+          "away": 30.73
+        },
+        "bookPercents": {
+          "home": 45,
+          "draw": 29,
+          "away": 26
+        }
+      },
+      {
+        "no": 11,
+        "home": "Parma",
+        "away": "Torino",
+        "champ": "Italy. Serie A",
+        "startDate": 1792435500000,
+        "homeScore": 0,
+        "awayScore": 3,
+        "score": "0:3",
+        "actualResult": "2",
+        "odds": {
+          "home": 3.45,
+          "draw": 3.33,
+          "away": 2.44
+        },
+        "publicPercents": {
+          "home": 19.72,
+          "draw": 28.46,
+          "away": 51.81
+        },
+        "bookPercents": {
+          "home": 29,
+          "draw": 30,
+          "away": 41
+        }
+      },
+      {
+        "no": 12,
+        "home": "Le Havre",
+        "away": "Auxerre",
+        "champ": "France. Ligue 1",
+        "startDate": 1792336500000,
+        "homeScore": 1,
+        "awayScore": 3,
+        "score": "1:3",
+        "actualResult": "2",
+        "odds": {
+          "home": 2.38,
+          "draw": 4,
+          "away": 3.03
+        },
+        "publicPercents": {
+          "home": 56.28,
+          "draw": 22.93,
+          "away": 20.79
+        },
+        "bookPercents": {
+          "home": 42,
+          "draw": 25,
+          "away": 33
+        }
+      },
+      {
+        "no": 13,
+        "home": "Paris",
+        "away": "Stade Rennais",
+        "champ": "France. Ligue 1",
+        "startDate": 1792336500000,
+        "homeScore": 4,
+        "awayScore": 3,
+        "score": "4:3",
+        "actualResult": "1",
+        "odds": {
+          "home": 2.22,
+          "draw": 3.7,
+          "away": 3.57
+        },
+        "publicPercents": {
+          "home": 58.06,
+          "draw": 20.53,
+          "away": 21.41
+        },
+        "bookPercents": {
+          "home": 45,
+          "draw": 27,
+          "away": 28
+        }
+      },
+      {
+        "no": 14,
+        "home": "Lorient",
+        "away": "AS Monaco",
+        "champ": "France. Ligue 1",
+        "startDate": 1792336500000,
+        "homeScore": 1,
+        "awayScore": 0,
+        "score": "1:0",
+        "actualResult": "1",
+        "odds": {
+          "home": 4.55,
+          "draw": 4,
+          "away": 1.89
+        },
+        "publicPercents": {
+          "home": 11.77,
+          "draw": 14.2,
+          "away": 74.03
+        },
+        "bookPercents": {
+          "home": 22,
+          "draw": 25,
+          "away": 53
+        }
+      }
+    ],
+    "categories": [
+      {
+        "categoryNumber": 14,
+        "percent": 10,
+        "prizeFund": 279880034,
+        "guessed": 0,
+        "guessedInCurr": 0,
+        "payoutOn1CurrUnit": 0
+      },
+      {
+        "categoryNumber": 13,
+        "percent": 10,
+        "prizeFund": 753214,
+        "guessed": 0,
+        "guessedInCurr": 0,
+        "payoutOn1CurrUnit": 0
+      },
+      {
+        "categoryNumber": 12,
+        "percent": 10,
+        "prizeFund": 753214,
+        "guessed": 0,
+        "guessedInCurr": 0,
+        "payoutOn1CurrUnit": 0
+      },
+      {
+        "categoryNumber": 11,
+        "percent": 15,
+        "prizeFund": 1129821,
+        "guessed": 9,
+        "guessedInCurr": 8578,
+        "payoutOn1CurrUnit": 131.71
+      },
+      {
+        "categoryNumber": 10,
+        "percent": 20,
+        "prizeFund": 1506429,
+        "guessed": 109,
+        "guessedInCurr": 105139,
+        "payoutOn1CurrUnit": 14.33
+      },
+      {
+        "categoryNumber": 9,
+        "percent": 35,
+        "prizeFund": 2636250,
+        "guessed": 499,
+        "guessedInCurr": 528344,
+        "payoutOn1CurrUnit": 4.99
+      }
+    ]
+  },
+  {
     "drawNumber": 1153,
     "status": "Settled",
     "jackpot": 264286227,

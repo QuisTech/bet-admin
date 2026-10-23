@@ -89,7 +89,41 @@ export function computeCanonicalCommitmentHash(commitment) {
   return crypto.createHash('sha256').update(serialized).digest('hex');
 }
 
-export function settleProspectiveRound(platform, roundId) {
+export function computeLegacyCommitmentHash(commitment) {
+  const legacy = {
+    protocolVersion: commitment.protocolVersion,
+    roundId: String(commitment.roundId),
+    deadline: commitment.deadline,
+    earliestKickoff: commitment.earliestKickoff,
+    oddsSource: commitment.oddsSource,
+    oddsCapturedAt: commitment.oddsCapturedAt,
+    gitCommit: commitment.gitCommit,
+    strategy: commitment.strategy,
+    frozenBeamWidth: commitment.frozenBeamWidth,
+    frozenConstraints: commitment.frozenConstraints,
+    scoringRules: commitment.scoringRules,
+    stake: commitment.stake,
+    matchOddsSnapshot: commitment.matchOddsSnapshot,
+    pairedBaselineTickets: [...(commitment.pairedBaselineTickets || [])].sort(),
+    tickets: [...commitment.tickets].sort()
+  };
+  const serialized = JSON.stringify(legacy);
+  return crypto.createHash('sha256').update(serialized).digest('hex');
+}
+
+export function verifyCommitmentHash(rec) {
+  const canonicalHash = computeCanonicalCommitmentHash(rec);
+  if (canonicalHash === rec.sha256) {
+    return { valid: true, recomputedHash: canonicalHash };
+  }
+  const legacyHash = computeLegacyCommitmentHash(rec);
+  if (legacyHash === rec.sha256) {
+    return { valid: true, recomputedHash: legacyHash };
+  }
+  return { valid: false, recomputedHash: canonicalHash };
+}
+
+export async function settleProspectiveRound(platform, roundId) {
   const ledger = loadProspectiveLedger(platform);
   const rec = ledger.records.find(r => String(r.roundId) === String(roundId));
 
@@ -98,19 +132,42 @@ export function settleProspectiveRound(platform, roundId) {
   }
 
   // 1. Verify Canonical SHA-256 Hash
-  const recomputedHash = computeCanonicalCommitmentHash(rec);
-  const hashMatches = recomputedHash === rec.sha256;
-  if (!hashMatches) {
-    throw new Error(`Canonical commitment hash mismatch for round ${roundId}! Expected: ${rec.sha256}, Got: ${recomputedHash}`);
+  const hashCheck = verifyCommitmentHash(rec);
+  if (!hashCheck.valid) {
+    throw new Error(`Canonical commitment hash mismatch for round ${roundId}! Expected: ${rec.sha256}, Got: ${hashCheck.recomputedHash}`);
   }
 
   // 2. Load History to find official results
   const histPath = getHistoryPath(platform);
-  if (!fs.existsSync(histPath)) {
-    throw new Error(`History file not found at ${histPath}`);
+  let history = [];
+  if (fs.existsSync(histPath)) {
+    try {
+      history = JSON.parse(fs.readFileSync(histPath, 'utf8'));
+    } catch {
+      history = [];
+    }
   }
-  const history = JSON.parse(fs.readFileSync(histPath, 'utf8'));
-  const round = history.find(r => String(r.periodNumber || r.drawNumber) === String(roundId));
+
+  let round = history.find(r => String(r.periodNumber || r.drawNumber) === String(roundId));
+
+  // If round not yet present in history or not settled, auto-sync from live operator API
+  if (!round || !round.matches || !round.matches.every(m => m.actualResult)) {
+    try {
+      if (platform === '1xbet') {
+        const { sync1xBetDraws } = await import('./sync1xBetHelper.js');
+        await sync1xBetDraws({ maxPages: 4 });
+      } else {
+        const { syncJackpotRounds } = await import('./syncJackpotHelper.js');
+        await syncJackpotRounds();
+      }
+      if (fs.existsSync(histPath)) {
+        history = JSON.parse(fs.readFileSync(histPath, 'utf8'));
+        round = history.find(r => String(r.periodNumber || r.drawNumber) === String(roundId));
+      }
+    } catch (syncErr) {
+      console.warn(`Auto-sync for ${platform} round ${roundId} encountered error:`, syncErr?.message || syncErr);
+    }
+  }
 
   if (!round || !round.matches || !round.matches.every(m => m.actualResult)) {
     throw new Error(`Round ${roundId} does not yet have official settled actualResults in operator history.`);
@@ -197,7 +254,10 @@ export function settleProspectiveRound(platform, roundId) {
     // 1xBet parimutuel categories (14, 13, 12, 11, 10, 9)
     const catMap = {};
     if (Array.isArray(round.categories)) {
-      round.categories.forEach(c => { catMap[c.countEvents] = c.payoutOn1CurrUnit || 0; });
+      round.categories.forEach(c => {
+        const catKey = c.categoryNumber || c.countEvents;
+        if (catKey) catMap[catKey] = c.payoutOn1CurrUnit || 0;
+      });
     }
     const stakePerLine = rec.stake / rec.tickets.length;
     scoredLines.forEach(line => {

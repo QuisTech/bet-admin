@@ -228,7 +228,7 @@ export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
         const data = await res.json();
         setLedger(data);
         if (data.records && data.records.length > 0) {
-          setSelectedRoundId(data.records[data.records.length - 1].roundId);
+          setSelectedRoundId((prev) => (prev && data.records.some((r: any) => r.roundId === prev) ? prev : data.records[data.records.length - 1].roundId));
         }
         return;
       }
@@ -244,7 +244,7 @@ export const ProspectiveAuditModal: React.FC<ProspectiveAuditModalProps> = ({
         const data = await res.json();
         setLedger(data);
         if (data.records && data.records.length > 0) {
-          setSelectedRoundId(data.records[data.records.length - 1].roundId);
+          setSelectedRoundId((prev) => (prev && data.records.some((r: any) => r.roundId === prev) ? prev : data.records[data.records.length - 1].roundId));
         }
       }
     } catch (err) {
